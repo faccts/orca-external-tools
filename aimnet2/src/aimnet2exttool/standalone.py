@@ -12,8 +12,6 @@ import torch
 
 from aimnet2exttool import common, calculator
 
-import_time = time.perf_counter() - start_time  # FIXME debug
-
 
 def run_aimnet2(
         atom_types: list[str],
@@ -59,9 +57,7 @@ def run_aimnet2(
                                     charge=charge,
                                     dograd=dograd)
 
-    start_init = time.perf_counter()  # FIXME debug
     calc = calculator.init(model=model)
-    end_init = time.perf_counter()  # FIXME debug
 
     # set the number of threads
     torch.set_num_threads(nthreads)
@@ -69,12 +65,6 @@ def run_aimnet2(
     start_run = time.perf_counter()  # FIXME debug
     result = calc(**kwargs)
     end_run = time.perf_counter()  # FIXME debug
-
-    # FIXME debug
-    init_time = end_init - start_init
-    run_time = end_run - start_run
-    print("Init time:   {:6.3f} seconds".format(init_time))
-    print("Calc time:   {:6.3f} seconds".format(run_time))
 
     return common.process_output(result)
 
@@ -102,8 +92,6 @@ def run(arglist: list[str]):
     # convert to ORCA engrad
     common.write_engrad(orca_engrad, natoms, energy, dograd, gradient)
 
-    # FIXME debug timings
-    print("Import time: {:6.3f} seconds".format(import_time))
     print("Total time:  {:6.3f} seconds".format(time.perf_counter() - start_time))
 
 
