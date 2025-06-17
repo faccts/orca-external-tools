@@ -1,0 +1,21 @@
+[project]
+name = "umaexttool"
+version = "0.1.0"
+description = "uma wrapper for ORCA's ExtTool interface"
+requires-python = ">=3.11"
+dependencies = [
+    "fairchem-core>=2.2.0",
+    "Flask>=3,<4",
+    "numpy<3.0.0,>=2.1.1",
+    "requests>=2,<3",
+    "waitress>=3,<4"
+]
+
+[project.scripts]
+umaexttool = "umaexttool.standalone:main"
+umaserver = "umaexttool.server:main"
+umaclient = "umaexttool.client:main"
+
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"

@@ -1,0 +1,9 @@
+! extopt goat pal4
+%method
+  progext "../../umaclient.sh"
+end
+*xyz 0 1
+  H 0 0 0
+  O 0 0 0.9
+  H 0 0.9 0
+*

@@ -1,0 +1,8 @@
+! extopt opt
+%method
+  progext "../../umaclient.sh"
+end
+*xyz 0 1
+  H 0 0 0
+  F 0 0 0.9
+*
