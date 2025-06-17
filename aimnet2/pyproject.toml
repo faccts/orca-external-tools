@@ -1,0 +1,21 @@
+[project]
+name = "aimnet2exttool"
+version = "0.1.0"
+description = "AIMNet2 wrapper for ORCA's ExtTool interface"
+requires-python = ">=3.11"
+dependencies = [
+    "aimnet2calc @ https://github.com/isayevlab/AIMNet2/archive/refs/heads/main.zip",
+    "Flask>=3,<4",
+    "numpy<3.0.0,>=2.1.1",
+    "requests>=2,<3",
+    "waitress>=3,<4"
+]
+
+[project.scripts]
+aimnet2exttool = "aimnet2exttool.standalone:main"
+aimnet2server = "aimnet2exttool.server:main"
+aimnet2client = "aimnet2exttool.client:main"
+
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
