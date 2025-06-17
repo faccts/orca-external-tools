@@ -104,9 +104,6 @@ def run(arglist: list[str]):
     energy, gradient = submit_uma(server_url=args.bind, atom_types=atom_types, coordinates=coordinates,
                                       charge=charge, mult=mult, dograd=dograd, nthreads=ncores)
     
-    print("energy", energy)
-    print("gradient", gradient)
-    
     # convert to ORCA engrad
     common.write_engrad(orca_engrad, natoms, energy, dograd, gradient)
 

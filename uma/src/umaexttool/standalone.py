@@ -54,6 +54,8 @@ def run_uma(
             Flattened gradient vector (Eh/Bohr), if computed, otherwise empty.
     """
 
+    # set up calculator
+    calc = calculator.init(model)
     # set the number of threads
     torch.set_num_threads(nthreads)
 
