@@ -1,0 +1,5 @@
+ethanol_EXT.xyz # xyz filename: string, ending in '.xyz'
+0 # charge: integer
+1 # multiplicity: positive integer
+1 # NCores: positive integer
+1 # do gradient: 0 or 1

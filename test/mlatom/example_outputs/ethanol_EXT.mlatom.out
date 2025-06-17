@@ -1,0 +1,75 @@
+
+  !---------------------------------------------------------------------------!
+  !                                                                           !
+  !     MLatom: a Package for Atomistic Simulations with Machine Learning     !
+  !                             MLatom 3.xx.x                                 !
+  !                                   @                                       !
+  !                 Xiamen Atomistic Computing Suite (XACS)                   !
+  !                                                                           !
+  !                http://mlatom.com/ @ https://XACScloud.com                 !
+  !                                                                           !
+  !            MIT License (modified to request proper citations)             !
+  !                   Copyright (c) 2013- Pavlo O. Dral                       !
+  !                           http://dr-dral.com/                             !
+  !                                                                           !
+  ! Permission is hereby granted, free of charge, to any person obtaining a   !
+  ! copy of this software and associated documentation files (the "Software"),!
+  ! to deal in the Software without restriction, including without limitation !
+  ! the rights to use, copy, modify, merge, publish, distribute, sublicense,  !
+  ! and/or sell copies of the Software, and to permit persons to whom the     !
+  ! Software is furnished to do so, subject to the following conditions:      !
+  !                                                                           !
+  ! The above copyright notice and this permission notice shall be included   !
+  ! in all copies or substantial portions of the Software.                    !
+  ! When this Software or its derivatives are used                            !
+  ! in scientific publications, it shall be cited as:                         !
+  !                                                                           !
+  ! Pavlo O. Dral, Fuchun Ge, Yi-Fan Hou, Peikun Zheng, Yuxinxin Chen,        !
+  ! Mario Barbatti, Olexandr Isayev, Cheng Wang, Bao-Xin Xue,                 !
+  ! Max Pinheiro Jr, Yuming Su, Yiheng Dai, Yangtao Chen, Lina Zhang,         !
+  ! Shuang Zhang, Arif Ullah, Quanhao Zhang, Yanchi Ou.                       !
+  ! J. Chem. Theory Comput. 2024, 20, 1193-1213.                              !
+  !                                                                           !
+  ! Pavlo O. Dral, Fuchun Ge, Yi-Fan Hou, Peikun Zheng, Yuxinxin Chen,        !
+  ! Bao-Xin Xue, Mikolaj Martyka, Max Pinheiro Jr, Yuming Su, Yiheng Dai,     !
+  ! Yangtao Chen, Shuang Zhang, Lina Zhang, Arif Ullah, Quanhao Zhang,        !
+  ! Sebastian V. Pios, Yanchi Ou, Matheus O. Bispo, Vignesh B. Kumar,         !
+  ! Xin-Yu Tong,                                                              !
+  ! MLatom: A Package for Atomistic Simulations with Machine Learning,        !
+  ! version 3.xx.x, Xiamen University, Xiamen, China, 2013-2024.              !
+  !                                                                           !
+  ! The citations for MLatom's interfaces and features shall be eventually    !
+  ! included too. See header.py, ref.json and http://mlatom.com.              !
+  !                                                                           !
+  ! THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS   !
+  ! OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF                !
+  ! MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN !
+  ! NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,  !
+  ! DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR     !
+  ! OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE !
+  ! USE OR OTHER DEALINGS IN THE SOFTWARE.                                    !
+  !                                                                           !
+  !---------------------------------------------------------------------------!
+
+
+ ============================================================================== 
+ MLatom started on 04.05.2025 at 15:50:07
+        with the following options:
+        /mlatom/software/mlatom_user/mlatom/shell_cmd.py AIQM2 XYZfile=/mlatom/home/dral/soft/orca_external_tools/test/ethanol_EXT.xyz charges=0 multiplicities=1 nthreads=1 YestFile=/mlatom/home/dral/soft/orca_external_tools/test/ethanol_EXT.mlatom.energy YgradXYZestFile=/mlatom/home/dral/soft/orca_external_tools/test/ethanol_EXT.mlatom.gradient
+ ============================================================================== 
+
+
+
+ Properties of molecule 1
+
+ Standard deviation of NN contribution    :      0.00819395 Hartree         5.14178 kcal/mol
+ NN contribution                          :   -143.48983837 Hartree
+ GFN2-xTB* contribution                   :    -11.10105107 Hartree
+ D4 contribution                          :     -0.00043174 Hartree
+ Total energy                             :   -154.59132118 Hartree
+
+ ============================================================================== 
+ Wall-clock time: 19.39 s (0.32 min, 0.01 hours)
+
+ MLatom terminated on 04.05.2025 at 15:50:26
+ ============================================================================== 
