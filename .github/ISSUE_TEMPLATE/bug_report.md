@@ -25,7 +25,7 @@ A clear and concise description of what you expected to happen.
 
 **Version:**
  - OS: [e.g. Ubuntu 22.04]
- - ORCA [e.g. 6.0.1i]
+ - ORCA [e.g. 6.0.1]
 
 **Additional context**
 Add any other context about the problem here.
