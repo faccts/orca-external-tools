@@ -6,9 +6,11 @@ Note that this is currently a development version of g-xTB and that the final im
 
 from __future__ import annotations
 
+from email.mime import base
 import shutil
 import sys
 import subprocess
+import os
 from pathlib import Path
 from argparse import ArgumentParser
 from typing import Iterable
@@ -423,6 +425,19 @@ def main(argv: list[str]) -> None:
     gxtb_namespace = basename + ".gxtb"
     gxtbout = gxtb_namespace + ".out"
 
+    # tmp directory
+    tmp_dir = Path(basename)
+
+    # make tmp file and copy xyz
+    tmp_dir.mkdir(parents=True, exist_ok=True)
+
+    # Copy input file(s) to work_dir
+    shutil.copy(xyzname, tmp_dir)
+
+    # Change current directory to work_dir
+    base_dir = Path.cwd()
+    os.chdir(tmp_dir)
+
     # write .CHRG and .UHF file
     write_chrg_uhf(charge, mult, ".CHRG", ".UHF")
 
@@ -442,11 +457,14 @@ def main(argv: list[str]) -> None:
     # parse the xtb output
     energy, gradient = read_gxtbout(gxtbout, energy_out, gradient_out, natoms, dograd)
 
+    # go back to parent dir
+    os.chdir(base_dir)
+
     # write the ORCA engrad file
     write_engrad(orca_engrad, natoms, energy, dograd, gradient)
 
-    # print the xtb output to STDOUT and remove leftover files
-    clean_output(gxtbout, gxtb_namespace)
+    # remove tmp directory
+    shutil.rmtree(tmp_dir)
 
 
 if __name__ == "__main__":
