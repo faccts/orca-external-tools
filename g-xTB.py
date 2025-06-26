@@ -15,7 +15,7 @@ from typing import Iterable
 
 # path to the gxtb executable. If None, will look for all gxtb_names in the system PATH
 gxtb_exe: str | Path | None = None
-gxtb_names: list[str] = ["gxtb", "otool_gxtb"]
+gxtb_names: list[str] = ["gxtb"]
 
 
 # ----------------------------------------------------------------------------------------------------------------------
@@ -157,36 +157,20 @@ def run_command(
             sys.exit(err.returncode)
 
 
-def clean_output(outfile: str | Path, namespace: str) -> None:
+def print_filecontent(outfile: str | Path) -> None:
     """
-    Print the output file to STDOUT and remove all files starting with `namespace`
+    Print the file content, e.g. the output file, to STDOUT
 
     Parameters
     ----------
     outfile : str | Path
         The output file to print
-    namespace : str
-        The starting string of all files to remove.
     """
     # print the output to STDOUT
     outfile = enforce_path_object(outfile)
     with open(outfile) as f:
         for line in f:  # line by line to avoid memory overflow
             print(line, end="")
-    # remove all file from the namespace
-    for f in Path(".").glob(f"{namespace}*"):
-        f.unlink()
-
-    energy_file = "energy"
-    energy_file = outfile = enforce_path_object(energy_file)
-    energy_file.unlink()
-
-    grad_file = "gradient"
-    grad_file = outfile = enforce_path_object(grad_file)
-    grad_file.unlink()
-
-
-# ----------------------------------------------------------------------------------------------------------------------
 
 
 def run_gxtb(
@@ -423,7 +407,7 @@ def main(argv: list[str]) -> None:
     gxtbout = gxtb_namespace + ".out"
 
     # tmp directory
-    tmp_dir = Path(basename)
+    tmp_dir = Path(gxtb_namespace)
 
     # make tmp file and copy xyz
     tmp_dir.mkdir(parents=True, exist_ok=True)
@@ -453,6 +437,9 @@ def main(argv: list[str]) -> None:
 
     # parse the gxtb output
     energy, gradient = read_gxtbout(gxtbout, energy_out, gradient_out, natoms, dograd)
+
+    # print the output file to STDOUT
+    print_filecontent(gxtbout)
 
     # go back to parent dir
     os.chdir(base_dir)
