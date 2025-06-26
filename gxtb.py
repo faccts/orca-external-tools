@@ -2,6 +2,7 @@
 """
 This is a simple wrapper for the g-xTB binary (github.com/grimme-lab/g-xTB), compatible with ORCA's ExtTool interface.
 Note that this is currently a development version of g-xTB and that the final implementation will be available via tblite.
+It currently runs only serial due to technical limitations of the development version. 
 """
 
 import shutil
