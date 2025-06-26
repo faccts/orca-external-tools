@@ -1,12 +1,9 @@
 #!/usr/bin/env python3
 """
 This is a simple wrapper for the g-xTB binary (github.com/grimme-lab/g-xTB), compatible with ORCA's ExtTool interface.
-Note that this is currently a development version of g-xTB and that the final implementation will be available via tblite..
+Note that this is currently a development version of g-xTB and that the final implementation will be available via tblite.
 """
 
-from __future__ import annotations
-
-from email.mime import base
 import shutil
 import sys
 import subprocess
@@ -16,7 +13,7 @@ from argparse import ArgumentParser
 from typing import Iterable
 
 
-# path to the xtb executable. If None, will look for all XTB_NAMES in the system PATH
+# path to the gxtb executable. If None, will look for all gxtb_names in the system PATH
 gxtb_exe: str | Path | None = None
 gxtb_names: list[str] = ["gxtb", "otool_gxtb"]
 
@@ -157,7 +154,7 @@ def run_command(
             )
         except subprocess.CalledProcessError as err:
             print(err)
-            exit(err.returncode)
+            sys.exit(err.returncode)
 
 
 def clean_output(outfile: str | Path, namespace: str) -> None:
@@ -209,7 +206,7 @@ def run_gxtb(
     xyzname : str
         name of the XYZ file
     namespace : str
-        filename prefix for the xtb output files
+        filename prefix for the gxtb output files
     ncores : int
         number of threads to use
     dograd : bool
@@ -217,7 +214,7 @@ def run_gxtb(
     outfile : str | Path
         the output file
     *args : tuple[str, ...]
-        additional arguments to pass to xtb
+        additional arguments to pass to gxtb
     """
     args = list(map(str, args))
     args += [
@@ -236,14 +233,14 @@ def read_gxtbout(
     gxtb_out: str | Path, energy_out: str | Path, grad_out: str | Path, natoms: int, dograd: bool
 ) -> tuple[float, list[float]]:
     """
-    Read the output from XTB
+    Read the output from gxtb
 
     Parameters
     ----------
     namespace
-        filename prefix of the xtb output files
-    xtbout
-        the main xtb output file
+        filename prefix of the gxtb output files
+    gxtbout
+        the main gxtb output file
     natoms
         number of atoms in the system
     dograd
@@ -290,12 +287,12 @@ def read_gxtbout(
                 print(
                     f"Number of atoms read: {natoms_read} does not match the expected: {natoms}"
                 )
-                exit(1)
+                sys.exit(1)
             if len(gradient) != 3 * natoms:
                 print(
                     f"Number of gradient entries: {len(gradient)} does not match 3x number of atoms: {natoms}"
                 )
-                exit(1)
+                sys.exit(1)
 
     return energy, gradient
 
@@ -364,7 +361,7 @@ def main(argv: list[str]) -> None:
     parser = ArgumentParser(
         prog=argv[0],
         allow_abbrev=False,
-        description="Wrapper for xtb, compatible with ORCA's otool_external. "
+        description="Wrapper for gxtb, compatible with ORCA's otool_external. "
         "Reads the ORCA-generated input <inputfile>, calls gxtb, "
         "parses its output and writes the BaseName.engrad file for ORCA.",
     )
@@ -375,7 +372,7 @@ def main(argv: list[str]) -> None:
         metavar="gxtbexe",
         dest="gxtbexe",
         required=(not gxtbexe),
-        help="path to the xtb executable"
+        help="path to the gxtb executable"
         + (f' (default: "{gxtbexe}")' if gxtbexe else ""),
         default=gxtbexe,
     )
@@ -388,7 +385,7 @@ def main(argv: list[str]) -> None:
             "No gxtb exe found."
             "Please install gxtb correctly from GitHub."
             )
-        exit(1)
+        sys.exit(1)
 
     # check whether required parameter files are accessible
     parameter_file = Path("~/.gxtb").expanduser()
@@ -399,19 +396,19 @@ def main(argv: list[str]) -> None:
             "No .gxtb parameter file found in home directory."
             "Please install gxtb correctly from GitHub."
             )
-        exit(1)
+        sys.exit(1)
     if not check_file(eeq_file):
         print(
             "No .eeq parameter file found in home directory."
             "Please install gxtb correctly from GitHub."
             )
-        exit(1)
+        sys.exit(1)
     if not check_file(basis_file):
         print(
             "No .basisq parameter file found in home directory."
             "Please install gxtb correctly from GitHub."
             )
-        exit(1)
+        sys.exit(1)
 
     # delete gxtbrestart if present
     remove_file("gxtbrestart")
@@ -441,7 +438,7 @@ def main(argv: list[str]) -> None:
     # write .CHRG and .UHF file
     write_chrg_uhf(charge, mult, ".CHRG", ".UHF")
 
-    # run xtb
+    # run gxtb
     run_gxtb(
         gxtbexe, xyzname, dograd, gxtbout, *gxtb_args
     )
@@ -454,7 +451,7 @@ def main(argv: list[str]) -> None:
     energy_out = "energy"
     gradient_out = "gradient"
 
-    # parse the xtb output
+    # parse the gxtb output
     energy, gradient = read_gxtbout(gxtbout, energy_out, gradient_out, natoms, dograd)
 
     # go back to parent dir
