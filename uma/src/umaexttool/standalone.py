@@ -79,7 +79,7 @@ def run(arglist: list[str]):
     xyzname, charge, mult, ncores, dograd = common.read_input(args.inputfile)
 
     # set filenames
-    basename = xyzname.rstrip(".xyz")
+    basename = xyzname.removesuffix(".xyz")
     orca_engrad = basename + ".engrad"
 
     # process the XYZ file
