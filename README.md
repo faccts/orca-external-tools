@@ -91,3 +91,21 @@ The script may also print relevant output to STDOUT and/or STDERR.
 STDOUT will either be printed in the ORCA standard output, 
 or redirected to a temporary file and removed afterwards,
 depending on the type of job and ORCA output settings.
+
+# License
+## Open Source License
+This open source project is released publicly under the following open source license: `GPL-3.0`. This license governs all public releases of the code and allows anyone to use, modify, and distribute the project freely, in accordance with its terms.
+## Proprietary License
+The program, including all contributions, may also be included in our proprietary software products under a commercial license. This enables us to:
+- Combine open source and closed source components into a single product,
+- Offer the project under alternative licensing terms to customers with specific commercial needs,
+- Ensure open source compliance for all public parts, while simplifying license obligations in private or embedded distributions.
+
+## Contributor License Agreement (CLA)
+To maintain this licensing model, all contributors must sign our Contributor License Agreement (CLA). This CLA is an adapted industry-standard CLA (Apache CLA) with minor modifications. By signing the CLA, you
+- Retain ownership of your contributions,
+- Grant us a non-exclusive license to use, sublicense, relicense and distribute your contributions under both open source and proprietary terms.
+
+## We use a two-part CLA system:
+- [Individual CLA (ICLA) for personal contributions](CLA.md),
+- Corporate CLA (CCLA) for contributions made on behalf of an employer (available upon request to info@faccts.de).
