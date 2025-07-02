@@ -8,7 +8,8 @@ from argparse import ArgumentParser, Namespace
 from pathlib import Path
 from typing import Iterable
 from ase import Atoms
-
+import os
+import socket
 import numpy as np
 
 
@@ -287,6 +288,15 @@ ProgName = {
     RunMode.Standalone: "umaexttool",
 }
 
+def is_port_available(host: str, port: int) -> bool:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        result = sock.connect_ex((host, port))
+        return result != 0  # True if port is available (not connectable)
+
+def get_free_port() -> int:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.bind(('', 0))
+        return sock.getsockname()[1]
 
 def cli_parse(args: list[str], mode: RunMode) -> Namespace:
     """Parse the command line arguments, depending on the run mode of the wrapper."""
@@ -308,11 +318,18 @@ def cli_parse(args: list[str], mode: RunMode) -> Namespace:
             type=Path,
             default=default_model_path,
             help=f'The directory to look for uma model files. Default: "{default_model_path}".')
-    if mode in (RunMode.Server, RunMode.Client):
+    if mode in RunMode.Server:
         parser.add_argument(
             "-b", "--bind",
             metavar="hostname:port",
             default='127.0.0.1:8888',
+            help=f'Server bind address and port. Default: 127.0.0.1:8888.')
+    if mode is RunMode.Client:
+        default_bind = os.getenv("UMA_BIND", '127.0.0.1:8888')
+        parser.add_argument(
+            "-b", "--bind",
+            metavar="hostname:port",
+            default=default_bind,
             help=f'Server bind address and port. Default: 127.0.0.1:8888.')
     if mode is RunMode.Server:
         parser.add_argument(
@@ -322,4 +339,20 @@ def cli_parse(args: list[str], mode: RunMode) -> Namespace:
             default=1,
             help=f'Number of threads to use. Default: 1')
 
-    return parser.parse_args(args)
+    parsed = parser.parse_args(args)
+
+    if mode is RunMode.Server:
+        try:
+            host, port = parsed.bind.split(':')
+            port = int(port)
+        except ValueError:
+            parser.error("Invalid --bind format. Use host:port")
+
+        if not is_port_available(host, port):
+            print(f"Port {port} on {host} is already in use. Selecting a free one...")
+            port = get_free_port()
+            parsed.bind = f"{host}:{port}"
+            os.system(f"export UMA_BIND={host}:{port}")
+            print(f"Using new port: {parsed.bind}")
+
+    return parsed

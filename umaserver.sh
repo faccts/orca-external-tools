@@ -13,4 +13,6 @@ fi
 source $venv/bin/activate
 
 # Run the umaserver script with all passed arguments.
-umaserver "$@"
+umaserver "$@" &
+PID=$!
+echo "UMASERVER_PID: $PID"

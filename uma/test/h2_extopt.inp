@@ -1,0 +1,14 @@
+! ExtOpt sp
+
+%pal
+nprocs 4
+end
+
+%method
+ProgExt "../../../umaclient.sh"
+end
+
+* xyz 0 1
+H 0.0 0.0 0.0
+H 0.0 0.0 0.9
+*
