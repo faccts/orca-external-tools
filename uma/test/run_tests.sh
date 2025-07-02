@@ -38,28 +38,6 @@ eval $cmd
 # stop the server between tests
 killall umaserver
 
-sf="HF_orca_extclient_server2.serverout"
-cmd="../../umaserver.sh -b 127.0.0.1:38443 > $sf 2>&1 &"
-while true; do
-  if grep -q "INFO:waitress:Serving" $sf; then
-    export UMA_BIND=$(grep "INFO:waitress:Serving" $sf | awk '{print $NF}' | sed "s/http:\/\///")
-    echo "Started server on port $UMA_BIND"
-    export UMASERVER_PID=$(grep "UMASERVER_PID:" $sf | awk '{print $NF}')
-    echo "umaserver running with PID: $UMASERVER_PID"
-    break
-  fi
-  echo "Waiting for server"
-  sleep 1
-  elapsed=$((elapsed +1))
-  if [ $elapsed -ge "10" ] ; then
-    echo "Timeout"
-    exit 1
-  fi
-done
-
-echo "Starting calculation"
-$(which orca) HF_orca_extclient.inp > HF_orca_extclient_server2.out
-
 # Parallel server/client GOAT test
 # - start the server (4 threads)
 sf=H2O_goat_extclient.serverout
