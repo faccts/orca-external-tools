@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "oet"
+version = "0.1.0"
+description = "External tools for ORCA"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[project.scripts]
+otool_aenet = "oet.calculator.aenet:main"
+otool_aimnet2 = "oet.calculator.aimnet2:main"
+otool_gxtb = "oet.calculator.gxtb:main"
+otool_mlatom = "oet.calculator.mlatom:main"
+otool_mopac = "oet.calculator.mopac:main"
+otool_uma = "oet.calculator.uma:main"
+otool_xtb = "oet.calculator.xtb:main"
+otool_client = "oet.server_client.client:client"
+otool_server = "oet.server_client.server:main"

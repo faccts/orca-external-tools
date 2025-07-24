@@ -1,0 +1,75 @@
+#!/usr/bin/env python3
+"""
+Single script for redirecting to wrapper
+"""
+
+from argparse import ArgumentParser
+import importlib
+import inspect
+
+# The following defines first the key that is provided
+# to the otool script
+# Second, the path to import and third the calculator class
+CALCULATOR_CLASSES = {
+    "aenet": ("oet.calculators.aenet", "AenetCalc"),
+    "aimnet2": ("oet.calculators.aimnet2", "Aimnet2Calc"),
+    "client": ("oet.server_client.client", "client"),
+    "gxtb": ("oet.calculators.gxtb", "GxtbCalc"),
+    "mlatom": ("oet.calculators.mlatom", "MlatomCalc"),
+    "mopac": ("oet.calculators.mopac", "MopacCalc"),
+    "uma": ("oet.calculators.uma", "UmaCalc"),
+    "xtb": ("oet.calculators.xtb", "XtbCalc"),
+}
+
+
+def parse_otool() -> tuple[str, str, list[str]]:
+    """
+    Function for parsing otool keywords
+
+    Returns:
+    str: Argument for calculator type
+    str: Input file name
+    list[str]: Remaining arguments parsed by the subclasses
+    """
+    parser = ArgumentParser(
+        prog="otool",
+        description="ORCA external tools wrapper.",
+        epilog="Commands for individual programs can be obtained by calling <otool method --help>",
+    )
+    parser.add_argument("inputfile")
+    parser.add_argument(
+        "method",
+        choices=CALCULATOR_CLASSES.keys(),
+        help="Type of calculation to execute",
+    )
+    args, remaining_args = parser.parse_known_args()
+
+    return args.method, args.inputfile, remaining_args
+
+
+def main():
+    """
+    Main routine of otools
+    """
+    # First parse calculator type and cmd arguments
+    calc_type, inputfile, args = parse_otool()
+    # Get module to be imported and name of class
+    import_module, calculator_name = CALCULATOR_CLASSES[calc_type]
+    # Import everything
+    mod = importlib.import_module(import_module)
+    # Get class
+    calculator = getattr(mod, calculator_name)
+    if inspect.isfunction(calculator):
+        calculator()
+    elif inspect.isclass(calculator):
+        # Initialize object
+        calculator = calculator()
+        # Parsing and run the calculation
+        inputfile, args, clear_args = calculator.parse_args()
+        calculator.setup(args)
+        calculator.run(inputfile=inputfile, settings=args, clear_args=clear_args)
+
+
+# Python entry point
+if __name__ == "__main__":
+    main()
