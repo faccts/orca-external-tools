@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Calculator for using the predict.x binary from 
+Calculator for using the predict.x binary from
 aenet (http://ann.atomistic.net), compatible with ORCA's ExtTool interface.
 
 Provides
@@ -16,21 +16,20 @@ from typing import Iterable, Mapping
 
 from oet.core.base_calc import BaseCalc
 
+
 class AenetCalc(BaseCalc):
 
     # predict.x executable from aenet
-    PREDICT_EXE: str | Path | None = (
-        "predict.x"  # Path('/path/to/aenet/bin/predict.x-2.0.4-gfortran_serial')
-    )
+    PREDICT_EXE: str | Path = "predict.x"
     # directory, containing the NN files
     NNPATH: str | Path | None = None  # Path('/path/to/nns')
     # extension for the NN files (<Symbol>.<NNEXT>)
-    NNEXT: str | None = None  # '20tanh-20tanh.nn_TM'
-    
+    NNEXT: str | None = None
+
     @property
     def PROGRAM_KEYS(self) -> set[str]:
         """Program keys to search for in PATH"""
-        return {"aenet", "otools_aenet"}
+        return {"predict.x"}
 
     def extend_parser(self, parser: ArgumentParser):
         """Add aenet parsing options."""
@@ -82,7 +81,7 @@ class AenetCalc(BaseCalc):
         """
         atomtypes = set()
         xyzname = self.check_path(xyzname)
-        xsfname = self.check_path(xsfname)
+        xsfname = Path(xsfname)
         with xyzname.open() as xyzf, xsfname.open("w") as xsff:
             natoms = int(xyzf.readline())
             xyzf.readline()  # comment line
@@ -97,9 +96,8 @@ class AenetCalc(BaseCalc):
                 atomtypes.add(line.split()[0])
         return natoms, atomtypes
 
-
     def get_nns(
-        self, atomtypes: Iterable[str], nnpath: str | Path, nnext: str = None
+        self, atomtypes: Iterable[str], nnpath: str | Path, nnext: str | None = None
     ) -> dict[str, Path]:
         """Find the neural network potential files for each element in `atomtypes`.
         The files must all be in the same directory and be named "<ElementSymbol>.<Extension>" with the same extension.
@@ -110,7 +108,7 @@ class AenetCalc(BaseCalc):
             The elements needed
         nnpath : str | Path
             Path to the directory containing the neural network potential files
-        nnext : str, optional
+        nnext : str | None, default = None
             The extension for each NN file. If none is given '*' is used as a wildcard.
             However, then there must be a single file that matches, otherwise an exception is raised
 
@@ -140,7 +138,11 @@ class AenetCalc(BaseCalc):
         return nns
 
     def write_predict_input(
-        self, xsfname: str | Path, inpname: str | Path, dograd: bool, nns: Mapping[str, Path]
+        self,
+        xsfname: str | Path,
+        inpname: str | Path,
+        dograd: bool,
+        nns: Mapping[str, Path],
     ) -> None:
         """Write the input file for predict.x
 
@@ -155,8 +157,8 @@ class AenetCalc(BaseCalc):
         nns : Mapping[str, Path]
             Keys are element symbols and values are paths to the NN potential files
         """
-        inpname = self.check_path(inpname)
-        xsfname = self.check_path(xsfname)
+        inpname = Path(inpname)
+        xsfname = Path(xsfname)
         with inpname.open("w") as f:
             # write types
             f.write(f"TYPES\n{len(nns)}\n" + "\n".join(nns) + "\n\n")
@@ -170,9 +172,8 @@ class AenetCalc(BaseCalc):
             # write XSF file (only one supported)
             f.write(f"FILES\n1\n{xsfname}\n")
 
-
-    def run_predict(self,
-        predictexe: str | Path, inpname: str | Path, ncores: int
+    def run_predict(
+        self, predictexe: str | Path, inpname: str, ncores: int
     ) -> None:
         """
         Run the predict.x program and redirect its STDOUT and STDERR to a file. Exists on a non-zero return code.
@@ -181,25 +182,20 @@ class AenetCalc(BaseCalc):
         ----------
         predictexe : str | Path
             Path to the predict.x program
-        inpname : str | Path
+        inpname : str
             Path to the input file
-        outname : str | Path
-            The output file to be written to (overwritten!)
         ncores : int
             Number of cores to use # TODO: currently only implemented in serial
         """
-        self.run_command(predictexe, self.prog_out, inpname)
+        self.run_command(predictexe, self.prog_out, [inpname])
 
-
-    def read_predict_output(self, 
-        natoms: int, dograd: bool
+    def read_predict_output(
+        self, natoms: int, dograd: bool
     ) -> tuple[float, list[float]]:
         """Read the output from predict.x
 
         Parameters
         ----------
-        outname : str | Path
-            The name of the output file
         natoms : int
             The number of atoms in the system
         dograd : bool
@@ -207,11 +203,10 @@ class AenetCalc(BaseCalc):
 
         Returns
         -------
-        tuple[float, list[float]]
-            energy: float
-                The computed energy
-            gradient: list[float]
-                The gradient (X,Y,Z) for each atom
+        energy: float
+            The computed energy
+        gradient: list[float]
+            The gradient (X,Y,Z) for each atom
         """
         ENERGY_CONVERSION = {"eV": 27.21138625}
         LENGTH_CONVERSION = {"Ang": 0.529177210903}
@@ -249,8 +244,8 @@ class AenetCalc(BaseCalc):
         directory: Path,
         clear_args: list[str],
         prog: str,
-        nnpath,
-        nnext
+        nnpath: str,
+        nnext: str,
     ) -> tuple[float, list[float]]:
         """
         Routine for calculating energy and optional gradient.
@@ -258,14 +253,24 @@ class AenetCalc(BaseCalc):
 
         Parameters
         ----------
+        orca_input: dict
+            Input parameters
         directory: Path
             Directory where to work in
+        clear_args: list[str]
+            Arguments not parsed so far
+        prog: str
+            Path to program
+        nnpath: str
+            Path to nn files
+        nnext: str
+            extension of the nnfiles
         """
         # Get the information needed
         xyz_file = orca_input["xyz_file"]
-        xyz_file = directory/Path(xyz_file)
-        #chrg = orca_input["chrg"]
-        #mult = orca_input["mult"]
+        xyz_file = directory / Path(xyz_file)
+        # chrg = orca_input["chrg"]
+        # mult = orca_input["mult"]
         ncores = orca_input["ncores"]
         dograd = orca_input["dograd"]
         # Set and check the program path if its executable
@@ -286,7 +291,9 @@ class AenetCalc(BaseCalc):
         # find the NN files
         nns = self.get_nns(atomtypes=atomtypes, nnpath=nnpath, nnext=nnext)
         # write the input for predict.x
-        self.write_predict_input(xsfname=xsfname, inpname=inpname, dograd=dograd, nns=nns)
+        self.write_predict_input(
+            xsfname=xsfname, inpname=inpname, dograd=dograd, nns=nns
+        )
         # run predict.x
         self.run_predict(predictexe=predictexe, inpname=inpname, ncores=ncores)
         # parse the output
