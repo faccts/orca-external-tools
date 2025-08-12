@@ -6,8 +6,17 @@ then pass this information back to ORCA for use in optimization, NEB, GOAT, MD, 
 
 ## Installation
 
-The scripts should be put in some directory and made executable.
-The interpreter required for each script (e.g. `python`) should be available the user environment.
+Use the install.py to install the scripts. It will create a virtual environment, whose path should later on not be changed due to scripts linking the absolute path. The installation name and path of the virtual environment can be set upon installation:
+
+```
+python install.py --venv-dir <path/to/venv/dir/>
+```
+
+If you want to use either AIMNet2 or UMA, you can add `-e aimnet2` or `-e uma` to additionally install the required dependencies. As AIMNet2 and UMA require dependencies that are not compatible with each other, we recommend creating separate installations for each by specifying different virtual environment and script directories.
+
+After installation, you should have a directory per default called `scripts` where all wrapper scripts can be found that are usable out of the box. Their location and name can be chosen freely as long as the original virtual environment stays in place. You can also modify the path to these scripts upon installation with the `--script-dir path/to/scripts/` keyword. If you want to have multiple installations, e.g., to use UMA as well as AIMNet2, be careful to provide different script paths to avoid overwriting.
+
+The orca-external-tools currently require at least Python 3.11.
 
 ## Usage
 
@@ -26,6 +35,9 @@ or via the ORCA input:
   Ext_Params "optional command line arguments"
 end
 ```
+
+### Server
+For MLIPs like AIMNet2 and UMA, we recommend to use a server/client combination, as the calculations will otherwise take significantly longer. Therefore, start a calculation server with the otool_server script, e.g., `otool_server aimnet2`. It will handle the single-point and gradient calculations and can remain active for multiple ORCA runs. The number of cores it is allowed to use can be specified with `-n <Int>`. In your ORCA input, you then have to specify the otool_client as wrapper script. It will forward all the calculation requests to the server. If you want to keep multiple server running for different types of calculations, you have to specify different IDs and ports for the server and clients with the `-b ID:port` keyword. Provide the keyword to the client via ORCA `Ext_Params "-b ID:port"` input line.
 
 ## Interface
 
