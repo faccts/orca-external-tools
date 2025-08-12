@@ -372,29 +372,6 @@ def main(argv: list[str]) -> None:
             )
         sys.exit(1)
 
-    # check whether required parameter files are accessible
-    parameter_file = Path("~/.gxtb").expanduser()
-    eeq_file = Path("~/.eeq").expanduser()
-    basis_file = Path("~/.basisq").expanduser()
-    if not check_file(parameter_file):
-        print(
-            "No .gxtb parameter file found in home directory."
-            "Please install gxtb correctly from GitHub."
-            )
-        sys.exit(1)
-    if not check_file(eeq_file):
-        print(
-            "No .eeq parameter file found in home directory."
-            "Please install gxtb correctly from GitHub."
-            )
-        sys.exit(1)
-    if not check_file(basis_file):
-        print(
-            "No .basisq parameter file found in home directory."
-            "Please install gxtb correctly from GitHub."
-            )
-        sys.exit(1)
-
     # delete gxtbrestart if present
     remove_file("gxtbrestart")
 
