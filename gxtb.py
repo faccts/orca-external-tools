@@ -178,6 +178,7 @@ def run_gxtb(
     gxtbexe: str | Path,
     xyzname: str,
     dograd: bool,
+    ncores: int,
     outfile: str | Path,
     *args: tuple[str, ...],
 ) -> None:
@@ -201,6 +202,9 @@ def run_gxtb(
     *args : tuple[str, ...]
         additional arguments to pass to gxtb
     """
+    # Set number of cores by setting OMP_NUM_THREADS
+    os.environ["OMP_NUM_THREADS"] = f"{ncores},1"
+    
     args = list(map(str, args))
     args += [
         str(i) for i in ["-c", xyzname]
@@ -402,7 +406,7 @@ def main(argv: list[str]) -> None:
 
     # run gxtb
     run_gxtb(
-        gxtbexe, xyzname, dograd, gxtbout, *gxtb_args
+        gxtbexe, xyzname, dograd, ncores, gxtbout, *gxtb_args
     )
 
     # get the number of atoms from the xyz file
