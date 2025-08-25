@@ -65,7 +65,7 @@ class OtoolServer:
                     server_message = {"status": "Success"}
                     conn.sendall(json.dumps(server_message).encode())
                 except Exception as e:
-                    server_message = {"status": "Error", "error": e}
+                    server_message = {"status": "Error", "error_message": str(e), "error_type": type(e).__name__}
                     conn.sendall(json.dumps(server_message).encode())
 
     def set_calculator_type(self, calc_type: str):
