@@ -35,40 +35,14 @@ class GxtbCalc(BaseCalc):
             Parser that should be extended
         """
         parser.add_argument(
-            "-x", "-exe", "--exe", dest="prog", help="Path to the gxtb executable"
+            "-x", "--exe", dest="prog", help="Path to the gxtb executable"
         )
-
-    def check_gxtb_files(self) -> None:
-        """
-        Check whether gxtb dev files are installed
-        """
-        # check whether required parameter files are accessible
-        parameter_file = Path("~/.gxtb").expanduser()
-        eeq_file = Path("~/.eeq").expanduser()
-        basis_file = Path("~/.basisq").expanduser()
-        if not self.check_path(parameter_file):
-            print(
-                "No .gxtb parameter file found in home directory."
-                "Please install gxtb correctly from GitHub."
-            )
-            sys.exit(1)
-        if not self.check_path(eeq_file):
-            print(
-                "No .eeq parameter file found in home directory."
-                "Please install gxtb correctly from GitHub."
-            )
-            sys.exit(1)
-        if not self.check_path(basis_file):
-            print(
-                "No .basisq parameter file found in home directory."
-                "Please install gxtb correctly from GitHub."
-            )
-            sys.exit(1)
 
     def run_gxtb(
         self,
         xyz_file: str,
         dograd: bool,
+        ncores: int,
         args: list[str],
     ) -> None:
         """
@@ -80,9 +54,15 @@ class GxtbCalc(BaseCalc):
             name of the XYZ file
         dograd : bool
             whether to compute the gradient
+        ncores: int
+            number of cores to use
         args : list[str, ...]
             additional arguments to pass to gxtb
         """
+
+        # Set number of cores by setting OMP_NUM_THREADS
+        os.environ["OMP_NUM_THREADS"] = f"{ncores},1"
+
         args += [str(i) for i in ["-c", xyz_file]]
 
         if dograd:
@@ -189,13 +169,11 @@ class GxtbCalc(BaseCalc):
         chrg = orca_input["chrg"]
         mult = orca_input["mult"]
         dograd = orca_input["dograd"]
+        ncores = orca_input["ncores"]
         xyz_file = directory / Path(xyz_file)
         # Set and check the program path if its executable
         self.set_program_path(prog)
         print("Using executable ", self.prog_path)
-
-        # Check for files required by gxtb
-        self.check_gxtb_files()
 
         # tmp directory named after basename
         tmp_dir = Path(self.basename)
@@ -215,7 +193,7 @@ class GxtbCalc(BaseCalc):
         self.write_to_file(content=self.mult_to_nue(mult), file=".UHF")
 
         # run gxtb
-        self.run_gxtb(xyz_file=xyz_file, dograd=dograd, args=clear_args)
+        self.run_gxtb(xyz_file=xyz_file, dograd=dograd, ncores=ncores, args=clear_args)
 
         # get the number of atoms from the xyz file
         natoms = self.nat_from_xyzfile(xyz_file=xyz_file)
