@@ -472,12 +472,13 @@ def main(argv: list[str]) -> None:
     shutil.copy2(eeq_param, tmp_dir)
     shutil.copy2(basis_param, tmp_dir)
 
-    # Set the GXTBHOME (usually not necessary, but better be safe here)
-    os.environ["GXTBHOME"] = str(Path(tmp_dir).expanduser().resolve()) + "/"
-
     # Change current directory to work_dir
     base_dir = Path.cwd()
     os.chdir(tmp_dir)
+
+    # Set the GXTBHOME (usually not necessary, but better be safe here)
+    os.environ["GXTBHOME"] = "./"
+    print(os.getenv("GXTBHOME"))
 
     # write .CHRG and .UHF file
     write_chrg_uhf(charge, mult, ".CHRG", ".UHF")
