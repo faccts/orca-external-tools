@@ -204,11 +204,9 @@ def run_gxtb(
     """
     # Set number of cores by setting OMP_NUM_THREADS
     os.environ["OMP_NUM_THREADS"] = f"{ncores},1"
-    
+
     args = list(map(str, args))
-    args += [
-        str(i) for i in ["-c", xyzname]
-    ]
+    args += ["-c", str(xyzname), "-p", ".gxtb", "-e", ".eeq", "-b", ".basisq"]
 
     if dograd:
         args += ["-grad"]
@@ -337,7 +335,57 @@ def write_chrg_uhf(
 def check_file(file_path: Path | str) -> bool:
     """ Check whether file is present or not. Returns boolean."""
     return Path(file_path).is_file()
-    
+
+
+def check_parameter_files(file_path: str | None, filename: str) -> Path:
+    """
+    Check a parameter file. Looks first for CLAs, then GXTBHOME, 
+    then HOME, and finally the current working directory.
+    Terminates the program if the file cannot be found.
+
+    Parameters
+    ----------
+    file_path: str | None
+        CLA. None if no CLA was given
+    filename: str
+        filename of the parameterfile to look for
+
+    Returns
+    -------
+    Path: Path to the parameterfile
+    """
+    # First the path given via cmd
+    if file_path:
+        param_file = Path(file_path).expanduser().resolve()
+        if check_file(param_file):
+            return param_file
+        else:
+            print(f"File {file_path} not found. Searching in other locations.")
+    # Next the $GXTBHOME
+    gxtb_home = os.getenv("GXTBHOME")
+    if gxtb_home:
+        param_file = Path(gxtb_home + filename).expanduser().resolve()
+        if check_file(param_file):
+            print(f"Taking {filename} from GXTBHOME {gxtb_home}.")
+            return param_file
+    # Home directory
+    param_file = Path("~/" + filename).expanduser().resolve()
+    if check_file(param_file):
+        print(f"Taking {filename} from HOME.")
+        return param_file
+    # Current working dir
+    cwd = os.getcwd()
+    if cwd:
+        param_file = Path(cwd + "/" + filename).expanduser().resolve()
+        print(param_file)
+        if check_file(param_file):
+            print(f"Taking {filename} from cwd {cwd}.")
+            return param_file
+    # If nothing was found, terminate
+    print(f"No {filename} found. Terminating")
+    print("Please install gxtb correctly from GitHub.")
+    sys.exit(1)
+
 
 def main(argv: list[str]) -> None:
     """Main function to run the script"""
@@ -365,6 +413,24 @@ def main(argv: list[str]) -> None:
         + (f' (default: "{gxtbexe}")' if gxtbexe else ""),
         default=gxtbexe,
     )
+    parser.add_argument(
+        "-p",
+        metavar="gxtb_parameterfile",
+        dest="gxtb_parameterfile",
+        help="path to the gxtb parameterfile"
+    )
+    parser.add_argument(
+        "-e",
+        metavar="eeq_parameterfile",
+        dest="eeq_parameterfile",
+        help="path to the eeq parameterfile"
+    )
+    parser.add_argument(
+        "-b",
+        metavar="basis_parameterfile",
+        dest="basis_parameterfile",
+        help="path to the basis parameterfile"
+    )
     args, gxtb_args = parser.parse_known_args(argv[1:])
 
     # sanitize the path to gxtb and check whether it is accessible
@@ -375,6 +441,11 @@ def main(argv: list[str]) -> None:
             "Please install gxtb correctly from GitHub."
             )
         sys.exit(1)
+
+    # get parameter files
+    gxtb_param = check_parameter_files(args.gxtb_parameterfile, ".gxtb")
+    eeq_param = check_parameter_files(args.eeq_parameterfile, ".eeq")
+    basis_param = check_parameter_files(args.basis_parameterfile, ".basisq")
 
     # delete gxtbrestart if present
     remove_file("gxtbrestart")
@@ -396,6 +467,13 @@ def main(argv: list[str]) -> None:
 
     # Copy input file(s) to work_dir
     shutil.copy(xyzname, tmp_dir)
+    # Copy Parameterfiles to work_dir
+    shutil.copy2(gxtb_param, tmp_dir)
+    shutil.copy2(eeq_param, tmp_dir)
+    shutil.copy2(basis_param, tmp_dir)
+
+    # Set the GXTBHOME (usually not necessary, but better be safe here)
+    os.environ["GXTBHOME"] = str(Path(tmp_dir).expanduser().resolve()) + "/"
 
     # Change current directory to work_dir
     base_dir = Path.cwd()
