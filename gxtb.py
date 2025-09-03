@@ -364,23 +364,22 @@ def check_parameter_files(file_path: str | None, filename: str) -> Path:
     # Next the $GXTBHOME
     gxtb_home = os.getenv("GXTBHOME")
     if gxtb_home:
-        param_file = Path(gxtb_home + filename).expanduser().resolve()
+        gxtb_home = Path(gxtb_home).expanduser().resolve()
+        param_file = (gxtb_home / filename).resolve()
         if check_file(param_file):
             print(f"Taking {filename} from GXTBHOME {gxtb_home}.")
             return param_file
     # Home directory
-    param_file = Path("~/" + filename).expanduser().resolve()
+    param_file = (Path.home() / filename).resolve()
     if check_file(param_file):
         print(f"Taking {filename} from HOME.")
         return param_file
     # Current working dir
-    cwd = os.getcwd()
-    if cwd:
-        param_file = Path(cwd + "/" + filename).expanduser().resolve()
-        print(param_file)
-        if check_file(param_file):
-            print(f"Taking {filename} from cwd {cwd}.")
-            return param_file
+    cwd = Path.cwd()
+    param_file = (cwd / filename).resolve()
+    if check_file(param_file):
+        print(f"Taking {filename} from cwd {cwd}.")
+        return param_file
     # If nothing was found, terminate
     print(f"No {filename} found. Terminating")
     print("Please install gxtb correctly from GitHub.")
@@ -478,7 +477,6 @@ def main(argv: list[str]) -> None:
 
     # Set the GXTBHOME (usually not necessary, but better be safe here)
     os.environ["GXTBHOME"] = "./"
-    print(os.getenv("GXTBHOME"))
 
     # write .CHRG and .UHF file
     write_chrg_uhf(charge, mult, ".CHRG", ".UHF")
