@@ -466,7 +466,10 @@ def main(argv: list[str]) -> None:
 
     # Copy input file(s) to work_dir
     shutil.copy(xyzname, tmp_dir)
-    # Copy Parameterfiles to work_dir
+    # Copy Parameterfiles to work_dir, so that they are provided to
+    # the gxtb binary later on as relative paths.
+    # This is necessary as the gxtb binary does not
+    # allow for paths longer than 80 character.
     shutil.copy2(gxtb_param, tmp_dir)
     shutil.copy2(eeq_param, tmp_dir)
     shutil.copy2(basis_param, tmp_dir)
