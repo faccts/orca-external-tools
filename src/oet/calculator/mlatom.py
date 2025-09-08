@@ -36,6 +36,7 @@ import shutil
 import tempfile
 import os
 from oet.core.base_calc import BaseCalc
+from oet.core.misc import run_command, print_filecontent, check_path, LENGTH_CONVERSION
 
 
 class MlatomCalc(BaseCalc):
@@ -102,7 +103,7 @@ class MlatomCalc(BaseCalc):
             ]
             if dograd:
                 args += [f"YgradXYZestFile={mlatomgrad}"]
-            self.run_command(self.prog_path, self.prog_out, args)
+            run_command(self.prog_path, self.prog_out, args)
 
     def read_mlatomout(self, dograd: bool) -> tuple[float, list[float]]:
         """
@@ -124,32 +125,27 @@ class MlatomCalc(BaseCalc):
         mlatomgrad = f"{self.basename}.gradient"
         energy = None
         gradient = []
-        mlatomenergy = self.check_path(mlatomenergy)
-        mlatomgrad = self.check_path(mlatomgrad)
+        mlatomenergy = check_path(mlatomenergy)
+        mlatomgrad = check_path(mlatomgrad)
         # read the energy from the .energy file
         with mlatomenergy.open() as f:
             for line in f:
                 energy = float(line)
         # read the gradient from the .gradient file
         if dograd:
-            Bohr2Angstrom = (
-                0.52917721092  # Peter J. Mohr, Barry N. Taylor, David B. Newell,
-            )
-            # CODATA Recommended Values of the
-            # Fundamental Physical Constants: 2010, NIST, 2012.
             icount = 0
             with mlatomgrad.open() as f:
                 for line in f:
                     icount += 1
                     if icount > 2:
-                        gradient += [float(i) * Bohr2Angstrom for i in line.split()]
+                        gradient += [float(i) * LENGTH_CONVERSION["Ang"] for i in line.split()]
         return energy, gradient
 
     def calc(
         self,
         orca_input: dict,
         directory: Path,
-        clear_args: list[str],
+        args_not_parsed: list[str],
         prog: str,
     ) -> tuple[float, list[float]]:
         """
@@ -162,7 +158,7 @@ class MlatomCalc(BaseCalc):
             Input parameters
         directory: Path
             Directory where to work in
-        clear_args: list[str]
+        args_not_parsed: list[str]
             Arguments not parsed so far
         prog: str
             Which program executable to use
@@ -190,14 +186,14 @@ class MlatomCalc(BaseCalc):
             mult=mult,
             ncores=ncores,
             dograd=dograd,
-            args=clear_args,
+            args=args_not_parsed,
         )
 
         # parse the MLatom output
         energy, gradient = self.read_mlatomout(dograd=dograd)
 
         # Print filecontent
-        self.print_filecontent(outfile=self.prog_out)
+        print_filecontent(outfile=self.prog_out)
 
         # Delete files
         self.clean_files()
@@ -210,8 +206,8 @@ def main():
     Main routine for execution
     """
     calculator = MlatomCalc()
-    inputfile, args, clear_args = calculator.parse_args()
-    calculator.run(inputfile=inputfile, settings=args, clear_args=clear_args)
+    inputfile, args, args_not_parsed = calculator.parse_args()
+    calculator.run(inputfile=inputfile, settings=args, args_not_parsed=args_not_parsed)
 
 
 # Python entry point

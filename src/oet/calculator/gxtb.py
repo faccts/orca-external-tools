@@ -18,6 +18,7 @@ from argparse import ArgumentParser
 from pathlib import Path
 
 from oet.core.base_calc import BaseCalc
+from oet.core.misc import run_command, write_to_file, mult_to_nue, nat_from_xyzfile, print_filecontent, check_path
 
 
 class GxtbCalc(BaseCalc):
@@ -68,7 +69,7 @@ class GxtbCalc(BaseCalc):
         if dograd:
             args += ["-grad"]
 
-        self.run_command(self.prog_path, self.prog_out, args)
+        run_command(self.prog_path, self.prog_out, args)
 
         return
 
@@ -99,7 +100,7 @@ class GxtbCalc(BaseCalc):
         energy = None
         gradient = []
         # read the energy from the output file
-        energy_path = self.check_path(energy_out)
+        energy_path = check_path(energy_out)
         with energy_path.open() as f:
             lines = f.readlines()
             for i, line in enumerate(lines):
@@ -114,7 +115,7 @@ class GxtbCalc(BaseCalc):
             raise ValueError("Energy couldn't be found on gxtb output file.")
         # read the gradient from the .gradient file
         if dograd:
-            grad_path = self.check_path(grad_out)
+            grad_path = check_path(grad_out)
             natoms_read = 0
             with grad_path.open() as f:
                 for line in f:
@@ -142,7 +143,7 @@ class GxtbCalc(BaseCalc):
         return energy, gradient
 
     def calc(
-        self, orca_input: dict, directory: Path, clear_args: list[str], *, prog: str
+        self, orca_input: dict, directory: Path, args_not_parsed: list[str], *, prog: str
     ) -> tuple[float, list[float]]:
         """
         Routine for calculating energy and optional gradient.
@@ -154,7 +155,7 @@ class GxtbCalc(BaseCalc):
             Input written by ORCA
         directory: Path
             Directory where to work in
-        clear_args: list[str]
+        args_not_parsed: list[str]
             Arguments not parser so far
         prog: str
             Executable to gxtb
@@ -189,14 +190,14 @@ class GxtbCalc(BaseCalc):
         os.chdir(tmp_dir)
 
         # write .CHRG and .UHF file
-        self.write_to_file(content=chrg, file=".CHRG")
-        self.write_to_file(content=self.mult_to_nue(mult), file=".UHF")
+        write_to_file(content=chrg, file=".CHRG")
+        write_to_file(content=mult_to_nue(mult), file=".UHF")
 
         # run gxtb
-        self.run_gxtb(xyz_file=xyz_file, dograd=dograd, ncores=ncores, args=clear_args)
+        self.run_gxtb(xyz_file=xyz_file, dograd=dograd, ncores=ncores, args=args_not_parsed)
 
         # get the number of atoms from the xyz file
-        natoms = self.nat_from_xyzfile(xyz_file=xyz_file)
+        natoms = nat_from_xyzfile(xyz_file=xyz_file)
 
         # energy and gradient file
         energy_out = "energy"
@@ -208,7 +209,7 @@ class GxtbCalc(BaseCalc):
         )
 
         # print the output file to STDOUT
-        self.print_filecontent(outfile=self.prog_out)
+        print_filecontent(outfile=self.prog_out)
 
         # go back to parent dir
         os.chdir(base_dir)
@@ -224,8 +225,8 @@ def main():
     Main routine for execution
     """
     calculator = GxtbCalc()
-    inputfile, args, clear_args = calculator.parse_args()
-    calculator.run(inputfile=inputfile, settings=args, clear_args=clear_args)
+    inputfile, args, args_not_parsed = calculator.parse_args()
+    calculator.run(inputfile=inputfile, settings=args, args_not_parsed=args_not_parsed)
 
 
 # Python entry point

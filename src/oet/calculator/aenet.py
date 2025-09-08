@@ -12,15 +12,13 @@ main: function
 """
 from argparse import ArgumentParser
 from pathlib import Path
-from typing import Iterable, Mapping
+from typing import Mapping
 
 from oet.core.base_calc import BaseCalc
-
+from oet.core.misc import xyz2xsf, get_nns, run_command, print_filecontent, check_path, ENERGY_CONVERSION, LENGTH_CONVERSION
 
 class AenetCalc(BaseCalc):
 
-    # predict.x executable from aenet
-    PREDICT_EXE: str | Path = "predict.x"
     # directory, containing the NN files
     NNPATH: str | Path | None = None  # Path('/path/to/nns')
     # extension for the NN files (<Symbol>.<NNEXT>)
@@ -61,84 +59,8 @@ class AenetCalc(BaseCalc):
             ),
         )
 
-    def xyz2xsf(self, xyzname: str | Path, xsfname: str | Path) -> tuple[int, set[str]]:
-        """Convert a XYZ file to XSF format.
-
-        Parameters
-        ----------
-        xyzname : str | Path
-            The XYZ file to convert
-        xsfname : str | Path
-            The output XSF file name
-
-        Returns
-        -------
-        tuple[int, set[str]]
-            natoms: int
-                The number of atoms in the XYZ file
-            atomtypes: set[str]
-                The elements present in the XYZ file
-        """
-        atomtypes = set()
-        xyzname = self.check_path(xyzname)
-        xsfname = Path(xsfname)
-        with xyzname.open() as xyzf, xsfname.open("w") as xsff:
-            natoms = int(xyzf.readline())
-            xyzf.readline()  # comment line
-
-            xsff.write("#\n\nATOMS\n")
-            for i, line in enumerate(xyzf):
-                if i >= natoms:
-                    break
-                # add the forces and print
-                xsff.write(line.rstrip() + "  0.0  0.0  0.0\n")
-                # collect the elements
-                atomtypes.add(line.split()[0])
-        return natoms, atomtypes
-
-    def get_nns(
-        self, atomtypes: Iterable[str], nnpath: str | Path, nnext: str | None = None
-    ) -> dict[str, Path]:
-        """Find the neural network potential files for each element in `atomtypes`.
-        The files must all be in the same directory and be named "<ElementSymbol>.<Extension>" with the same extension.
-
-        Parameters
-        ----------
-        atomtypes : Iterable[str]
-            The elements needed
-        nnpath : str | Path
-            Path to the directory containing the neural network potential files
-        nnext : str | None, default = None
-            The extension for each NN file. If none is given '*' is used as a wildcard.
-            However, then there must be a single file that matches, otherwise an exception is raised
-
-        Returns
-        -------
-        dict[str, Path]
-            The keys are element symbols and the values are paths to the NN files
-
-        Raises
-        ------
-        RuntimeError
-            If more than one or no NN files are found for a requested element
-        """
-        nnpath = self.check_path(nnpath)
-        if not nnext:
-            nnext = "*"
-        nns = {}
-        for a in atomtypes:
-            matches = list(nnpath.glob(f"{a}.{nnext}"))
-            if not matches:
-                raise RuntimeError(f"No NN files found for {a} in {nnpath}")
-            if len(matches) > 1:
-                raise RuntimeError(
-                    f"Multiple NN files found for {a}: {matches}. Set --nnext to specify the extension"
-                )
-            nns[a] = matches[0]
-        return nns
-
+    @staticmethod
     def write_predict_input(
-        self,
         xsfname: str | Path,
         inpname: str | Path,
         dograd: bool,
@@ -187,7 +109,7 @@ class AenetCalc(BaseCalc):
         ncores : int
             Number of cores to use # TODO: currently only implemented in serial
         """
-        self.run_command(predictexe, self.prog_out, [inpname])
+        run_command(predictexe, self.prog_out, [inpname])
 
     def read_predict_output(
         self, natoms: int, dograd: bool
@@ -208,8 +130,6 @@ class AenetCalc(BaseCalc):
         gradient: list[float]
             The gradient (X,Y,Z) for each atom
         """
-        ENERGY_CONVERSION = {"eV": 27.21138625}
-        LENGTH_CONVERSION = {"Ang": 0.529177210903}
         energy = None
         gradient = []
         with open(self.prog_out) as f:
@@ -242,7 +162,7 @@ class AenetCalc(BaseCalc):
         self,
         orca_input: dict,
         directory: Path,
-        clear_args: list[str],
+        args_not_parsed: list[str],
         prog: str,
         nnpath: str,
         nnext: str,
@@ -257,7 +177,7 @@ class AenetCalc(BaseCalc):
             Input parameters
         directory: Path
             Directory where to work in
-        clear_args: list[str]
+        args_not_parsed: list[str]
             Arguments not parsed so far
         prog: str
             Path to program
@@ -277,8 +197,8 @@ class AenetCalc(BaseCalc):
         self.set_program_path(prog)
         print("Using executable ", self.prog_path)
         # Check other files
-        nnpath = self.check_path(nnpath)
-        predictexe = self.check_path(prog)
+        nnpath = check_path(nnpath)
+        predictexe = check_path(prog)
 
         # set filenames
         namespace = self.basename + ".predict"
@@ -287,9 +207,9 @@ class AenetCalc(BaseCalc):
         self.prog_out = namespace + ".out"
 
         # process the XYZ file
-        natoms, atomtypes = self.xyz2xsf(xyzname=xyz_file, xsfname=xsfname)
+        natoms, atomtypes = xyz2xsf(xyzname=xyz_file, xsfname=xsfname)
         # find the NN files
-        nns = self.get_nns(atomtypes=atomtypes, nnpath=nnpath, nnext=nnext)
+        nns = get_nns(atomtypes=atomtypes, nnpath=nnpath, nnext=nnext)
         # write the input for predict.x
         self.write_predict_input(
             xsfname=xsfname, inpname=inpname, dograd=dograd, nns=nns
@@ -300,7 +220,7 @@ class AenetCalc(BaseCalc):
         energy, gradient = self.read_predict_output(natoms, dograd)
 
         # Print filecontent
-        self.print_filecontent(outfile=self.prog_out)
+        print_filecontent(outfile=self.prog_out)
 
         # Delete files
         self.clean_files()
@@ -311,8 +231,8 @@ class AenetCalc(BaseCalc):
 def main():
     """ """
     calculator = AenetCalc()
-    inputfile, args, clear_args = calculator.parse_args()
-    calculator.run(inputfile=inputfile, settings=args, clear_args=clear_args)
+    inputfile, args, args_not_parsed = calculator.parse_args()
+    calculator.run(inputfile=inputfile, settings=args, args_not_parsed=args_not_parsed)
 
 
 # Python entry point

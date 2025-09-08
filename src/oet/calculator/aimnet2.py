@@ -14,13 +14,12 @@ import os
 from argparse import ArgumentParser
 from pathlib import Path
 from typing import Any
+import sys
 from oet.core.base_calc import CalcServer
-import torch
+from oet.core.misc import xyzfile_to_at_coord, ENERGY_CONVERSION, LENGTH_CONVERSION
 
 try:
     from aimnet2calc import AIMNet2Calculator
-    import numpy as np
-    import torch
 except ImportError:
     print(
         "[MISSING] Required module aimnet2calc not found.\n"
@@ -28,6 +27,13 @@ except ImportError:
         "Therefore, activate the venv, got to the orca-external-tools "
         "main directory and use pip install -r requirements/aimnet2.txt"
     )
+    sys.exit(1)
+
+try:
+    import torch
+except ImportError as e:
+    print("[MISSING] torch not found:", e)
+    sys.exit(1)
 
 
 class Aimnet2Calc(CalcServer):
@@ -50,7 +56,7 @@ class Aimnet2Calc(CalcServer):
         "I": 53,
     }
 
-    # Fairchem calculator used to compute energy and grad
+    # AIMNet2 calculator used to compute energy and grad
     _calc: AIMNet2Calculator
 
     @property
@@ -259,9 +265,6 @@ class Aimnet2Calc(CalcServer):
             gradient : list[float]
                 Flattened gradient vector (Eh/Bohr), if computed, otherwise empty.
         """
-        # Conversion factors
-        ENERGY_CONVERSION = {"eV": 27.21138625}
-        LENGTH_CONVERSION = {"Ang": 0.529177210903}
 
         # set the number of threads
         torch.set_num_threads(nthreads)
@@ -282,7 +285,7 @@ class Aimnet2Calc(CalcServer):
         if (forces := results.get("forces", None)) is not None:
             # unit conversion & factor of -1 to convert from forces to gradient
             fac = -LENGTH_CONVERSION["Ang"] / ENERGY_CONVERSION["eV"]
-            gradient = (np.asarray(forces) * fac).flatten().tolist()
+            gradient = (forces * fac).flatten().tolist()
 
         return energy, gradient
 
@@ -290,7 +293,7 @@ class Aimnet2Calc(CalcServer):
         self,
         orca_input: dict,
         directory: Path,
-        clear_args: list[str],
+        args_not_parsed: list[str],
     ) -> tuple[float, list[float]]:
         """
         Routine for calculating energy and optional gradient.
@@ -303,7 +306,7 @@ class Aimnet2Calc(CalcServer):
             Input parameters
         directory: Path
             Directory where to work in
-        clear_args: list[str]
+        args_not_parsed: list[str]
             Arguments not parsed so far
         """
         # Get the information needed
@@ -316,7 +319,7 @@ class Aimnet2Calc(CalcServer):
         xyz_file = directory / Path(xyz_file)
 
         # process the XYZ file
-        atom_types, coordinates = self.xyzfile_to_at_coord(xyz_file)
+        atom_types, coordinates = xyzfile_to_at_coord(xyz_file)
 
         # run uma
         energy, gradient = self.run_aimnet2(
@@ -339,9 +342,9 @@ def main():
     Main routine for execution
     """
     calculator = Aimnet2Calc()
-    inputfile, args, clear_args = calculator.parse_args()
+    inputfile, args, args_not_parsed = calculator.parse_args()
     calculator.setup(args)
-    calculator.run(inputfile=inputfile, settings=args, clear_args=clear_args)
+    calculator.run(inputfile=inputfile, settings=args, args_not_parsed=args_not_parsed)
 
 
 # Python entry point

@@ -28,16 +28,17 @@ def read_result_file(filename: str) -> tuple[int, float, list[float]]:
     int: number of atoms
     float: total energy
     grad: gradient list
+
+    Raises
+    ------
+    OSError: Failing to open file
+    ValueError: Failed to convert the input to int/float
     """
     with open(filename) as f:
         lines = f.readlines()
 
-    # Filter out comment lines and strip whitespace
-    data_lines = [
-        line.strip()
-        for line in lines
-        if not line.strip().startswith("#") and line.strip()
-    ]
+    # Remove comments from '#' to the end of line:
+    data_lines = [li for line in lines if (li := line.partition('#')[0].strip())]
 
     # Extract data
     num_atoms = int(data_lines[0])
@@ -53,7 +54,7 @@ def write_input_file(
     charge: int,
     multiplicity: int,
     ncores: int,
-    do_gradient: int,
+    do_gradient: int | bool,
     pointcharges_filename: str | None = None,
 ):
     """
@@ -79,11 +80,13 @@ def write_input_file(
 
     # Validate inputs (basic checks)
     if not xyz_filename.endswith(".xyz"):
-        raise ValueError("xyz_filename must end with '.xyz'")
+        raise ValueError("xyz_filename did not end with '.xyz'")
     if multiplicity <= 0:
         raise ValueError("multiplicity must be a positive integer")
     if ncores <= 0:
         raise ValueError("ncores must be a positive integer")
+    if type(do_gradient) is bool:
+        do_gradient = int(do_gradient)
     if do_gradient not in (0, 1):
         raise ValueError("do_gradient must be 0 or 1")
 

@@ -12,23 +12,35 @@ main: function
 """
 from argparse import ArgumentParser
 from pathlib import Path
+import sys, traceback
 from oet.core.base_calc import CalcServer
+from oet.core.misc import xyzfile_to_at_coord, ENERGY_CONVERSION, LENGTH_CONVERSION
 
 try:
     from fairchem.core import pretrained_mlip, FAIRChemCalculator
-    import torch
-    import numpy as np
-    from ase import Atoms
-except ImportError:
+except ImportError as e:
+    traceback.print_exc()
     print(
-        "[MISSING] Required module umacalc not found.\n"
+        f"[MISSING] Required module umacalc not found: {e}.\n"
         "Please install the packages in the virtual environment.\n"
         "Therefore, activate the venv, got to the orca-external-tools "
         "main directory and use pip install -r ./requirements/uma.txt\n"
         "Also, make sure you are logged in with your Hugging Face account:\n"
         "https://fair-chem.github.io/core/install.html#access-to-gated-models-on-huggingface"
     )
+    sys.exit(1)
 
+try:
+    import torch
+except ImportError as e:
+    print("[MISSING] torch not found:", e)
+    sys.exit(1)
+
+try:
+    from ase import Atoms
+except ImportError as e:
+    print("[MISSING] ase not found:", e)
+    sys.exit(1)
 
 class UmaCalc(CalcServer):
 
@@ -158,9 +170,6 @@ class UmaCalc(CalcServer):
         gradient : list[float]
             Flattened gradient vector (Eh/Bohr), if computed, otherwise empty.
         """
-        # Conversion factors
-        ENERGY_CONVERSION = {"eV": 27.21138625}
-        LENGTH_CONVERSION = {"Ang": 0.529177210903}
 
         # set the number of threads
         torch.set_num_threads(nthreads)
@@ -176,7 +185,7 @@ class UmaCalc(CalcServer):
             forces = atoms.get_forces()
             # Convert forces to gradient (-1) and unit conversion
             fac = -LENGTH_CONVERSION["Ang"] / ENERGY_CONVERSION["eV"]
-            gradient = (fac * np.asarray(forces)).flatten().tolist()
+            gradient = (fac * forces).flatten().tolist()
         except Exception:
             # forces may not be available
             pass
@@ -187,7 +196,7 @@ class UmaCalc(CalcServer):
         self,
         orca_input: dict,
         directory: Path,
-        clear_args: list[str],
+        args_not_parsed: list[str],
     ) -> tuple[float, list[float]]:
         """
         Routine for calculating energy and optional gradient.
@@ -200,7 +209,7 @@ class UmaCalc(CalcServer):
             Input parameters
         directory: Path
             Directory where to work in
-        clear_args: list[str]
+        args_not_parsed: list[str]
             Arguments not parsed so far
 
         Returns
@@ -218,7 +227,7 @@ class UmaCalc(CalcServer):
         xyz_file = directory / Path(xyz_file)
 
         # process the XYZ file
-        atom_types, coordinates = self.xyzfile_to_at_coord(xyz_file)
+        atom_types, coordinates = xyzfile_to_at_coord(xyz_file)
 
         # run uma
         energy, gradient = self.run_uma(
@@ -241,9 +250,9 @@ def main():
     Main routine for execution
     """
     calculator = UmaCalc()
-    inputfile, args, clear_args = calculator.parse_args()
+    inputfile, args, args_not_parsed = calculator.parse_args()
     calculator.setup(args)
-    calculator.run(inputfile=inputfile, settings=args, clear_args=clear_args)
+    calculator.run(inputfile=inputfile, settings=args, args_not_parsed=args_not_parsed)
 
 
 # Python entry point

@@ -18,6 +18,7 @@ import sys
 from argparse import ArgumentParser
 from pathlib import Path
 from oet.core.base_calc import BaseCalc
+from oet.core.misc import run_command, nat_from_xyzfile, print_filecontent, check_path
 
 
 class MopacCalc(BaseCalc):
@@ -90,7 +91,7 @@ class MopacCalc(BaseCalc):
         output_file: str
             What file to pipe the output to
         """
-        xyz_file = self.check_path(xyz_file)
+        xyz_file = check_path(xyz_file)
         with xyz_file.open() as f:
             lines = f.readlines()
         # If file is in standard XYZ format (first line is atom count), skip first two lines.
@@ -145,8 +146,8 @@ class MopacCalc(BaseCalc):
 
         energy = None
         gradient = []
-        mopac_out = self.check_path(self.prog_out)
-        mopac_results_out = self.check_path(self.prog_out)
+        mopac_out = check_path(self.prog_out)
+        mopac_results_out = check_path(self.prog_out)
         print("Checking:", mopac_results_out)
         with mopac_results_out.open() as f:
             for line in f:
@@ -164,7 +165,7 @@ class MopacCalc(BaseCalc):
 
         if energy is None:
             outfile = Path(self.basename + ".out")
-            mopac_results_out = self.check_path(outfile)
+            mopac_results_out = check_path(outfile)
             with outfile.open() as f:
                 for line in f:
                     if "FINAL HEAT OF FORMATION" in line:
@@ -248,13 +249,13 @@ class MopacCalc(BaseCalc):
         """
         # Add method to the clear args
         args.insert(0, mopac_inp)
-        self.run_command(self.prog_path, self.prog_out, args)
+        run_command(self.prog_path, self.prog_out, args)
 
     def calc(
         self,
         orca_input: dict,
         directory: Path,
-        clear_args: list[str],
+        args_not_parsed: list[str],
         prog: str,
         method: str,
     ) -> tuple[float, list[float]]:
@@ -268,7 +269,7 @@ class MopacCalc(BaseCalc):
             Input parameters
         directory: Path
             Directory where to work in
-        clear_args: list[str]
+        args_not_parsed: list[str]
             Arguments not parsed so far
         prog: str
             Which program executable to use
@@ -307,16 +308,16 @@ class MopacCalc(BaseCalc):
         )
 
         # run mopac
-        self.run_mopac(mopac_inp=mopac_inp, args=clear_args)
+        self.run_mopac(mopac_inp=mopac_inp, args=args_not_parsed)
 
         # get the number of atoms from the xyz file
-        natoms = self.nat_from_xyzfile(xyz_file=xyz_file)
+        natoms = nat_from_xyzfile(xyz_file=xyz_file)
 
         # parse the mopac output
         energy, gradient = self.read_mopac_out(natoms=natoms, dograd=dograd)
 
         # Print filecontent
-        self.print_filecontent(outfile=self.prog_out)
+        print_filecontent(outfile=self.prog_out)
 
         # Delete files
         self.clean_files()
@@ -329,8 +330,8 @@ def main():
     Main routine for execution
     """
     calculator = MopacCalc()
-    inputfile, args, clear_args = calculator.parse_args()
-    calculator.run(inputfile=inputfile, settings=args, clear_args=clear_args)
+    inputfile, args, args_not_parsed = calculator.parse_args()
+    calculator.run(inputfile=inputfile, settings=args, args_not_parsed=args_not_parsed)
 
 
 # Python entry point

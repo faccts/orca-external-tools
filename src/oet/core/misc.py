@@ -5,6 +5,17 @@ General functions utilities used by oet
 from pathlib import Path
 from shutil import which
 import os
+from typing import Iterable
+import subprocess
+import sys
+
+
+# Energy conversition factors (Hartree -> unit)
+ENERGY_CONVERSION = {"eV": 27.21138625,
+                     "kcal/mol": 627.509}
+
+# Length converstion factors (Bohr -> unit)
+LENGTH_CONVERSION = {"Ang": 0.529177210903}
 
 
 def check_path(file: str | Path) -> Path:
@@ -105,22 +116,6 @@ def check_multi_progs(keys: set[str]) -> Path | None:
         return None
 
 
-def remove_file(fname: str | Path) -> None:
-    """
-    Remove file if present
-
-    Parameters
-    ----------
-    fname: str
-        filename to be removed
-    """
-    if isinstance(fname, str):
-        fname = Path(fname)
-    if fname.is_file():
-        fname.unlink()
-    return
-
-
 def print_filecontent(outfile: str | Path) -> None:
     """
     Print the file content, e.g. the output file, to STDOUT
@@ -137,7 +132,7 @@ def print_filecontent(outfile: str | Path) -> None:
             print(line, end="")
 
 
-def read_orca_input(
+def read_input(
     inputfile: str | Path,
 ) -> tuple[str, int, int, int, bool, str | None]:
     """
@@ -202,7 +197,7 @@ def read_orca_input(
     )
 
 
-def write_orca_input(
+def write_output(
     filename: Path,
     nat: int,
     etot: float,
@@ -246,7 +241,7 @@ def write_orca_input(
         raise RuntimeError(f"Failed to write ORCA output file {filename}: {e}")
 
 
-def nat_from_xyz(xyz_file: str | Path) -> int:
+def nat_from_xyzfile(xyz_file: str | Path) -> int:
     """
     Read number of atoms from xyz file
 
@@ -262,3 +257,196 @@ def nat_from_xyz(xyz_file: str | Path) -> int:
 
     with open(xyz_file) as f:
         return int(f.readline())
+
+
+def run_command(
+    command: str | Path, outname: str | Path, args: list[str]
+) -> None:
+    """
+    Run the given command and redirect its STDOUT and STDERR to a file.
+    Exits on a non-zero return code.
+
+    Parameters
+    ----------
+    command : str | Path
+        The command to run or path to an executable
+    outname : str | Path
+        The output file to be written to (overwritten!)
+    args : list[str]
+        arguments to be passed to the command
+    """
+    with open(outname, "w") as of:
+        try:
+            subprocess.run(
+                [str(command)] + args,
+                stdout=of,
+                stderr=subprocess.STDOUT,
+                check=True,
+            )
+        except subprocess.CalledProcessError as err:
+            print(err)
+            sys.exit(err.returncode)
+
+
+def remove_file(fname: str | Path) -> None:
+    """
+    Remove file if present
+
+    Parameters
+    ----------
+    fname: str
+        filename to be removed
+    """
+    if isinstance(fname, str):
+        fname = Path(fname)
+    if fname.is_file():
+        fname.unlink()
+    return
+
+
+def write_to_file(content: str | int | float, file: str) -> None:
+    """
+    Writes any str/int/float to file
+
+    Parameters
+    ----------
+    content: str | int | float
+        Content to be written to file
+    file: str
+        Name of file to be written to
+    """
+    # first check whether files are present and delete them if so
+    remove_file(file)
+    # Then, write to file
+    file_path = Path(file)
+    with open(file_path, "w") as f:
+        f.write(f"{content}\n")
+
+
+def mult_to_nue(mult: int) -> int:
+    """
+    Converts multiplicity to number of unpaired electrons.
+
+    Parameters
+    ----------
+    mult: int
+        Multiplicity
+
+    Returns
+    -------
+    int: number of unpaired electrons
+    """
+
+    return mult - 1
+
+
+def xyzfile_to_at_coord(
+    xyzname: str | Path
+) -> tuple[list[str], list[tuple[float, float, float]]]:
+    """Read an XYZ file and return the atom types and coordinates.
+
+    Parameters
+    ----------
+    xyzname : str | Path
+        The XYZ file to read.
+
+    Returns
+    -------
+    atom_types: list[str]
+        A list of element symbols in order.
+    coordinates: list[tuple[float, float, float]]
+        A list of (x, y, z) coordinates.
+    """
+    atom_types = []
+    coordinates = []
+    xyzname = check_path(xyzname)
+    with xyzname.open() as xyzf:
+        natoms = int(xyzf.readline().strip())
+        xyzf.readline()
+        for _ in range(natoms):
+            line = xyzf.readline()
+            if not line:
+                break
+            parts = line.split()
+            atom_types.append(parts[0])
+            coords = tuple(float(c) for c in parts[1:4])
+            coordinates.append(coords)
+    return atom_types, coordinates
+
+
+def xyz2xsf(xyzname: str | Path, xsfname: str | Path) -> tuple[int, set[str]]:
+    """Convert a XYZ file to XSF format.
+
+    Parameters
+    ----------
+    xyzname : str | Path
+        The XYZ file to convert
+    xsfname : str | Path
+        The output XSF file name
+
+    Returns
+    -------
+    tuple[int, set[str]]
+        natoms: int
+            The number of atoms in the XYZ file
+        atomtypes: set[str]
+            The elements present in the XYZ file
+    """
+    atomtypes = set()
+    xyzname = check_path(xyzname)
+    xsfname = Path(xsfname)
+    with xyzname.open() as xyzf, xsfname.open("w") as xsff:
+        natoms = int(xyzf.readline())
+        xyzf.readline()  # comment line
+
+        xsff.write("#\n\nATOMS\n")
+        for i, line in enumerate(xyzf):
+            if i >= natoms:
+                break
+            # add the forces and print
+            xsff.write(line.rstrip() + "  0.0  0.0  0.0\n")
+            # collect the elements
+            atomtypes.add(line.split()[0])
+    return natoms, atomtypes
+
+
+def get_nns(
+    atomtypes: Iterable[str], nnpath: str | Path, nnext: str | None = None
+) -> dict[str, Path]:
+    """Find the neural network potential files for each element in `atomtypes`.
+    The files must all be in the same directory and be named "<ElementSymbol>.<Extension>" with the same extension.
+
+    Parameters
+    ----------
+    atomtypes : Iterable[str]
+        The elements needed
+    nnpath : str | Path
+        Path to the directory containing the neural network potential files
+    nnext : str | None, default = None
+        The extension for each NN file. If none is given '*' is used as a wildcard.
+        However, then there must be a single file that matches, otherwise an exception is raised
+
+    Returns
+    -------
+    dict[str, Path]
+        The keys are element symbols and the values are paths to the NN files
+
+    Raises
+    ------
+    RuntimeError
+        If more than one or no NN files are found for a requested element
+    """
+    nnpath = check_path(nnpath)
+    if not nnext:
+        nnext = "*"
+    nns = {}
+    for a in atomtypes:
+        matches = list(nnpath.glob(f"{a}.{nnext}"))
+        if not matches:
+            raise RuntimeError(f"No NN files found for {a} in {nnpath}")
+        if len(matches) > 1:
+            raise RuntimeError(
+                f"Multiple NN files found for {a}: {matches}. Set --nnext to specify the extension"
+            )
+        nns[a] = matches[0]
+    return nns
