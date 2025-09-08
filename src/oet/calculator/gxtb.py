@@ -18,7 +18,7 @@ from argparse import ArgumentParser
 from pathlib import Path
 
 from oet.core.base_calc import BaseCalc
-from oet.core.misc import run_command, write_to_file, mult_to_nue, nat_from_xyzfile, print_filecontent, check_path
+from oet.core.misc import run_command, write_to_file, mult_to_nue, nat_from_xyzfile, print_filecontent, check_path, check_file
 
 
 class GxtbCalc(BaseCalc):
@@ -38,6 +38,72 @@ class GxtbCalc(BaseCalc):
         parser.add_argument(
             "-x", "--exe", dest="prog", help="Path to the gxtb executable"
         )
+        parser.add_argument(
+            "-p",
+            metavar="gxtb_parameterfile",
+            dest="gxtb_parameterfile",
+            help="path to the gxtb parameterfile"
+        )
+        parser.add_argument(
+            "-e",
+            metavar="eeq_parameterfile",
+            dest="eeq_parameterfile",
+            help="path to the eeq parameterfile"
+        )
+        parser.add_argument(
+            "-b",
+            metavar="basis_parameterfile",
+            dest="basis_parameterfile",
+            help="path to the basis parameterfile"
+        )
+
+    def check_parameter_files(self, file_path: str | None, filename: str) -> Path:
+        """
+        Check a parameter file. Looks first for CLAs, then GXTBHOME, 
+        then HOME, and finally the current working directory.
+        Terminates the program if the file cannot be found.
+
+        Parameters
+        ----------
+        file_path: str | None
+            CLA. None if no CLA was given
+        filename: str
+            filename of the parameterfile to look for
+
+        Returns
+        -------
+        Path: Path to the parameterfile
+        """
+        # First the path given via cmd
+        if file_path:
+            param_file = Path(file_path).expanduser().resolve()
+            if check_file(param_file):
+                return param_file
+            else:
+                print(f"File {file_path} not found. Searching in other locations.")
+        # Next the $GXTBHOME
+        gxtb_home = os.getenv("GXTBHOME")
+        if gxtb_home:
+            gxtb_home = Path(gxtb_home).expanduser().resolve()
+            param_file = (gxtb_home / filename).resolve()
+            if check_file(param_file):
+                print(f"Taking {filename} from GXTBHOME {gxtb_home}.")
+                return param_file
+        # Home directory
+        param_file = (Path.home() / filename).resolve()
+        if check_file(param_file):
+            print(f"Taking {filename} from HOME.")
+            return param_file
+        # Current working dir
+        cwd = Path.cwd()
+        param_file = (cwd / filename).resolve()
+        if check_file(param_file):
+            print(f"Taking {filename} from cwd {cwd}.")
+            return param_file
+        # If nothing was found, terminate
+        print(f"No {filename} found. Terminating")
+        print("Please install gxtb correctly from GitHub.")
+        sys.exit(1)
 
     def run_gxtb(
         self,
@@ -64,7 +130,7 @@ class GxtbCalc(BaseCalc):
         # Set number of cores by setting OMP_NUM_THREADS
         os.environ["OMP_NUM_THREADS"] = f"{ncores},1"
 
-        args += [str(i) for i in ["-c", xyz_file]]
+        args += ["-c", str(xyz_file), "-p", ".gxtb", "-e", ".eeq", "-b", ".basisq"]
 
         if dograd:
             args += ["-grad"]
@@ -143,7 +209,7 @@ class GxtbCalc(BaseCalc):
         return energy, gradient
 
     def calc(
-        self, orca_input: dict, directory: Path, args_not_parsed: list[str], *, prog: str
+        self, orca_input: dict, directory: Path, args_not_parsed: list[str], gxtb_parameterfile: str, eeq_parameterfile: str, basis_parameterfile: str, prog: str
     ) -> tuple[float, list[float]]:
         """
         Routine for calculating energy and optional gradient.
@@ -157,6 +223,12 @@ class GxtbCalc(BaseCalc):
             Directory where to work in
         args_not_parsed: list[str]
             Arguments not parser so far
+        gxtb_parameterfile: str
+            Parameterfile .gxtb
+        eeq_parameterfile: str
+            Parameterfile .eeq
+        basis_parameterfile: str
+            Parameterfile .basisq
         prog: str
             Executable to gxtb
 
@@ -176,6 +248,11 @@ class GxtbCalc(BaseCalc):
         self.set_program_path(prog)
         print("Using executable ", self.prog_path)
 
+        # get parameter files
+        gxtb_param = self.check_parameter_files(gxtb_parameterfile, ".gxtb")
+        eeq_param = self.check_parameter_files(eeq_parameterfile, ".eeq")
+        basis_param = self.check_parameter_files(basis_parameterfile, ".basisq")
+
         # tmp directory named after basename
         tmp_dir = Path(self.basename)
 
@@ -184,6 +261,13 @@ class GxtbCalc(BaseCalc):
 
         # Copy input file(s) to work_dir
         shutil.copy(xyz_file, tmp_dir)
+        # Copy Parameterfiles to work_dir, so that they are provided to
+        # the gxtb binary later on as relative paths.
+        # This is necessary as the gxtb binary does not
+        # allow for paths longer than 80 character.
+        shutil.copy2(gxtb_param, tmp_dir)
+        shutil.copy2(eeq_param, tmp_dir)
+        shutil.copy2(basis_param, tmp_dir)
 
         # Change current directory to work_dir
         base_dir = Path.cwd()

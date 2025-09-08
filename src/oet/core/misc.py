@@ -197,6 +197,11 @@ def read_input(
     )
 
 
+def check_file(file_path: Path | str) -> bool:
+    """ Check whether file is present or not. Returns boolean."""
+    return Path(file_path).is_file()
+
+
 def write_output(
     filename: Path,
     nat: int,
