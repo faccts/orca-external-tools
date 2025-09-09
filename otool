@@ -11,14 +11,14 @@ import inspect
 # to the otool script
 # Second, the path to import and third the calculator class
 CALCULATOR_CLASSES = {
-    "aenet": ("oet.calculators.aenet", "AenetCalc"),
-    "aimnet2": ("oet.calculators.aimnet2", "Aimnet2Calc"),
+    "aenet": ("oet.calculator.aenet", "AenetCalc"),
+    "aimnet2": ("oet.calculator.aimnet2", "Aimnet2Calc"),
     "client": ("oet.server_client.client", "client"),
-    "gxtb": ("oet.calculators.gxtb", "GxtbCalc"),
-    "mlatom": ("oet.calculators.mlatom", "MlatomCalc"),
-    "mopac": ("oet.calculators.mopac", "MopacCalc"),
-    "uma": ("oet.calculators.uma", "UmaCalc"),
-    "xtb": ("oet.calculators.xtb", "XtbCalc"),
+    "gxtb": ("oet.calculator.gxtb", "GxtbCalc"),
+    "mlatom": ("oet.calculator.mlatom", "MlatomCalc"),
+    "mopac": ("oet.calculator.mopac", "MopacCalc"),
+    "uma": ("oet.calculator.uma", "UmaCalc"),
+    "xtb": ("oet.calculator.xtb", "XtbCalc"),
 }
 
 

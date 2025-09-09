@@ -52,7 +52,7 @@ class UmaCalc(CalcServer):
         """Program keys to search for in PATH"""
         return {""}
 
-    def set_calculator(self, param: str, basemodel: str) -> None:
+    def set_calculator(self, param: str, basemodel: str, device: str = "cpu") -> None:
         """
         Set the UMA calculator used by the UmaCalc object to compute energy and grad
 
@@ -62,6 +62,8 @@ class UmaCalc(CalcServer):
             parameter set to use
         basemodel: str
             UMA basemodel
+        device: str, default: "cpu"
+            Device that should be used, e.g., cpu or cuda
         """
         predictor = pretrained_mlip.get_predict_unit(basemodel, device="cpu")
         self._calc = FAIRChemCalculator(predictor, task_name=param)
@@ -86,7 +88,7 @@ class UmaCalc(CalcServer):
         -------
         dict: Arguments where all entries are removed that were processed
         """
-        self.set_calculator(param=args.pop("param"), basemodel=args.pop("basemodel"))
+        self.set_calculator(param=args.pop("param"), basemodel=args.pop("basemodel"), device=args.pop("device"))
         return args
 
     def extend_parser(self, parser: ArgumentParser) -> None:
@@ -123,6 +125,14 @@ class UmaCalc(CalcServer):
             default="uma-s-1",
             dest="basemodel",
             help="The uma basemodel.",
+        )
+        parser.add_argument(
+            "-d",
+            "--device",
+            type=str,
+            default="cpu",
+            dest="device",
+            help="Device to perform the calculation on.",
         )
 
     def extend_parser_settings(self, parser: ArgumentParser) -> None:
