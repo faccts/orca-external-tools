@@ -10,10 +10,11 @@ function: main
     Main function for executing
 """
 import importlib
-import socket
-from typing import Any
+from flask import Flask, request, jsonify
+from waitress import serve
+from typing import Any, Dict
 from argparse import ArgumentParser
-import json
+from pathlib import Path
 
 # The following defines first the key that is provided
 # to the otool script
@@ -23,50 +24,26 @@ CALCULATOR_CLASSES = {
     "uma": ("oet.calculator.uma", "UmaCalc"),
 }
 
+app = Flask(__name__)
 
 class OtoolServer:
 
     calculator: Any
 
-    def handle_client(self, conn) -> bool:
-        # First 10 bytes = integer
-        data = conn.recv(4096)
-        content = json.loads(data.decode())
-
+    def handle_client(self, content: Dict[str, Any]) -> Dict[str, Any]:
         settings = content["arguments"]
         working_dir = content["directory"]
+
         inputfile, args, clear_args = self.parse_client_input(settings)
+
+        # Run calculation (in requested working directory)
         self.calculator.run(
             inputfile=inputfile,
-            settings=args,
-            clear_args=clear_args,
-            directory=working_dir,
+            args_parsed=args,
+            args_not_parsed=clear_args,
+            directory=working_dir
         )
-
-    def start_server(self, id_port: str) -> None:
-        """ "
-        Starts the server.
-
-        Parameters
-        ----------
-        id_port: str
-            ID:Port of the server
-        """
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            id, port = id_port.split(":")
-            s.bind((id, int(port)))
-            s.listen()
-            print(f"Server listening on port {port}.")
-
-            while True:
-                conn, addr = s.accept()
-                try:
-                    self.handle_client(conn)
-                    server_message = {"status": "Success"}
-                    conn.sendall(json.dumps(server_message).encode())
-                except Exception as e:
-                    server_message = {"status": "Error", "error_message": str(e), "error_type": type(e).__name__}
-                    conn.sendall(json.dumps(server_message).encode())
+        return {"status": "Success"}
 
     def set_calculator_type(self, calc_type: str):
         """
@@ -122,6 +99,41 @@ class OtoolServer:
         self.calculator.extend_parser_setup(parser)
 
 
+def create_app(server: OtoolServer) -> Flask:
+    app = Flask(__name__)
+
+    @app.get("/healthz")
+    def healthz():
+        return jsonify({"status": "OK"})
+
+    @app.post("/calculate")
+    def calculate():
+        try:
+            data = request.get_json(force=True, silent=False)
+            if not isinstance(data, dict):
+                return jsonify({"status": "Error", "error_message": "Invalid JSON payload", "error_type": "ValueError"})
+
+            arguments = data.get("arguments")
+            directory = data.get("directory")
+
+            if not isinstance(arguments, list) or not isinstance(directory, str):
+                return jsonify({"status": "Error", "error_message": "Payload must have list 'arguments' and str 'directory'", "error_type": "ValueError"})
+
+            # Optional: validate directory exists and is a dir
+            p = Path(directory)
+            if not p.exists() or not p.is_dir():
+                return jsonify({"status": "Error", "error_message": f"Invalid directory: {p}", "error_type": "ValueError"})
+
+            # Delegate to your server logic
+            result = server.handle_client({"arguments": arguments, "directory": directory})
+            return jsonify(result)
+
+        except Exception as e:
+            return jsonify({"status": "Error", "error_message": str(e), "error_type": type(e).__name__})
+
+    return app
+
+
 def main():
     """
     Main routine of otools
@@ -143,8 +155,8 @@ def main():
         "--bind",
         metavar="hostname:port",
         default="127.0.0.1:8888",
-        dest="id_port",
-        help=f"Server bind address and port. Default: 127.0.0.1:8888.",
+        dest="host_port",
+        help="Server bind address and port. Default: 127.0.0.1:8888.",
     )
     parser.add_argument(
         "-n",
@@ -153,7 +165,7 @@ def main():
         type=int,
         default=1,
         dest="nthreads",
-        help=f"Number of threads to use. Default: 1",
+        help="Number of threads to use. Default: 1",
     )
     args, remaining_args = parser.parse_known_args()
 
@@ -167,8 +179,10 @@ def main():
     # Set the calculator defaults
     server.calculator.setup(vars(args))
     # Start the server
-    server.start_server(args.id_port)
-
+    host, port = args.host_port.split(":")
+    app = create_app(server)
+    # For production, run under gunicorn/uwsgi. app.run is fine for dev.
+    serve(app, host=host, port=int(port), threads=args.nthreads)
 
 if __name__ == "__main__":
     main()

@@ -224,7 +224,7 @@ class BaseCalc(ABC):
         inputfile: str,
         args_parsed: dict,
         args_not_parsed: list[str] = [],
-        directory: Path | None = None,
+        directory: Path | str | None = None
     ) -> None:
         """
         Main routine that computes energy and gradient based on inputfile
@@ -237,7 +237,7 @@ class BaseCalc(ABC):
             Special settings for each calculation defined by respective arg parser extension
         args_not_parsed: list[str], default: []
             Arguments not parsed. Might be provided directly to executing program
-        directory: Path
+        directory: Path | str | None
             Where to run the calculation
 
         Raises
@@ -246,6 +246,11 @@ class BaseCalc(ABC):
         """
         # Check if python version matches requirements if redefined by subclass
         self._check_python_version()
+        # Check if directory of calculation is somewhere else located (important for server)
+        if directory:
+            start_dir = Path.cwd()
+            directory = check_path(directory)
+            os.chdir(directory)
         # Set filenames and paths according to inputfile name. Also make tmpdir
         settings = BasicSettings(inputfile=inputfile, program_names=self.PROGRAM_NAMES)
         # Run the routine performing actual calculation
@@ -268,6 +273,9 @@ class BaseCalc(ABC):
         write_output(filename=settings.orca_engrad, nat=nat, etot=energy, grad=gradient)
         # Remove tmp dir
         settings.remove_tmp()
+        # Go back to start directory
+        if directory:
+            os.chdir(start_dir)
 
     def parse_args(self, input: list[str] | None = None) -> tuple[str, dict, list[str]]:
         """

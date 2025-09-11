@@ -2,15 +2,14 @@
 """
 Module for sending input to server
 """
-import socket
+import requests
 import sys
 import os
+import traceback
 from argparse import ArgumentParser
-import json
-
 
 def send_to_server(
-    id_port: str,
+    host_port: str,
     arguments: list[str],
 ) -> None:
     """
@@ -18,36 +17,38 @@ def send_to_server(
 
     Parameters
     ----------
-    id_port: str
-        ID:Port of the server
+    host_port: str
+        Host:Port of the server
     inputfile: str
         Name of the inputfile written by ORCA
     nthreads : int
         Number of threads to use for the calculation
     """
 
+    host, port = host_port.split(":")
+    url = f"http://{host}:{port}/calculate"
+    payload = {"arguments": arguments, "directory": os.getcwd()}
     try:
-        id, port = id_port.split(":")
-        s = socket.socket()
-        s.connect((id, int(port)))
-        message = {"arguments": arguments, "directory": os.getcwd()}
-        s.sendall(json.dumps(message).encode())
-        data = s.recv(1024)
-        response = json.loads(data.decode())
-        if response["status"] == "Error":
-            print(f"Server error {response['error']}.")
+        response = requests.post(url, json=payload)
+        response.raise_for_status()
+        data = response.json()
+        if data.get("status") == "Error":
+            print(f"Server error {data.get("error_type")}: {data.get("error_message")}.")
             sys.exit(1)
-    except socket.timeout:
+    except requests.exceptions.Timeout:
         print("Connection timed out.")
         sys.exit(1)
-    except socket.error as e:
-        print(f"Socket error: {e}")
+    except requests.exceptions.ConnectionError as e:
+        print(f"Connection error: {e}")
+        sys.exit(1)
+    except requests.exceptions.HTTPError as e:
+        print(f"HTTP error: {e}")
         sys.exit(1)
     except Exception as e:
-        print(f"Unexpected error: {e}")
+        print(f"Unexpected error: {type(e).__name__}: {e}")
+        traceback.print_exc() 
+        print(f"Recieved the following from server: {data}")
         sys.exit(1)
-    finally:
-        s.close()
 
 
 def client():
@@ -62,13 +63,13 @@ def client():
         "--bind",
         metavar="hostname:port",
         default="127.0.0.1:8888",
-        dest="id_port",
-        help=f"Server bind address and port. Default: 127.0.0.1:8888.",
+        dest="host_port",
+        help="Server bind address and port. Default: 127.0.0.1:8888.",
     )
 
     args, remaining_args = parser.parse_known_args(sys.argv[1:])
 
-    send_to_server(id_port=args.id_port, arguments=remaining_args)
+    send_to_server(host_port=args.host_port, arguments=remaining_args)
 
 
 if __name__ == "__main__":
