@@ -16,6 +16,7 @@ from typing import Mapping
 
 from oet.core.base_calc import BaseCalc, BasicSettings
 from oet.core.misc import (
+    search_path,
     xyz2xsf,
     get_nns,
     run_command,
@@ -170,7 +171,7 @@ class AenetCalc(BaseCalc):
         settings: BasicSettings,
         args_not_parsed: list[str],
         prog: str,
-        nnpath: str,
+        nnpath: str | Path,
         nnext: str,
     ) -> tuple[float, list[float]]:
         """
@@ -199,7 +200,6 @@ class AenetCalc(BaseCalc):
             )
         # Check other files
         nnpath = check_path(nnpath)
-        predictexe = check_path(prog)
 
         # set filenames
         namespace = settings.basename + ".predict"
@@ -216,7 +216,7 @@ class AenetCalc(BaseCalc):
             xsfname=xsfname, inpname=inpname, dograd=settings.dograd, nns=nns
         )
         # run predict.x
-        self.run_predict(predictexe=predictexe, inpname=inpname, ncores=settings.ncores)
+        self.run_predict(predictexe=settings.prog_path, inpname=inpname, ncores=settings.ncores)
         # parse the output
         energy, gradient = self.read_predict_output(natoms, settings.dograd)
 

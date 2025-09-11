@@ -23,6 +23,7 @@ from pathlib import Path
 from oet.core.misc import (
     check_multi_progs,
     check_path,
+    search_path,
     read_input,
     write_output,
     nat_from_xyzfile,
@@ -149,7 +150,7 @@ class BasicSettings:
         # str | Path handling
         else:
             try:
-                self.prog_path = check_path(exe_path_or_name)
+                self.prog_path = search_path(exe_path_or_name)
                 return True
             # The error could also be raised to the caller, but as
             # it should be standardized, it is printed here.

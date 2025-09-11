@@ -137,10 +137,9 @@ class MopacCalc(BaseCalc):
         """
         energy = None
         gradient = []
-        mopac_out = check_path(settings.prog_out)
-        mopac_results_out = check_path(settings.prog_out)
-        print("Checking:", mopac_results_out)
-        with mopac_results_out.open() as f:
+        mopac_out = check_path(settings.basename + ".out")
+        print("Checking:", mopac_out)
+        with mopac_out.open() as f:
             for line in f:
                 if "FINAL HEAT OF FORMATION" in line:
                     # Expect a line like: "FINAL HEAT OF FORMATION =   -123.456 ..."
@@ -157,25 +156,6 @@ class MopacCalc(BaseCalc):
                         break
 
         if energy is None:
-            outfile = Path(settings.basename + ".out")
-            mopac_results_out = check_path(outfile)
-            with outfile.open() as f:
-                for line in f:
-                    if "FINAL HEAT OF FORMATION" in line:
-                        # Expect a line like: "FINAL HEAT OF FORMATION =   -123.456 ..."
-                        tokens = line.split()
-                        if "=" in tokens:
-                            idx = tokens.index("=")
-                            try:
-                                # Convert energy from kcal/mol to Eh.
-                                energy = float(tokens[idx + 1]) * (
-                                    1 / ENERGY_CONVERSION["kcal/mol"]
-                                )
-                            except (IndexError, ValueError):
-                                pass
-                            break
-
-        if energy is None:
             print("Could not find energy in MOPAC output.")
             sys.exit(1)
 
@@ -183,9 +163,6 @@ class MopacCalc(BaseCalc):
             # Read the entire output file into memory.
             with mopac_out.open() as f:
                 lines = f.readlines()
-            with mopac_results_out.open() as f:
-                lines2 = f.readlines()
-            lines = lines + lines2
 
             # Locate the header of the gradient table.
             header_idx = None

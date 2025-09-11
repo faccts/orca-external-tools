@@ -17,9 +17,11 @@ ENERGY_CONVERSION = {"eV": 27.21138625, "kcal/mol": 627.509}
 LENGTH_CONVERSION = {"Ang": 0.529177210903}
 
 
-def check_path(file: str | Path) -> Path:
+def search_path(file: str | Path) -> Path:
     """
-    Checks for Path
+    Tries to find a file in current working directory
+    and afterwards in Path. If something is found, the
+    Path is returned.
 
     Parameters
     ----------
@@ -36,31 +38,47 @@ def check_path(file: str | Path) -> Path:
     FileNotFoundError: File not found
     TypeError: Wrong input
     """
-    # Handle file names (strings)
-    if isinstance(file, str):
-        # Step 1: Check if file exists in current directory
-        local_path = Path(file)
-        if local_path.exists():
-            return local_path.resolve()
+    # Step 1: Check if file exists in current directory
+    local_path = Path(file)
+    if local_path.exists():
+        return local_path
 
-        # Step 2: Check if file is found in system PATH
-        path_str = which(file)
-        if path_str:
-            return Path(path_str).resolve()
+    # Step 2: Check if file is found in system PATH
+    path_str = which(file)
+    if path_str:
+        return Path(path_str)
 
-        raise FileNotFoundError(
-            f"File '{file}' not found in current directory or PATH."
-        )
+    raise FileNotFoundError(
+        f"File '{file}' not found in current directory or PATH."
+    )
 
-    elif isinstance(file, Path):
-        if file.exists():
-            return file.resolve()
-        else:
-            raise FileNotFoundError(f"Path '{file}' does not exist.")
+def check_path(file: str | Path) -> Path:
+    """
+    Checks if Path/file exists.
 
-    else:
-        raise TypeError("Expected input to be of type str or Path.")
+    Parameters
+    ----------
+    file: str | Path
+        Either string to file in PATH
+        or Path to file
 
+    Returns
+    -------
+    Path: Path to file
+
+    Raises
+    ------
+    FileNotFoundError: File not found
+    TypeError: Wrong input
+    """
+    # Step 1: Check if file exists in current directory
+    local_path = Path(file)
+    if local_path.exists():
+        return local_path
+
+    raise FileNotFoundError(
+        f"File '{file}' not found in current directory or PATH."
+    )
 
 def check_prog(prog: str | Path) -> Path:
     """
@@ -81,7 +99,7 @@ def check_prog(prog: str | Path) -> Path:
     PermissionError: Program not executable
     """
     # Sanitize Path
-    path_to_prog = check_path(prog)
+    path_to_prog = search_path(prog).resolve()
     # Check if executable
     if not os.access(path_to_prog, os.X_OK):
         raise PermissionError(f"Path '{path_to_prog}' is not executable.")
@@ -125,7 +143,7 @@ def print_filecontent(outfile: str | Path) -> None:
         The output file to print
     """
     # print the output to STDOUT
-    outfile = check_path(outfile)
+    outfile = Path(outfile)
     with open(outfile) as f:
         for line in f:  # line by line to avoid memory overflow
             print(line, end="")
@@ -438,7 +456,7 @@ def get_nns(
     RuntimeError
         If more than one or no NN files are found for a requested element
     """
-    nnpath = check_path(nnpath)
+    nnpath = search_path(nnpath).resolve()
     if not nnext:
         nnext = "*"
     nns = {}
