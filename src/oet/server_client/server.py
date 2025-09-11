@@ -9,12 +9,18 @@ class: OtoolServer
 function: main
     Main function for executing
 """
+from __future__ import annotations
+
+from ast import arg
 import importlib
+from blinker import Namespace
 from flask import Flask, request, jsonify
 from waitress import serve
-from typing import Any, Dict
+from typing import Any, Dict, Tuple, List
 from argparse import ArgumentParser
 from pathlib import Path
+import queue
+import threading
 
 # The following defines first the key that is provided
 # to the otool script
@@ -24,47 +30,145 @@ CALCULATOR_CLASSES = {
     "uma": ("oet.calculator.uma", "UmaCalc"),
 }
 
-app = Flask(__name__)
+class CalculatorPool:
+    """
+    Stores and manages free calculators
+    """
+    def __init__(self):
+        # Class of the calculators
+        self._cls: Any = None
+        # Pool of calculators
+        self._pool: dict[int, Any] = {}
+        # Queue for the calculators
+        self._free: queue.LifoQueue[int] | None = None
 
-class OtoolServer:
-
-    calculator: Any
-
-    def handle_client(self, content: Dict[str, Any]) -> Dict[str, Any]:
-        settings = content["arguments"]
-        working_dir = content["directory"]
-
-        inputfile, args, clear_args = self.parse_client_input(settings)
-
-        # Run calculation (in requested working directory)
-        self.calculator.run(
-            inputfile=inputfile,
-            args_parsed=args,
-            args_not_parsed=clear_args,
-            directory=working_dir
-        )
-        return {"status": "Success"}
-
-    def set_calculator_type(self, calc_type: str):
+    def set_calculator_type(self, calc_type: str) -> None:
         """
-        Sets and imports everything required for settings up the calculator
-        """
-        # Get module to be imported and name of class
-        import_module, calculator_name = CALCULATOR_CLASSES[calc_type]
-        # Import everything
-        mod = importlib.import_module(import_module)
-        # Get class
-        calculator = getattr(mod, calculator_name)
-        # Initialize object
-        self.calculator = calculator()
-
-    def parse_client_input(self, arguments: list[str]) -> tuple[str, dict, list[str]]:
-        """
-        Function for parsing client input
+        Determine the calculator type, import it and set the class variable
 
         Parameters
         ----------
-        arrguments: list[str]
+        calc_type: str
+            Type of calculator
+        """
+        import_module, calculator_name = CALCULATOR_CLASSES[calc_type]
+        mod = importlib.import_module(import_module)
+        self._cls = getattr(mod, calculator_name)  # store the class, not an instance
+
+    def init_pool(self, size: int, args: Namespace) -> None:
+        """
+        Initialize the pool by creating the calculators
+
+        Parameters
+        ----------
+        size: int
+            Size of pool
+        args: Namespace
+            Arguments (options) from parsing
+        """
+        # Create independent instances (no shallow clones)
+        self._pool = {i: self._cls() for i in range(size)}
+        for calculator in self._pool.values():
+            calculator.setup(vars(args))
+        self._free = queue.LifoQueue(maxsize=size)
+        # Make them all free
+        for i in range(size):
+            self._free.put(i)
+
+    def acquire(self, timeout: float | None = None) -> Tuple[int, Any]:
+        """
+        Waits until the next calculator is available and returns it
+
+        Parameters
+        ----------
+        timeout: float, default = None
+            Optional timeout time
+        
+        Returns
+        -------
+        int: idx of the calculator
+        Any: calculator
+        """
+        if self._free is None:
+            raise RuntimeError("Pool not initialized.")
+        idx = self._free.get(timeout=timeout)   # thread-safe
+        return idx, self._pool[idx]
+
+    def release(self, idx: int):
+        """Return the calculator to the pool."""
+        if self._free is None:
+            raise RuntimeError("Pool not initialized.")
+        self._free.put(idx)
+
+    def _call_parser_hook(self, hook_name: str, parser: ArgumentParser) -> None:
+        """
+        Extends parser based on subroutine hook_name
+
+        hook_name: str
+            Name of the subroutine of the calculator
+        parser: ArgumentParser
+            Parser to be extended
+        """
+        if self._cls is None:
+            raise RuntimeError("Call set_calculator_type() first.")
+        tmp = self._cls()  # assumes default constructor
+        meth = getattr(tmp, hook_name)
+        meth(parser)
+
+    def build_full_parser(self, parser: ArgumentParser) -> None:
+        """Add calculator *setup* options to the server CLI (once, at startup)."""
+        self._call_parser_hook("extend_parser_setup", parser)
+
+    def extend_request_parser(self, parser: ArgumentParser) -> None:
+        """Add calculator *request* options to per-request parser."""
+        self._call_parser_hook("extend_parser_settings", parser)
+
+
+class OtoolServer:
+    def __init__(self, pool: CalculatorPool):
+        self.pool = pool
+
+    def handle_client(self, content: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Takes the input from client and runs the calculation
+
+        Parameters
+        ----------
+        content: Dict[str, Any]
+            Message received from client
+        
+        Returns
+        -------
+        Dict[str, Any]: Message to be sent to client
+        """
+        arguments: List[str] = content["arguments"]
+        working_dir: str = content["directory"]
+
+        inputfile, args, clear_args = self.parse_client_input(arguments)
+
+        # Acquire a free calculator instance for this request
+        idx, calc = self.pool.acquire()
+        try:
+            # Run calculation (in requested working directory)
+            calc.run(
+                inputfile=inputfile,
+                args_parsed=args,
+                args_not_parsed=clear_args,
+                directory=working_dir,
+            )
+        finally:
+            # Always release back to the pool
+            self.pool.release(idx)
+
+        return {"status": "Success"}
+
+    def parse_client_input(self, arguments: List[str]) -> Tuple[str, dict, List[str]]:
+        """
+        Handles the input sent by client
+
+        Parameters
+        ----------
+        arguments: list[str]
             Arguments from client
 
         Returns
@@ -73,33 +177,29 @@ class OtoolServer:
         dict: parsed settings
         list[str]: not parsed settings
         """
-        # First server related settings
+        # First server-related settings
         parser = ArgumentParser(
             prog="otool_server",
             description="Client arguments parser.",
         )
         parser.add_argument("inputfile")
-        self.calculator.extend_parser_settings(parser)
+
+        # Let the calculator define its per-request flags
+        self.pool.extend_request_parser(parser)
+
         args, remaining_args = parser.parse_known_args(arguments)
 
         # Transform to dict
-        args = vars(args)
-        inputfile = args.pop("inputfile")
+        args_dict = vars(args)
+        inputfile = args_dict.pop("inputfile")
 
-        return inputfile, args, remaining_args
-
-    def build_full_parser(self, parser: ArgumentParser) -> None:
-        """
-        Function for building the full parser
-
-        parser: ArgumentParser
-            Will be extended to build the full parser
-        """
-        # Also add calculator setup related arguments
-        self.calculator.extend_parser_setup(parser)
+        return inputfile, args_dict, remaining_args
 
 
 def create_app(server: OtoolServer) -> Flask:
+    """
+    Takes the OtoolServer and returns a Flask application
+    """
     app = Flask(__name__)
 
     @app.get("/healthz")
@@ -167,21 +267,32 @@ def main():
         dest="nthreads",
         help="Number of threads to use. Default: 1",
     )
-    args, remaining_args = parser.parse_known_args()
 
-    # Then initialize a server instance
-    server = OtoolServer()
-    # Set the calcuator type of OtoolServer
-    server.set_calculator_type(args.method)
-    # Extend the parser
-    server.build_full_parser(parser)
-    args, unkown_args = parser.parse_known_args()
-    # Set the calculator defaults
-    server.calculator.setup(vars(args))
+    # ---- Pool and calculator setup (one-time, startup) -----------
+    # We first parse only the known args to get method/nthreads/etc.
+    args, _ = parser.parse_known_args()
+
+    pool = CalculatorPool()
+    pool.set_calculator_type(args.method)
+    nthreads = args.nthreads
+
+    # Let the calculator add any *setup* options to the CLI (if they exist)
+    pool.build_full_parser(parser)
+
+    # Re-parse now that setup flags may be registered
+    args, _ = parser.parse_known_args()
+
+    # Initialize pool of independent instances
+    pool.init_pool(size=nthreads, args=args)
+
+    # Then initialize a server instance that uses the pool
+    server = OtoolServer(pool)
+
     # Start the server
     host, port = args.host_port.split(":")
     app = create_app(server)
-    # For production, run under gunicorn/uwsgi. app.run is fine for dev.
+    # Waitress will create a thread per incoming request (bounded by 'threads').
+    # Each request acquires/releases a calculator safely.
     serve(app, host=host, port=int(port), threads=args.nthreads)
 
 if __name__ == "__main__":
