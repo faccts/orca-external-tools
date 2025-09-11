@@ -11,15 +11,17 @@ main: function
     Main function
 """
 from argparse import ArgumentParser
-from pathlib import Path
-import sys, traceback
-from oet.core.base_calc import CalcServer
+import sys
+import warnings
+from oet.core.base_calc import BasicSettings, CalcServer
 from oet.core.misc import xyzfile_to_at_coord, ENERGY_CONVERSION, LENGTH_CONVERSION
 
 try:
-    from fairchem.core import pretrained_mlip, FAIRChemCalculator
+    # Suppress pkg_resources deprecated warning
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        from fairchem.core import pretrained_mlip, FAIRChemCalculator
 except ImportError as e:
-    traceback.print_exc()
     print(
         f"[MISSING] Required module umacalc not found: {e}.\n"
         "Please install the packages in the virtual environment.\n"
@@ -42,15 +44,11 @@ except ImportError as e:
     print("[MISSING] ase not found:", e)
     sys.exit(1)
 
+
 class UmaCalc(CalcServer):
 
     # Fairchem calculator used to compute energy and grad
     _calc: FAIRChemCalculator
-
-    @property
-    def PROGRAM_KEYS(self) -> set[str]:
-        """Program keys to search for in PATH"""
-        return {""}
 
     def set_calculator(self, param: str, basemodel: str, device: str = "cpu") -> None:
         """
@@ -88,7 +86,11 @@ class UmaCalc(CalcServer):
         -------
         dict: Arguments where all entries are removed that were processed
         """
-        self.set_calculator(param=args.pop("param"), basemodel=args.pop("basemodel"), device=args.pop("device"))
+        self.set_calculator(
+            param=args.pop("param"),
+            basemodel=args.pop("basemodel"),
+            device=args.pop("device"),
+        )
         return args
 
     def extend_parser(self, parser: ArgumentParser) -> None:
@@ -150,10 +152,7 @@ class UmaCalc(CalcServer):
         self,
         atom_types: list[str],
         coordinates: list[tuple[float, float, float]],
-        charge: int,
-        mult: int,
-        dograd: bool,
-        nthreads: int,
+        settings: BasicSettings,
     ) -> tuple[float, list[float]]:
         """
         Runs an UMA calculation.
@@ -164,14 +163,8 @@ class UmaCalc(CalcServer):
             List of element symbols (e.g., ["O", "H", "H"])
         coordinates : list[tuple[float, float, float]]
             List of (x, y, z) coordinates
-        charge : int
-            Molecular charge
-        mult : int
-            Spin multiplicity
-        dograd : bool
-            Whether to compute the gradient (currently always computed)
-        nthreads : int
-            Number of threads to use for the calculation
+        settings: BasicSettings
+            Object with basic settings for the run
 
         Returns
         -------
@@ -182,11 +175,11 @@ class UmaCalc(CalcServer):
         """
 
         # set the number of threads
-        torch.set_num_threads(nthreads)
+        torch.set_num_threads(settings.ncores)
 
         # make ase atoms object for calculation
         atoms = Atoms(symbols=atom_types, positions=coordinates)
-        atoms.info = {"charge": charge, "spin": mult}
+        atoms.info = {"charge": settings.charge, "spin": settings.mult}
         atoms.calc = self._calc
 
         energy = atoms.get_potential_energy() / ENERGY_CONVERSION["eV"]
@@ -204,8 +197,7 @@ class UmaCalc(CalcServer):
 
     def calc(
         self,
-        orca_input: dict,
-        directory: Path,
+        settings: BasicSettings,
         args_not_parsed: list[str],
     ) -> tuple[float, list[float]]:
         """
@@ -215,10 +207,8 @@ class UmaCalc(CalcServer):
 
         Parameters
         ----------
-        orca_input: dict
-            Input parameters
-        directory: Path
-            Directory where to work in
+        settings: BasicSettings
+            Object with basic settings for the run
         args_not_parsed: list[str]
             Arguments not parsed so far
 
@@ -227,30 +217,14 @@ class UmaCalc(CalcServer):
         float: energy
         list[float]: gradients
         """
-        # Get the information needed
-        xyz_file = orca_input["xyz_file"]
-        chrg = orca_input["chrg"]
-        mult = orca_input["mult"]
-        ncores = orca_input["ncores"]
-        dograd = orca_input["dograd"]
-
-        xyz_file = directory / Path(xyz_file)
 
         # process the XYZ file
-        atom_types, coordinates = xyzfile_to_at_coord(xyz_file)
+        atom_types, coordinates = xyzfile_to_at_coord(settings.xyzfile)
 
         # run uma
         energy, gradient = self.run_uma(
-            atom_types=atom_types,
-            coordinates=coordinates,
-            charge=chrg,
-            mult=mult,
-            dograd=dograd,
-            nthreads=ncores,
+            atom_types=atom_types, coordinates=coordinates, settings=settings
         )
-
-        # Delete files
-        self.clean_files()
 
         return energy, gradient
 
@@ -262,7 +236,9 @@ def main():
     calculator = UmaCalc()
     inputfile, args, args_not_parsed = calculator.parse_args()
     calculator.setup(args)
-    calculator.run(inputfile=inputfile, settings=args, args_not_parsed=args_not_parsed)
+    calculator.run(
+        inputfile=inputfile, args_parsed=args, args_not_parsed=args_not_parsed
+    )
 
 
 # Python entry point

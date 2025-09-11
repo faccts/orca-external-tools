@@ -14,8 +14,17 @@ from argparse import ArgumentParser
 from pathlib import Path
 from typing import Mapping
 
-from oet.core.base_calc import BaseCalc
-from oet.core.misc import xyz2xsf, get_nns, run_command, print_filecontent, check_path, ENERGY_CONVERSION, LENGTH_CONVERSION
+from oet.core.base_calc import BaseCalc, BasicSettings
+from oet.core.misc import (
+    xyz2xsf,
+    get_nns,
+    run_command,
+    print_filecontent,
+    check_path,
+    ENERGY_CONVERSION,
+    LENGTH_CONVERSION,
+)
+
 
 class AenetCalc(BaseCalc):
 
@@ -25,7 +34,7 @@ class AenetCalc(BaseCalc):
     NNEXT: str | None = None
 
     @property
-    def PROGRAM_KEYS(self) -> set[str]:
+    def PROGRAM_NAMES(self) -> set[str]:
         """Program keys to search for in PATH"""
         return {"predict.x"}
 
@@ -94,9 +103,7 @@ class AenetCalc(BaseCalc):
             # write XSF file (only one supported)
             f.write(f"FILES\n1\n{xsfname}\n")
 
-    def run_predict(
-        self, predictexe: str | Path, inpname: str, ncores: int
-    ) -> None:
+    def run_predict(self, predictexe: str | Path, inpname: str, ncores: int) -> None:
         """
         Run the predict.x program and redirect its STDOUT and STDERR to a file. Exists on a non-zero return code.
 
@@ -160,8 +167,7 @@ class AenetCalc(BaseCalc):
 
     def calc(
         self,
-        orca_input: dict,
-        directory: Path,
+        settings: BasicSettings,
         args_not_parsed: list[str],
         prog: str,
         nnpath: str,
@@ -173,10 +179,8 @@ class AenetCalc(BaseCalc):
 
         Parameters
         ----------
-        orca_input: dict
-            Input parameters
-        directory: Path
-            Directory where to work in
+        settings: BasicSettings
+            Object with basic settings for the run
         args_not_parsed: list[str]
             Arguments not parsed so far
         prog: str
@@ -186,44 +190,38 @@ class AenetCalc(BaseCalc):
         nnext: str
             extension of the nnfiles
         """
-        # Get the information needed
-        xyz_file = orca_input["xyz_file"]
-        xyz_file = directory / Path(xyz_file)
-        # chrg = orca_input["chrg"]
-        # mult = orca_input["mult"]
-        ncores = orca_input["ncores"]
-        dograd = orca_input["dograd"]
-        # Set and check the program path if its executable
-        self.set_program_path(prog)
-        print("Using executable ", self.prog_path)
+        settings.set_program_path(prog)
+        if settings.prog_path:
+            print(f"Using executable {settings.prog_path}")
+        else:
+            raise FileNotFoundError(
+                f"Could not find a valid executable from standard program names: {self.PROGRAM_NAMES}"
+            )
         # Check other files
         nnpath = check_path(nnpath)
         predictexe = check_path(prog)
 
         # set filenames
-        namespace = self.basename + ".predict"
+        namespace = settings.basename + ".predict"
         xsfname = namespace + ".xsf"
         inpname = namespace + ".in"
         self.prog_out = namespace + ".out"
 
         # process the XYZ file
-        natoms, atomtypes = xyz2xsf(xyzname=xyz_file, xsfname=xsfname)
+        natoms, atomtypes = xyz2xsf(xyzname=settings.xyzfile, xsfname=xsfname)
         # find the NN files
         nns = get_nns(atomtypes=atomtypes, nnpath=nnpath, nnext=nnext)
         # write the input for predict.x
         self.write_predict_input(
-            xsfname=xsfname, inpname=inpname, dograd=dograd, nns=nns
+            xsfname=xsfname, inpname=inpname, dograd=settings.dograd, nns=nns
         )
         # run predict.x
-        self.run_predict(predictexe=predictexe, inpname=inpname, ncores=ncores)
+        self.run_predict(predictexe=predictexe, inpname=inpname, ncores=settings.ncores)
         # parse the output
-        energy, gradient = self.read_predict_output(natoms, dograd)
+        energy, gradient = self.read_predict_output(natoms, settings.dograd)
 
         # Print filecontent
         print_filecontent(outfile=self.prog_out)
-
-        # Delete files
-        self.clean_files()
 
         return energy, gradient
 
@@ -232,7 +230,9 @@ def main():
     """ """
     calculator = AenetCalc()
     inputfile, args, args_not_parsed = calculator.parse_args()
-    calculator.run(inputfile=inputfile, settings=args, args_not_parsed=args_not_parsed)
+    calculator.run(
+        inputfile=inputfile, args_parsed=args, args_not_parsed=args_not_parsed
+    )
 
 
 # Python entry point

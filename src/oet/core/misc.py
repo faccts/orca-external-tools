@@ -11,8 +11,7 @@ import sys
 
 
 # Energy conversition factors (Hartree -> unit)
-ENERGY_CONVERSION = {"eV": 27.21138625,
-                     "kcal/mol": 627.509}
+ENERGY_CONVERSION = {"eV": 27.21138625, "kcal/mol": 627.509}
 
 # Length converstion factors (Bohr -> unit)
 LENGTH_CONVERSION = {"Ang": 0.529177210903}
@@ -198,7 +197,7 @@ def read_input(
 
 
 def check_file(file_path: Path | str) -> bool:
-    """ Check whether file is present or not. Returns boolean."""
+    """Check whether file is present or not. Returns boolean."""
     return Path(file_path).is_file()
 
 
@@ -264,9 +263,7 @@ def nat_from_xyzfile(xyz_file: str | Path) -> int:
         return int(f.readline())
 
 
-def run_command(
-    command: str | Path, outname: str | Path, args: list[str]
-) -> None:
+def run_command(command: str | Path, outname: str | Path, args: list[str]) -> None:
     """
     Run the given command and redirect its STDOUT and STDERR to a file.
     Exits on a non-zero return code.
@@ -346,7 +343,7 @@ def mult_to_nue(mult: int) -> int:
 
 
 def xyzfile_to_at_coord(
-    xyzname: str | Path
+    xyzname: str | Path,
 ) -> tuple[list[str], list[tuple[float, float, float]]]:
     """Read an XYZ file and return the atom types and coordinates.
 

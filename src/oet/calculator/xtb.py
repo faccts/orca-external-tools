@@ -12,13 +12,19 @@ main: function
 """
 from argparse import ArgumentParser
 from pathlib import Path
-from oet.core.base_calc import BaseCalc
-from oet.core.misc import run_command, mult_to_nue, nat_from_xyzfile, print_filecontent, check_path
+from oet.core.base_calc import BaseCalc, BasicSettings
+from oet.core.misc import (
+    run_command,
+    mult_to_nue,
+    nat_from_xyzfile,
+    print_filecontent,
+    check_path,
+)
 
 
 class XtbCalc(BaseCalc):
     @property
-    def PROGRAM_KEYS(self) -> set[str]:
+    def PROGRAM_NAMES(self) -> set[str]:
         """Program keys to search for in PATH"""
         return {"xtb", "otools_xtb"}
 
@@ -34,16 +40,18 @@ class XtbCalc(BaseCalc):
             "-e", "--exe", dest="prog", help="Path to the xtb executable"
         )
 
-    def read_xtbout(self, natoms: int, dograd: bool) -> tuple[float, list[float]]:
+    def read_xtbout(
+        self, settings: BasicSettings, natoms: int
+    ) -> tuple[float, list[float]]:
         """
         Read the output from XTB
 
         Parameters
         ----------
+        settings: BasicSettings
+            Basic calculation settings
         natoms
             number of atoms in the system
-        dograd
-            whether to read the gradient
 
         Returns
         -------
@@ -52,18 +60,18 @@ class XtbCalc(BaseCalc):
         gradient: list[float]
             The gradient (X,Y,Z) for each atom
         """
-        xtbgrad = f"{self.basename}.gradient"
+        xtbgrad = f"{settings.basename}.gradient"
         energy = None
         gradient = []
         # read the energy from the output file
-        xtbout = check_path(self.prog_out)
+        xtbout = check_path(settings.prog_out)
         with xtbout.open() as f:
             for line in f:
                 if "TOTAL ENERGY" in line:
                     energy = float(line.split()[3])
                     break
         # read the gradient from the .gradient file
-        if dograd:
+        if settings.dograd:
             xtbgrad = check_path(xtbgrad)
             natoms_read = 0
             with xtbgrad.open() as f:
@@ -92,11 +100,7 @@ class XtbCalc(BaseCalc):
 
     def run_xtb(
         self,
-        xyz_file: str,
-        chrg: int,
-        mult: int,
-        ncores: int,
-        dograd: bool,
+        settings: BasicSettings,
         args: list[str],
     ) -> None:
         """
@@ -104,44 +108,41 @@ class XtbCalc(BaseCalc):
 
         Parameters
         ----------
-        xyz_file: str
-            Filename of xyz structure
-        chrg: int
-            Molecular charge
-        mult: int
-            Multiplicity
-        ncores: int
-            Number of cores to use
-        dograd: bool
-            Whether to do a gradient calculation or not
         args: list[str]
             Arguments not parsed so far
+        settings: BasicSettings
+            Object with basic settings for the run
         """
         args += [
             str(i)
-            for i in [xyz_file, "-c", chrg, "-P", ncores, "--namespace", self.basename]
+            for i in [
+                settings.xyzfile,
+                "-c",
+                settings.charge,
+                "-P",
+                settings.ncores,
+                "--namespace",
+                settings.basename,
+            ]
         ]
-        nue = mult_to_nue(mult)
+        nue = mult_to_nue(settings.mult)
         if nue:
             args += ["-u", str(nue)]
-        if dograd:
+        if settings.dograd:
             args += ["--grad"]
-        run_command(self.prog_path, self.prog_out, args)
+        run_command(settings.prog_path, settings.prog_out, args)
 
     def calc(
-        self, orca_input: dict, directory: Path, args_not_parsed: list[str], prog: str
+        self, settings: BasicSettings, args_not_parsed: list[str], prog: str
     ) -> tuple[float, list[float]]:
         """
         Routine for calculating energy and optional gradient.
         Writes ORCA output
 
-
         Parameters
         ----------
-        orca_input: dict
-            Input parameters
-        directory: Path
-            Directory where to work in
+        settings: BasicSettings
+            Object with basic settings for the run
         args_not_parsed: list[str]
             Arguments not parsed so far
         prog: str
@@ -152,39 +153,29 @@ class XtbCalc(BaseCalc):
         float: energy
         list[float]: gradients
         """
-        # Get the information needed
-        xyz_file = orca_input["xyz_file"]
-        chrg = orca_input["chrg"]
-        mult = orca_input["mult"]
-        ncores = orca_input["ncores"]
-        dograd = orca_input["dograd"]
-
-        xyz_file = directory / Path(xyz_file)
         # Set and check the program path if its executable
-        self.set_program_path(prog)
-        print("Using executable ", self.prog_path)
+        settings.set_program_path(prog)
+        if settings.prog_path:
+            print(f"Using executable {settings.prog_path}")
+        else:
+            raise FileNotFoundError(
+                f"Could not find a valid executable from standard program names: {self.PROGRAM_NAMES}"
+            )
 
         # run xtb
         self.run_xtb(
-            xyz_file=xyz_file,
-            chrg=chrg,
-            mult=mult,
-            ncores=ncores,
-            dograd=dograd,
+            settings=settings,
             args=args_not_parsed,
         )
 
         # get the number of atoms from the xyz file
-        natoms = nat_from_xyzfile(xyz_file=xyz_file)
+        natoms = nat_from_xyzfile(xyz_file=settings.xyzfile)
 
         # parse the xtb output
-        energy, gradient = self.read_xtbout(natoms=natoms, dograd=dograd)
+        energy, gradient = self.read_xtbout(settings=settings, natoms=natoms)
 
         # Print filecontent
-        print_filecontent(outfile=self.prog_out)
-
-        # Delete files
-        self.clean_files()
+        print_filecontent(outfile=settings.prog_out)
 
         return energy, gradient
 
@@ -195,7 +186,9 @@ def main():
     """
     calculator = XtbCalc()
     inputfile, args, args_not_parsed = calculator.parse_args()
-    calculator.run(inputfile=inputfile, settings=args, args_not_parsed=args_not_parsed)
+    calculator.run(
+        inputfile=inputfile, args_parsed=args, args_not_parsed=args_not_parsed
+    )
 
 
 # Python entry point

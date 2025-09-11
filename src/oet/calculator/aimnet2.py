@@ -15,11 +15,15 @@ from argparse import ArgumentParser
 from pathlib import Path
 from typing import Any
 import sys
-from oet.core.base_calc import CalcServer
+import warnings
+from oet.core.base_calc import BasicSettings, CalcServer
 from oet.core.misc import xyzfile_to_at_coord, ENERGY_CONVERSION, LENGTH_CONVERSION
 
 try:
-    from aimnet2calc import AIMNet2Calculator
+    # Suppress PySisiphus missing warning
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        from aimnet2calc import AIMNet2Calculator
 except ImportError:
     print(
         "[MISSING] Required module aimnet2calc not found.\n"
@@ -58,11 +62,6 @@ class Aimnet2Calc(CalcServer):
 
     # AIMNet2 calculator used to compute energy and grad
     _calc: AIMNet2Calculator
-
-    @property
-    def PROGRAM_KEYS(self) -> set[str]:
-        """Program keys to search for in PATH"""
-        return {""}
 
     def set_calculator(self, model: str) -> None:
         """
@@ -107,10 +106,6 @@ class Aimnet2Calc(CalcServer):
         # If not, aimnet will download them automatically
         else:
             self.set_calculator(model=model)
-        #    raise FileNotFoundError(
-        #        "Please provide a valid path to the models.\n"
-        #        "For convenience, you can use "
-        #    )
         return args
 
     def extend_parser(self, parser: ArgumentParser):
@@ -230,10 +225,7 @@ class Aimnet2Calc(CalcServer):
         self,
         atom_types: list[str],
         coordinates: list[tuple[float, float, float]],
-        charge: int,
-        mult: int,
-        dograd: bool,
-        nthreads: int,
+        settings: BasicSettings,
     ) -> tuple[float, list[float]]:
         """
         Runs an AimNet2 calculation.
@@ -244,18 +236,8 @@ class Aimnet2Calc(CalcServer):
             List of element symbols (e.g., ["O", "H", "H"])
         coordinates : list[tuple[float, float, float]]
             List of (x, y, z) coordinates
-        charge : int
-            Molecular charge
-        mult : int
-            Spin multiplicity
-        basemodel: str
-            The UMA base model to use
-        param: str
-            The param to use
-        dograd : bool
-            Whether to compute the gradient (currently always computed)
-        nthreads : int
-            Number of threads to use for the calculation
+        settings: BasicSettings
+            Object with basic settings for the run
 
         Returns
         -------
@@ -267,15 +249,15 @@ class Aimnet2Calc(CalcServer):
         """
 
         # set the number of threads
-        torch.set_num_threads(nthreads)
+        torch.set_num_threads(settings.ncores)
 
         # make ase atoms object for calculation
         aimnet2_input = self.serialize_input(
             atom_types=atom_types,
             coordinates=coordinates,
-            mult=mult,
-            charge=charge,
-            dograd=dograd,
+            mult=settings.mult,
+            charge=settings.charge,
+            dograd=settings.dograd,
         )
 
         results = self._calc(**aimnet2_input)
@@ -291,8 +273,7 @@ class Aimnet2Calc(CalcServer):
 
     def calc(
         self,
-        orca_input: dict,
-        directory: Path,
+        settings: BasicSettings,
         args_not_parsed: list[str],
     ) -> tuple[float, list[float]]:
         """
@@ -302,37 +283,21 @@ class Aimnet2Calc(CalcServer):
 
         Parameters
         ----------
-        orca_input: dict
-            Input parameters
+        settings: BasicSettings
+            Object with basic settings for the run
         directory: Path
             Directory where to work in
         args_not_parsed: list[str]
             Arguments not parsed so far
         """
-        # Get the information needed
-        xyz_file = orca_input["xyz_file"]
-        chrg = orca_input["chrg"]
-        mult = orca_input["mult"]
-        ncores = orca_input["ncores"]
-        dograd = orca_input["dograd"]
-
-        xyz_file = directory / Path(xyz_file)
 
         # process the XYZ file
-        atom_types, coordinates = xyzfile_to_at_coord(xyz_file)
+        atom_types, coordinates = xyzfile_to_at_coord(settings.xyzfile)
 
         # run uma
         energy, gradient = self.run_aimnet2(
-            atom_types=atom_types,
-            coordinates=coordinates,
-            charge=chrg,
-            mult=mult,
-            dograd=dograd,
-            nthreads=ncores,
+            atom_types=atom_types, coordinates=coordinates, settings=settings
         )
-
-        # Delete files
-        self.clean_files()
 
         return energy, gradient
 
@@ -344,7 +309,9 @@ def main():
     calculator = Aimnet2Calc()
     inputfile, args, args_not_parsed = calculator.parse_args()
     calculator.setup(args)
-    calculator.run(inputfile=inputfile, settings=args, args_not_parsed=args_not_parsed)
+    calculator.run(
+        inputfile=inputfile, args_parsed=args, args_not_parsed=args_not_parsed
+    )
 
 
 # Python entry point
