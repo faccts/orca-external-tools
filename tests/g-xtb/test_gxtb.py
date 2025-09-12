@@ -9,7 +9,7 @@ from oet.core.test_utilities import (
     OH,
 )
 
-gxtb_script_path = "../../src/oet/calculator/gxtb.py"
+gxtb_script_path = "../../scripts/otool_gxtb"
 # Leave uma_executable_path empty, if gxtb from system path should be called
 gxtb_executable_path = ""
 output_file = "wrapper.out"
@@ -22,7 +22,7 @@ def run_wrapper(arguments: str) -> None:
 
     with open(output_file, "w") as f:
         subprocess.run(
-            ["python", gxtb_script_path, args], stdout=f, stderr=subprocess.STDOUT
+            ["python3", gxtb_script_path, args], stdout=f, stderr=subprocess.STDOUT
         )
 
 

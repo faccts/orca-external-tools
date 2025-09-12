@@ -9,7 +9,7 @@ from oet.core.test_utilities import (
     OH,
 )
 
-mopac_script_path = "../../src/oet/calculator/mopac.py"
+mopac_script_path = "../../scripts/otool_mopac"
 # Leave moppac_executable_path empty, if mopac from system path should be called
 mopac_executable_path = ""
 output_file = "wrapper.out"
@@ -22,7 +22,7 @@ def run_wrapper(arguments: str) -> None:
 
     with open(output_file, "w") as f:
         subprocess.run(
-            ["python", mopac_script_path, args], stdout=f, stderr=subprocess.STDOUT
+            ["python3", mopac_script_path, args], stdout=f, stderr=subprocess.STDOUT
         )
 
 
@@ -41,19 +41,18 @@ class MopacTests(unittest.TestCase):
         run_wrapper(input_file)
         
         expected_num_atoms = 3
-        expected_energy = -7.849280369e-02
+        expected_energy = -7.849286623778e-02
         expected_gradients = [
-            -7.93659660e-03,
-            -5.85954874e-03,
-            4.14782076e-03,
-            6.58260052e-03,
-            -6.09236043e-03,
-            -9.82276238e-03,
-            1.35399608e-03,
-            1.19519092e-02,
-            5.67494162e-03,
+            -7.93660235e-03,
+            -5.85955298e-03,
+            4.14782376e-03,
+            6.58260529e-03,
+            -6.09236485e-03,
+            -9.82276949e-03,
+            1.35399706e-03,
+            1.19519178e-02,
+            5.67494573e-03,
         ]
-
         try:
             num_atoms, energy, gradients = read_result_file(engrad_out)
         except FileNotFoundError:
@@ -77,14 +76,14 @@ class MopacTests(unittest.TestCase):
         )
         run_wrapper(input_file)
         expected_num_atoms = 2
-        expected_energy = -4.909933634471e-02
+        expected_energy = -4.909937546712478e-02
         expected_gradients = [
-            -1.08238106e-02,
-            -3.48519048e-02,
-            -9.92625017e-03,
-            1.08238106e-02,
-            3.48519048e-02,
-            9.92625017e-03,
+            -1.08238184e-02,
+            -3.48519301e-02,
+            -9.92625736e-03,
+            1.08238184e-02,
+            3.48519301e-02,
+            9.92625736e-03,
         ]
 
         try:

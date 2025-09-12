@@ -10,8 +10,8 @@ from oet.core.test_utilities import (
     OH,
 )
 
-uma_script_path = "../../src/oet/server_client/client.py"
-uma_server_path = "../../src/oet/server_client/server.py"
+uma_script_path = "../../scripts/otool_client"
+uma_server_path = "../../scripts/otool_server"
 output_file = "wrapper.out"
 # Default ID and port of server. Change if needed
 id_port = "127.0.0.1:9000"
@@ -22,7 +22,7 @@ def run_wrapper(arguments: str) -> None:
 
     with open(output_file, "a") as f:
         subprocess.run(
-            ["python", uma_script_path, args, "--bind", id_port], stdout=f, stderr=subprocess.STDOUT
+            ["python3", uma_script_path, args, "--bind", id_port], stdout=f, stderr=subprocess.STDOUT
         )
 
 
@@ -34,7 +34,7 @@ class UmaTests(unittest.TestCase):
         """
         with open(output_file, "a") as f:
             cls.server = subprocess.Popen(
-                ["python", uma_server_path, "uma", "--bind", id_port], stdout=f, stderr=subprocess.STDOUT
+                ["python3", uma_server_path, "uma", "--bind", id_port], stdout=f, stderr=subprocess.STDOUT
             )
         # Wait a little to make sure it is setup
         time.sleep(5)

@@ -50,7 +50,7 @@ class UmaCalc(BaseCalc):
     # Fairchem calculator used to compute energy and grad
     _calc: FAIRChemCalculator | None = None
 
-    def set_calculator(self, param: str, basemodel: str, device: str = "cpu") -> None:
+    def set_calculator(self, param: str, basemodel: str, device: str) -> None:
         """
         Set the UMA calculator used by the UmaCalc object to compute energy and grad
 
@@ -63,7 +63,7 @@ class UmaCalc(BaseCalc):
         device: str, default: "cpu"
             Device that should be used, e.g., cpu or cuda
         """
-        predictor = pretrained_mlip.get_predict_unit(basemodel, device="cpu")
+        predictor = pretrained_mlip.get_predict_unit(basemodel, device=device)
         self._calc = FAIRChemCalculator(predictor, task_name=param)
 
     def get_calculator(self) -> FAIRChemCalculator:
@@ -72,7 +72,7 @@ class UmaCalc(BaseCalc):
         """
         return self._calc
 
-    def setup(self, param: str, basemodel: str, device: str = "cpu") -> None:
+    def setup(self, param: str, basemodel: str, device: str) -> None:
         """
         Filters the command line arguments for setup arguments
         Returns the respective dict where the processed arguments are removed
@@ -81,6 +81,12 @@ class UmaCalc(BaseCalc):
         ----------
         args: dict
             Arguments provided via cmd
+        param: str
+            Parameter set used by fairchem
+        basemode: str
+            Basemodel
+        device:
+            device to run the calculation on
 
         Returns
         -------
@@ -179,7 +185,7 @@ class UmaCalc(BaseCalc):
         args_not_parsed: list[str],
         param: str,
         basemodel: str,
-        device: str = "cpu",
+        device: str,
     ) -> tuple[float, list[float]]:
         """
         Routine for calculating energy and optional gradient.
@@ -192,6 +198,12 @@ class UmaCalc(BaseCalc):
             Object with basic settings for the run
         args_not_parsed: list[str]
             Arguments not parsed so far
+        param: str
+            Parameter set used by fairchem
+        basemode: str
+            Basemodel
+        device:
+            device to run the calculation on
 
         Returns
         -------

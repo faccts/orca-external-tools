@@ -9,7 +9,7 @@ from oet.core.test_utilities import (
     OH,
 )
 
-uma_script_path = "../../src/oet/calculator/uma.py"
+uma_script_path = "../../scripts/otool_uma"
 output_file = "wrapper.out"
 
 
@@ -18,7 +18,7 @@ def run_wrapper(arguments: str) -> None:
 
     with open(output_file, "w") as f:
         subprocess.run(
-            ["python", uma_script_path, args], stdout=f, stderr=subprocess.STDOUT
+            ["python3", uma_script_path, args], stdout=f, stderr=subprocess.STDOUT
         )
 
 

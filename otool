@@ -5,21 +5,7 @@ Single script for redirecting to wrapper
 
 from argparse import ArgumentParser
 import importlib
-import inspect
-
-# The following defines first the key that is provided
-# to the otool script
-# Second, the path to import and third the calculator class
-CALCULATOR_CLASSES = {
-    "aenet": ("oet.calculator.aenet", "AenetCalc"),
-    "aimnet2": ("oet.calculator.aimnet2", "Aimnet2Calc"),
-    "client": ("oet.server_client.client", "client"),
-    "gxtb": ("oet.calculator.gxtb", "GxtbCalc"),
-    "mlatom": ("oet.calculator.mlatom", "MlatomCalc"),
-    "mopac": ("oet.calculator.mopac", "MopacCalc"),
-    "uma": ("oet.calculator.uma", "UmaCalc"),
-    "xtb": ("oet.calculator.xtb", "XtbCalc"),
-}
+from oet.core.base_calc import CALCULATOR_CLASSES
 
 
 def parse_otool() -> tuple[str, str, list[str]]:
@@ -59,15 +45,11 @@ def main():
     mod = importlib.import_module(import_module)
     # Get class
     calculator = getattr(mod, calculator_name)
-    if inspect.isfunction(calculator):
-        calculator()
-    elif inspect.isclass(calculator):
-        # Initialize object
-        calculator = calculator()
-        # Parsing and run the calculation
-        inputfile, args, clear_args = calculator.parse_args()
-        calculator.setup(args)
-        calculator.run(inputfile=inputfile, settings=args, clear_args=clear_args)
+    # Initialize object
+    calculator = calculator()
+    # Parsing and run the calculation
+    inputfile, args, clear_args = calculator.parse_args()
+    calculator.run(inputfile=inputfile, args_parsed=args, args_not_parsed=clear_args)
 
 
 # Python entry point

@@ -9,7 +9,7 @@ from oet.core.test_utilities import (
     OH,
 )
 
-xtb_script_path = "../../src/oet/calculator/xtb.py"
+xtb_script_path = "../../scripts/otool_xtb"
 # Leave moppac_executable_path empty, if xtb from system path should be called
 xtb_executable_path = ""
 output_file = "wrapper.out"
@@ -22,7 +22,7 @@ def run_wrapper(arguments: str) -> None:
 
     with open(output_file, "w") as f:
         subprocess.run(
-            ["python", xtb_script_path, args], stdout=f, stderr=subprocess.STDOUT
+            ["python3", xtb_script_path, args], stdout=f, stderr=subprocess.STDOUT
         )
 
 

@@ -9,7 +9,7 @@ from oet.core.test_utilities import (
     OH,
 )
 
-aimnet2_script_path = "../../src/oet/calculator/aimnet2.py"
+aimnet2_script_path = "../../scripts/otool_aimnet2"
 output_file = "wrapper.out"
 
 
@@ -18,7 +18,7 @@ def run_wrapper(arguments: str) -> None:
 
     with open(output_file, "w") as f:
         subprocess.run(
-            ["python", aimnet2_script_path, args], stdout=f, stderr=subprocess.STDOUT
+            ["python3", aimnet2_script_path, args], stdout=f, stderr=subprocess.STDOUT
         )
 
 

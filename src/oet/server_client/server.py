@@ -23,15 +23,7 @@ from concurrent.futures import ProcessPoolExecutor
 import traceback
 
 from oet.core.misc import get_ncores_from_input
-
-
-# The following defines first the key that is provided
-# to the otool script
-# Second, the path to import and third the calculator class
-CALCULATOR_CLASSES = {
-    "aimnet2": ("oet.calculator.aimnet2", "Aimnet2Calc"),
-    "uma": ("oet.calculator.uma", "UmaCalc"),
-}
+from oet.core.base_calc import CALCULATOR_CLASSES
 
 # Per-process cache of initialized calculators
 _WORKER_CALC_CACHE = {}  # key: (module, class, frozenset(setup_items)) -> calc instance

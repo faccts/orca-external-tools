@@ -47,7 +47,7 @@ def send_to_server(
         sys.exit(1)
     except Exception as e:
         print(f"Unexpected error: {type(e).__name__}: {e}")
-        traceback.print_exc() 
+        traceback.print_exc()
         print(f"Recieved the following from server: {data}")
         sys.exit(1)
 

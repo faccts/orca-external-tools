@@ -12,7 +12,6 @@ class: CalcServer(BaseCalc)
     using it in a server/client layout (e.g. heavy imports)
 """
 
-from dataclasses import dataclass
 import shutil
 import sys
 import os
@@ -29,6 +28,19 @@ from oet.core.misc import (
     nat_from_xyzfile,
 )
 from argparse import ArgumentParser
+
+# Full list of all available calculator types.
+# Used, e.g., by otool and server.py
+CALCULATOR_CLASSES = {
+    "aenet": ("oet.calculator.aenet", "AenetCalc"),
+    "aimnet2": ("oet.calculator.aimnet2", "Aimnet2Calc"),
+    "client": ("oet.server_client.client", "client"),
+    "gxtb": ("oet.calculator.gxtb", "GxtbCalc"),
+    "mlatom": ("oet.calculator.mlatom", "MlatomCalc"),
+    "mopac": ("oet.calculator.mopac", "MopacCalc"),
+    "uma": ("oet.calculator.uma", "UmaCalc"),
+    "xtb": ("oet.calculator.xtb", "XtbCalc"),
+}
 
 
 class BasicSettings:
@@ -83,7 +95,7 @@ class BasicSettings:
         self.pointcharges = pointcharges
 
         # Make tmp directory so that every calculation is performed in its own directory
-        inp_tmp, xyz_tmp = self.make_tmp(
+        inp_tmp, xyz_tmp = self._make_tmp(
             files_to_copy=[self.orig_inputfile_path, self.orig_xyzfile],
             tmp_dir=self.tmp_dir,
         )
@@ -92,7 +104,7 @@ class BasicSettings:
         # Structure file in tmp directory (should be used for calculation)
         self.xyzfile = xyz_tmp
 
-    def make_tmp(self, files_to_copy: list[Path], tmp_dir: Path) -> list[Path]:
+    def _make_tmp(self, files_to_copy: list[Path], tmp_dir: Path) -> list[Path]:
         """
         Makes tmp directories and copies files
 
