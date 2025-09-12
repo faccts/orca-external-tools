@@ -224,7 +224,7 @@ class BaseCalc(ABC):
         inputfile: str,
         args_parsed: dict,
         args_not_parsed: list[str] = [],
-        directory: Path | str | None = None
+        directory: Path | str | None = None,
     ) -> None:
         """
         Main routine that computes energy and gradient based on inputfile
@@ -325,27 +325,6 @@ class BaseCalc(ABC):
         """
         pass
 
-    def setup(self, args: dict) -> dict:
-        """
-        Only overwrite for using import heavy stuff that should run on server
-        Sets class variables/objects that should remain identical for multiple calculations
-        Usually the import heavy stuff
-        Is called by the server and setup on start
-        Afterwards, it is not changed
-        Uses a dictionary to filter relevant settings, comes usually from command-line arguments
-        Returns the respective dict where the processed arguments are removed
-
-        Parameters
-        ----------
-        args: dict
-            Arguments provided via cmd
-
-        Returns
-        -------
-        dict: Arguments where all entries are removed that were processed
-        """
-        pass
-
     def _check_python_version(self) -> None:
         """
         Checks wether the Python version matches the minimum requirement
@@ -358,43 +337,3 @@ class BaseCalc(ABC):
             raise RuntimeError(
                 f"Python version must be higher than {self.minimal_python_version[0]}.{self.minimal_python_version[1]}"
             )
-
-
-class CalcServer(BaseCalc):
-    """
-    Class for building a calculator that can also be used by a server.
-    """
-
-    def extend_parser(self, parser: ArgumentParser) -> None:
-        """
-        Extends the parser by options defined by the subclasses
-
-        Parameters
-        ----------
-        parser: ArgumentParser
-            Parser that is extended
-        """
-        self.extend_parser_setup(parser)
-        self.extend_parser_settings(parser)
-
-    def extend_parser_setup(self, parser: ArgumentParser) -> None:
-        """
-        Method that extends parser for setup related arguments
-
-        Parameters
-        ----------
-        parser: ArgumentParser
-            Parser that should be extended
-        """
-        pass
-
-    def extend_parser_settings(self, parser: ArgumentParser) -> None:
-        """
-        Method that extends parser for calculation settings related arguments
-
-        Parameters
-        ----------
-        parser: ArgumentParser
-            Parser that should be extended
-        """
-        pass

@@ -13,7 +13,7 @@ main: function
 from argparse import ArgumentParser
 import sys
 import warnings
-from oet.core.base_calc import BasicSettings, CalcServer
+from oet.core.base_calc import BasicSettings, BaseCalc
 from oet.core.misc import xyzfile_to_at_coord, ENERGY_CONVERSION, LENGTH_CONVERSION
 
 try:
@@ -45,10 +45,10 @@ except ImportError as e:
     sys.exit(1)
 
 
-class UmaCalc(CalcServer):
+class UmaCalc(BaseCalc):
 
     # Fairchem calculator used to compute energy and grad
-    _calc: FAIRChemCalculator
+    _calc: FAIRChemCalculator | None = None
 
     def set_calculator(self, param: str, basemodel: str, device: str = "cpu") -> None:
         """
@@ -72,7 +72,7 @@ class UmaCalc(CalcServer):
         """
         return self._calc
 
-    def setup(self, args: dict) -> dict:
+    def setup(self, param: str, basemodel: str, device: str = "cpu") -> None:
         """
         Filters the command line arguments for setup arguments
         Returns the respective dict where the processed arguments are removed
@@ -86,12 +86,12 @@ class UmaCalc(CalcServer):
         -------
         dict: Arguments where all entries are removed that were processed
         """
-        self.set_calculator(
-            param=args.pop("param"),
-            basemodel=args.pop("basemodel"),
-            device=args.pop("device"),
-        )
-        return args
+        if not self._calc:
+            self.set_calculator(
+                param=param,
+                basemodel=basemodel,
+                device=device,
+            )
 
     def extend_parser(self, parser: ArgumentParser) -> None:
         """Add Uma parsing options.
@@ -100,17 +100,6 @@ class UmaCalc(CalcServer):
         ----------
         parser: ArgumentParser
             Parser that should be extended
-        """
-        self.extend_parser_setup(parser=parser)
-
-    def extend_parser_setup(self, parser: ArgumentParser) -> None:
-        """
-        Add Uma parsing options that are used for setting up the calculator.
-
-        Parameters
-        ----------
-        parser: ArgumentParser
-            Argument parser to extend
         """
         parser.add_argument(
             "-m",
@@ -136,17 +125,6 @@ class UmaCalc(CalcServer):
             dest="device",
             help="Device to perform the calculation on.",
         )
-
-    def extend_parser_settings(self, parser: ArgumentParser) -> None:
-        """
-        Add Uma parsing options that are used for calculation specific settings.
-
-        Parameters
-        ----------
-        parser: ArgumentParser
-            Argument parser to extend
-        """
-        pass
 
     def run_uma(
         self,
@@ -199,6 +177,9 @@ class UmaCalc(CalcServer):
         self,
         settings: BasicSettings,
         args_not_parsed: list[str],
+        param: str,
+        basemodel: str,
+        device: str = "cpu",
     ) -> tuple[float, list[float]]:
         """
         Routine for calculating energy and optional gradient.
@@ -218,6 +199,11 @@ class UmaCalc(CalcServer):
         list[float]: gradients
         """
 
+        # setup calculator if not already set
+        # this is important as usage on a server would otherwise cause
+        # initialization with every call so that nothing is gained
+        self.setup(param=param, basemodel=basemodel, device=device)
+
         # process the XYZ file
         atom_types, coordinates = xyzfile_to_at_coord(settings.xyzfile)
 
@@ -235,7 +221,6 @@ def main():
     """
     calculator = UmaCalc()
     inputfile, args, args_not_parsed = calculator.parse_args()
-    calculator.setup(args)
     calculator.run(
         inputfile=inputfile, args_parsed=args, args_not_parsed=args_not_parsed
     )

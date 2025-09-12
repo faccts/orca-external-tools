@@ -11,17 +11,16 @@ function: main
 """
 from __future__ import annotations
 
-import copy
 import importlib
 from flask import Flask, request, jsonify
 from waitress import serve
 from typing import Any, Dict, Tuple, List
-from argparse import ArgumentParser, Namespace
+from argparse import ArgumentParser
 from pathlib import Path
-import queue
 import logging
 import threading
 from concurrent.futures import ProcessPoolExecutor
+import traceback
 
 from oet.core.misc import get_ncores_from_input
 
@@ -65,7 +64,7 @@ def _run_calc_in_process(
         Cls = getattr(mod, calc_class)
         calc = Cls()
         # calculators expected setup(dict)
-        calc.setup(setup_kwargs.copy())
+        # calc.setup(setup_kwargs.copy())
         _WORKER_CALC_CACHE[key] = calc
 
     # Run calc.run and return the results
@@ -143,9 +142,9 @@ class CalculatorPool:
         """
         import_module, calculator_name = CALCULATOR_CLASSES[calc_type]
         mod = importlib.import_module(import_module)
-        self._cls = getattr(mod, calculator_name) 
+        self._cls = getattr(mod, calculator_name)
 
-    def _call_parser_hook(self, hook_name: str, parser: ArgumentParser) -> None:
+    def build_full_parser(self, hook_name: str, parser: ArgumentParser) -> None:
         """
         Extends parser based on subroutine hook_name
 
@@ -159,14 +158,6 @@ class CalculatorPool:
         tmp = self._cls()  # assumes default constructor
         meth = getattr(tmp, hook_name)
         meth(parser)
-
-    def build_full_parser(self, parser: ArgumentParser) -> None:
-        """Add calculator *setup* options to the server CLI (once, at startup)."""
-        self._call_parser_hook("extend_parser_setup", parser)
-
-    def extend_request_parser(self, parser: ArgumentParser) -> None:
-        """Add calculator *request* options to per-request parser."""
-        self._call_parser_hook("extend_parser_settings", parser)
 
 
 class OtoolServer:
@@ -256,7 +247,7 @@ class OtoolServer:
         parser.add_argument("inputfile")
 
         # Let the calculator define its per-request flags
-        self.pool.extend_request_parser(parser)
+        self.pool.build_full_parser("extend_parser", parser)
 
         args, remaining_args = parser.parse_known_args(arguments)
 
@@ -302,7 +293,7 @@ def create_app(server: OtoolServer) -> Flask:
                     }
                 )
 
-            # Optional: validate directory exists and is a dir
+            # Validate directory exists and is a dir
             p = Path(directory)
             if not p.exists() or not p.is_dir():
                 return jsonify(
@@ -313,7 +304,7 @@ def create_app(server: OtoolServer) -> Flask:
                     }
                 )
 
-            # Delegate to your server logic
+            # Delegate to server
             result = server.handle_client(
                 {"arguments": arguments, "directory": directory}
             )
@@ -325,6 +316,7 @@ def create_app(server: OtoolServer) -> Flask:
                     "status": "Error",
                     "error_message": str(e),
                     "error_type": type(e).__name__,
+                    "traceback": traceback.format_exc(),
                 }
             )
 
@@ -378,7 +370,7 @@ def main():
     pool.set_calculator_type(args.method)
 
     # Let the calculator add any *setup* options to the CLI (if they exist)
-    pool.build_full_parser(parser)
+    pool.build_full_parser("extend_parser", parser)
 
     # Re-parse now that setup flags may be registered
     args, _ = parser.parse_known_args()

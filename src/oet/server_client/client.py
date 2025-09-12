@@ -34,6 +34,7 @@ def send_to_server(
         data = response.json()
         if data.get("status") == "Error":
             print(f"Server error {data.get("error_type")}: {data.get("error_message")}.")
+            print(f"Exact traceback: {data.get("traceback")}")
             sys.exit(1)
     except requests.exceptions.Timeout:
         print("Connection timed out.")

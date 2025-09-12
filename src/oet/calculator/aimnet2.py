@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Any
 import sys
 import warnings
-from oet.core.base_calc import BasicSettings, CalcServer
+from oet.core.base_calc import BasicSettings, BaseCalc
 from oet.core.misc import xyzfile_to_at_coord, ENERGY_CONVERSION, LENGTH_CONVERSION
 
 try:
@@ -40,7 +40,7 @@ except ImportError as e:
     sys.exit(1)
 
 
-class Aimnet2Calc(CalcServer):
+class Aimnet2Calc(BaseCalc):
 
     # Elements covered by AIMNet2
     ELEMENT_TO_ATOMIC_NUMBER = {
@@ -61,18 +61,7 @@ class Aimnet2Calc(CalcServer):
     }
 
     # AIMNet2 calculator used to compute energy and grad
-    _calc: AIMNet2Calculator
-
-    def set_calculator(self, model: str) -> None:
-        """
-        Set the AimNet2 calculator used by the Aimnet2Calc object to compute energy and grad
-
-        Parameters
-        ----------
-        model: str
-            Path to the model files
-        """
-        self._calc = AIMNet2Calculator(model=model)
+    _calc: AIMNet2Calculator | None = None
 
     def get_calculator(self) -> AIMNet2Calculator:
         """
@@ -84,29 +73,40 @@ class Aimnet2Calc(CalcServer):
         """
         return self._calc
 
-    def setup(self, args: dict) -> dict:
+    def set_calculator(self, model: str) -> None:
         """
-        Filters the command line arguments for setup arguments
-        Returns the respective dict where the processed arguments are removed
+        Set the calculator
 
         Parameters
         ----------
-        args: dict
-            Arguments provided via cmd
+        model: str
+            Model of the calculator
+        """
+        self._calc = AIMNet2Calculator(model=model)
+
+    def setup(self, model: str, model_dir: str) -> None:
+        """
+        Sets the calculator. Does nothing, if it is already set.
+
+        Parameters
+        ----------
+        model: str
+            Model that the calculator should have
+        model_dir: str
+            Path to the model files
 
         Returns
         -------
         dict: Arguments where all entries are removed that were processed
         """
-        # Check whether models are present
-        model = args.pop("model")
-        model_path = str(args.pop("model_dir") / Path(model))
-        if os.path.isfile(model_path):
-            self.set_calculator(model=model_path)
-        # If not, aimnet will download them automatically
-        else:
-            self.set_calculator(model=model)
-        return args
+        if not self._calc:
+            # Check whether models are present
+            model_path = str(Path(model_dir) / Path(model))
+            if os.path.isfile(model_path):
+                self.set_calculator(model=model_path)
+            # If not, aimnet will download them automatically
+            else:
+                self.set_calculator(model=model)
 
     def extend_parser(self, parser: ArgumentParser):
         """Add AimNet2 parsing options.
@@ -115,17 +115,6 @@ class Aimnet2Calc(CalcServer):
         ----------
         parser: ArgumentParser
             Parser that should be extended
-        """
-        self.extend_parser_setup(parser=parser)
-
-    def extend_parser_setup(self, parser: ArgumentParser):
-        """
-        Add AimNet2 parsing options that are used for setting up the calculator.
-
-        Parameters
-        ----------
-        parser: ArgumentParser
-            Argument parser to extend
         """
         default_model_path = Path(__file__).resolve().parent / "models"
         parser.add_argument(
@@ -275,6 +264,8 @@ class Aimnet2Calc(CalcServer):
         self,
         settings: BasicSettings,
         args_not_parsed: list[str],
+        model: str,
+        model_dir: str,
     ) -> tuple[float, list[float]]:
         """
         Routine for calculating energy and optional gradient.
@@ -289,8 +280,15 @@ class Aimnet2Calc(CalcServer):
             Directory where to work in
         args_not_parsed: list[str]
             Arguments not parsed so far
+        model: str
+            AIMNet2 model to use
+        model_dir: str
+            Directory to the model files
         """
-
+        # setup calculator if not already set
+        # this is important as usage on a server would otherwise cause
+        # initialization with every call so that nothing is gained
+        self.setup(model=model, model_dir=model_dir)
         # process the XYZ file
         atom_types, coordinates = xyzfile_to_at_coord(settings.xyzfile)
 
@@ -308,7 +306,6 @@ def main():
     """
     calculator = Aimnet2Calc()
     inputfile, args, args_not_parsed = calculator.parse_args()
-    calculator.setup(args)
     calculator.run(
         inputfile=inputfile, args_parsed=args, args_not_parsed=args_not_parsed
     )
