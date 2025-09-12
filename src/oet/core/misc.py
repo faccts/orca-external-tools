@@ -214,6 +214,45 @@ def read_input(
     )
 
 
+def get_ncores_from_input(
+    inputfile: str | Path,
+) -> int:
+    """
+    Reads an input file written by ORCA and returns the number of cores.
+
+    Parameters
+    ----------
+    inputfile: str | Path
+        Input file to read from
+
+    Returns
+    -------
+    int: number of cores
+
+    Raises
+    ------
+    FileNotFoundError: Input file not found
+    ValueError: If input contained values in wrong format
+    """
+    # Get every first entry of each line of input file
+    try:
+        with open(inputfile, "r") as f:
+            lines = [
+                line.split(" ")[0].strip() for line in f.readlines() if line.strip()
+            ]
+    except FileNotFoundError:
+        raise FileNotFoundError(f"Input file not found: {inputfile}")
+    # Save information
+    try:
+        ncores = int(lines[3])
+    except ValueError as e:
+        raise ValueError(f"Error reading ORCA input file: {e}")
+    # Some sanity check
+    if ncores < 1:
+        raise ValueError("NCores must be a positive integer.")
+    return ncores
+
+
 def check_file(file_path: Path | str) -> bool:
     """Check whether file is present or not. Returns boolean."""
     return Path(file_path).is_file()

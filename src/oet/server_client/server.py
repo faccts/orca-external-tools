@@ -11,16 +11,20 @@ function: main
 """
 from __future__ import annotations
 
-from ast import arg
+import copy
 import importlib
-from blinker import Namespace
 from flask import Flask, request, jsonify
 from waitress import serve
 from typing import Any, Dict, Tuple, List
-from argparse import ArgumentParser
+from argparse import ArgumentParser, Namespace
 from pathlib import Path
 import queue
+import logging
 import threading
+from concurrent.futures import ProcessPoolExecutor
+
+from oet.core.misc import get_ncores_from_input
+
 
 # The following defines first the key that is provided
 # to the otool script
@@ -30,17 +34,103 @@ CALCULATOR_CLASSES = {
     "uma": ("oet.calculator.uma", "UmaCalc"),
 }
 
+# Per-process cache of initialized calculators
+_WORKER_CALC_CACHE = {}  # key: (module, class, frozenset(setup_items)) -> calc instance
+
+
+def _run_calc_in_process(
+    calc_module: str, calc_class: str, setup_kwargs: dict, run_kwargs: dict
+):
+    """
+    Worker entrypoint. Runs in a separate process.
+    We lazily create & cache a calculator instance per unique setup.
+
+    Parameters
+    ----------
+    calc_module: str
+        Module to load for calculator
+    calc_class: str
+        Calculator type
+    setup_kwargs: dict
+        Keywords of setup
+    run_kwargs: dict
+        Infos from client about the run
+    """
+    import importlib
+
+    key = (calc_module, calc_class, frozenset(setup_kwargs.items()))
+    calc = _WORKER_CALC_CACHE.get(key)
+    if calc is None:
+        mod = importlib.import_module(calc_module)
+        Cls = getattr(mod, calc_class)
+        calc = Cls()
+        # calculators expected setup(dict)
+        calc.setup(setup_kwargs.copy())
+        _WORKER_CALC_CACHE[key] = calc
+
+    # Run calc.run and return the results
+    return calc.run(**run_kwargs)
+
+
+class CoreLimiter:
+    """
+    Enforces a global core budget across concurrent jobs.
+    Blocks until enough cores are free.
+    """
+
+    def __init__(self, total_cores: int):
+        # Total cores of server
+        self.total = int(total_cores)
+        # Available cores of server
+        self.available = int(total_cores)
+        # Waiting
+        self._cv = threading.Condition()
+
+    def acquire(self, n: int) -> None:
+        """
+        Wait until the required cores for the job are available again
+
+        Parameters
+        ----------
+        n: int
+            Number of cores that are requested for the job
+        """
+        n = int(n)
+        with self._cv:
+            if n > self.total:
+                # Fail fast: this job can never run on this server
+                raise ValueError(
+                    f"Requested {n} cores but only {self.total} total available."
+                )
+            while n > self.available:
+                self._cv.wait()
+            self.available -= n
+
+    def release(self, n: int):
+        """
+        Releases number of cores after the job is done
+
+        Parameters
+        ----------
+        n: int
+            Number of cores to release
+        """
+        n = int(n)
+        with self._cv:
+            self.available += n
+            if self.available > self.total:
+                self.available = self.total
+            self._cv.notify_all()
+
+
 class CalculatorPool:
     """
     Stores and manages free calculators
     """
+
     def __init__(self):
         # Class of the calculators
         self._cls: Any = None
-        # Pool of calculators
-        self._pool: dict[int, Any] = {}
-        # Queue for the calculators
-        self._free: queue.LifoQueue[int] | None = None
 
     def set_calculator_type(self, calc_type: str) -> None:
         """
@@ -53,52 +143,7 @@ class CalculatorPool:
         """
         import_module, calculator_name = CALCULATOR_CLASSES[calc_type]
         mod = importlib.import_module(import_module)
-        self._cls = getattr(mod, calculator_name)  # store the class, not an instance
-
-    def init_pool(self, size: int, args: Namespace) -> None:
-        """
-        Initialize the pool by creating the calculators
-
-        Parameters
-        ----------
-        size: int
-            Size of pool
-        args: Namespace
-            Arguments (options) from parsing
-        """
-        # Create independent instances (no shallow clones)
-        self._pool = {i: self._cls() for i in range(size)}
-        for calculator in self._pool.values():
-            calculator.setup(vars(args))
-        self._free = queue.LifoQueue(maxsize=size)
-        # Make them all free
-        for i in range(size):
-            self._free.put(i)
-
-    def acquire(self, timeout: float | None = None) -> Tuple[int, Any]:
-        """
-        Waits until the next calculator is available and returns it
-
-        Parameters
-        ----------
-        timeout: float, default = None
-            Optional timeout time
-        
-        Returns
-        -------
-        int: idx of the calculator
-        Any: calculator
-        """
-        if self._free is None:
-            raise RuntimeError("Pool not initialized.")
-        idx = self._free.get(timeout=timeout)   # thread-safe
-        return idx, self._pool[idx]
-
-    def release(self, idx: int):
-        """Return the calculator to the pool."""
-        if self._free is None:
-            raise RuntimeError("Pool not initialized.")
-        self._free.put(idx)
+        self._cls = getattr(mod, calculator_name) 
 
     def _call_parser_hook(self, hook_name: str, parser: ArgumentParser) -> None:
         """
@@ -125,8 +170,19 @@ class CalculatorPool:
 
 
 class OtoolServer:
-    def __init__(self, pool: CalculatorPool):
+    def __init__(
+        self,
+        pool: CalculatorPool,
+        total_cores: int,
+        executor: ProcessPoolExecutor,
+        calc_spec: tuple[str, str],
+        setup_kwargs: dict,
+    ):
         self.pool = pool
+        self.core_limiter = CoreLimiter(total_cores)
+        self.executor = executor
+        self.calc_module, self.calc_class = calc_spec
+        self.setup_kwargs = setup_kwargs
 
     def handle_client(self, content: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -136,29 +192,44 @@ class OtoolServer:
         ----------
         content: Dict[str, Any]
             Message received from client
-        
+
         Returns
         -------
         Dict[str, Any]: Message to be sent to client
         """
         arguments: List[str] = content["arguments"]
-        working_dir: str = content["directory"]
+        working_dir = Path(content["directory"]).resolve()
 
+        # Parse client args
         inputfile, args, clear_args = self.parse_client_input(arguments)
 
-        # Acquire a free calculator instance for this request
-        idx, calc = self.pool.acquire()
+        # Make inputfile absolute (per-request, thread-safe)
+        inputfile_path = (working_dir / inputfile).resolve()
+
+        # Get per-job core demand
+        ncores_job = get_ncores_from_input(inputfile_path)
+
+        # Gate by cores
+        self.core_limiter.acquire(ncores_job)
         try:
-            # Run calculation (in requested working directory)
-            calc.run(
-                inputfile=inputfile,
-                args_parsed=args,
-                args_not_parsed=clear_args,
-                directory=working_dir,
+            # Submit the job to a separate process
+            run_kwargs = {
+                "inputfile": str(inputfile_path),
+                "args_parsed": args,
+                "args_not_parsed": clear_args,
+                "directory": str(working_dir),
+            }
+            fut = self.executor.submit(
+                _run_calc_in_process,
+                self.calc_module,
+                self.calc_class,
+                self.setup_kwargs,
+                run_kwargs,
             )
+            # Will raise if the worker raised
+            _ = fut.result()
         finally:
-            # Always release back to the pool
-            self.pool.release(idx)
+            self.core_limiter.release(ncores_job)
 
         return {"status": "Success"}
 
@@ -211,25 +282,51 @@ def create_app(server: OtoolServer) -> Flask:
         try:
             data = request.get_json(force=True, silent=False)
             if not isinstance(data, dict):
-                return jsonify({"status": "Error", "error_message": "Invalid JSON payload", "error_type": "ValueError"})
+                return jsonify(
+                    {
+                        "status": "Error",
+                        "error_message": "Invalid JSON payload",
+                        "error_type": "ValueError",
+                    }
+                )
 
             arguments = data.get("arguments")
             directory = data.get("directory")
 
             if not isinstance(arguments, list) or not isinstance(directory, str):
-                return jsonify({"status": "Error", "error_message": "Payload must have list 'arguments' and str 'directory'", "error_type": "ValueError"})
+                return jsonify(
+                    {
+                        "status": "Error",
+                        "error_message": "Payload must have list 'arguments' and str 'directory'",
+                        "error_type": "ValueError",
+                    }
+                )
 
             # Optional: validate directory exists and is a dir
             p = Path(directory)
             if not p.exists() or not p.is_dir():
-                return jsonify({"status": "Error", "error_message": f"Invalid directory: {p}", "error_type": "ValueError"})
+                return jsonify(
+                    {
+                        "status": "Error",
+                        "error_message": f"Invalid directory: {p}",
+                        "error_type": "ValueError",
+                    }
+                )
 
             # Delegate to your server logic
-            result = server.handle_client({"arguments": arguments, "directory": directory})
+            result = server.handle_client(
+                {"arguments": arguments, "directory": directory}
+            )
             return jsonify(result)
 
         except Exception as e:
-            return jsonify({"status": "Error", "error_message": str(e), "error_type": type(e).__name__})
+            return jsonify(
+                {
+                    "status": "Error",
+                    "error_message": str(e),
+                    "error_type": type(e).__name__,
+                }
+            )
 
     return app
 
@@ -268,13 +365,17 @@ def main():
         help="Number of threads to use. Default: 1",
     )
 
-    # ---- Pool and calculator setup (one-time, startup) -----------
-    # We first parse only the known args to get method/nthreads/etc.
+    # Logging for printout of infos
+    logging.basicConfig(level=logging.INFO)
+    # Suppress the warnings (e.g. jobs are queued)
+    logging.getLogger("waitress.queue").setLevel(logging.ERROR)
+
+    # First parse only the known args to get method/nthreads/etc.
     args, _ = parser.parse_known_args()
 
+    # Make a pool for getting the hooks on calculators argument parsing
     pool = CalculatorPool()
     pool.set_calculator_type(args.method)
-    nthreads = args.nthreads
 
     # Let the calculator add any *setup* options to the CLI (if they exist)
     pool.build_full_parser(parser)
@@ -282,11 +383,23 @@ def main():
     # Re-parse now that setup flags may be registered
     args, _ = parser.parse_known_args()
 
-    # Initialize pool of independent instances
-    pool.init_pool(size=nthreads, args=args)
+    # Prepare the calculator spec & setup kwargs for the worker
+    calc_module, calc_class = CALCULATOR_CLASSES[args.method]
+    setup_kwargs = vars(args).copy()
+
+    # Create workers
+    workers = args.nthreads
+    # Initialize the ProcessPool
+    executor = ProcessPoolExecutor(max_workers=workers)
 
     # Then initialize a server instance that uses the pool
-    server = OtoolServer(pool)
+    server = OtoolServer(
+        pool=pool,
+        total_cores=args.nthreads,  # or another CLI flag like --total-cores
+        executor=executor,
+        calc_spec=(calc_module, calc_class),
+        setup_kwargs=setup_kwargs,
+    )
 
     # Start the server
     host, port = args.host_port.split(":")
@@ -294,6 +407,7 @@ def main():
     # Waitress will create a thread per incoming request (bounded by 'threads').
     # Each request acquires/releases a calculator safely.
     serve(app, host=host, port=int(port), threads=args.nthreads)
+
 
 if __name__ == "__main__":
     main()
