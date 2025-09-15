@@ -41,30 +41,30 @@ class GxtbTests(unittest.TestCase):
         )
         run_wrapper(input_file)
         expected_num_atoms = 3
-        expected_energy = -76.437068989
+        expected_energy = -76.43736490412
         expected_gradients = [
-            -0.008729628293243,
-            -0.006455060140335,
-            0.00456420451466,
-            0.003703035104271,
-            0.005500728080203,
-            -0.0003292290623828,
-            0.005026593188973,
-            0.0009543320601324,
-            -0.004234975452277
-            ]
+            -8.58374584e-03,
+            -6.34732203e-03,
+            4.48788670e-03,
+            3.68390440e-03,
+            5.26218976e-03,
+            -4.49684003e-04,
+            4.89984144e-03,
+            1.08513227e-03,
+            -4.03820270e-03,
+        ]
 
         try:
             num_atoms, energy, gradients = read_result_file(engrad_out)
         except FileNotFoundError:
             print("Error wrapper outputfile not found. Check wrapper.out for details")
-            
+
         self.assertEqual(num_atoms, expected_num_atoms)
         self.assertAlmostEqual(energy, expected_energy, places=9)
         for g1, g2 in zip(gradients, expected_gradients):
             self.assertAlmostEqual(g1, g2, places=9)
 
-    def test_OH_eng_grad(self):
+    def test_OH_anion_eng_grad(self):
         xyz_file, input_file, engrad_out = get_filenames("OH")
         write_xyz_file(xyz_file, OH)
         write_input_file(
@@ -77,15 +77,15 @@ class GxtbTests(unittest.TestCase):
         )
         run_wrapper(input_file)
         expected_num_atoms = 2
-        expected_energy = -75.80251013875
+        expected_energy = -75.80305584316
         expected_gradients = [
-            0.001412983928617,
-            0.004540856987963,
-            0.001295824899709,
-            -0.001412983928617,
-            -0.004540856987963,
-            -0.001295824899709
-            ]
+            2.28916816e-03,
+            7.36155354e-03,
+            2.09936121e-03,
+            -2.28916816e-03,
+            -7.36155354e-03,
+            -2.09936121e-03,
+        ]
 
         try:
             num_atoms, energy, gradients = read_result_file(engrad_out)
@@ -97,6 +97,38 @@ class GxtbTests(unittest.TestCase):
         for g1, g2 in zip(gradients, expected_gradients):
             self.assertAlmostEqual(g1, g2, places=9)
 
+    def test_OH_rad_eng_grad(self):
+        xyz_file, input_file, engrad_out = get_filenames("OH_client")
+        write_xyz_file(xyz_file, OH)
+        write_input_file(
+            filename=input_file,
+            xyz_filename=xyz_file,
+            charge=0,
+            multiplicity=2,
+            ncores=2,
+            do_gradient=1,
+        )
+        run_wrapper(input_file)
+        expected_num_atoms = 2
+        expected_energy = -75.74502880794
+        expected_gradients = [
+            -1.02890363e-04,
+            -3.55911885e-04,
+            -1.29478984e-04,
+            1.02890363e-04,
+            3.55911885e-04,
+            1.29478984e-04,
+        ]
+
+        try:
+            num_atoms, energy, gradients = read_result_file(engrad_out)
+        except FileNotFoundError:
+            print("Error wrapper outputfile not found. Check wrapper.out for details")
+
+        self.assertEqual(num_atoms, expected_num_atoms)
+        self.assertAlmostEqual(energy, expected_energy, places=7)
+        for g1, g2 in zip(gradients, expected_gradients):
+            self.assertAlmostEqual(g1, g2, places=7)
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
-Calculator for using UMA (https://github.com/facebookresearch/fairchem),
-compatible with ORCA's ExtTool interface.
+This package provides [fairchem](https://github.com/facebookresearch/fairchem) wrappers for ORCA's ExtTool interface.
+Before starting to use this module, please make sure your have access to the [fairchem repository](https://huggingface.co/facebook/UMA) and logged in with your
+huggingface account. For details, please see the GitHub repository or the [respective tutorials](https://fair-chem.github.io/).
 
 Provides
 --------

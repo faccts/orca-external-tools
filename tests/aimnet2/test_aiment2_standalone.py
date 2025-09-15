@@ -60,7 +60,7 @@ class Aimnet2Tests(unittest.TestCase):
         for g1, g2 in zip(gradients, expected_gradients):
             self.assertAlmostEqual(g1, g2, places=9)
 
-    def test_OH_eng_grad(self):
+    def test_OH_anion_eng_grad(self):
         xyz_file, input_file, engrad_out = get_filenames("OH")
         write_xyz_file(xyz_file, OH)
         write_input_file(
@@ -93,6 +93,38 @@ class Aimnet2Tests(unittest.TestCase):
         for g1, g2 in zip(gradients, expected_gradients):
             self.assertAlmostEqual(g1, g2, places=9)
 
+    def test_OH_rad_eng_grad(self):
+        xyz_file, input_file, engrad_out = get_filenames("OH_client")
+        write_xyz_file(xyz_file, OH)
+        write_input_file(
+            filename=input_file,
+            xyz_filename=xyz_file,
+            charge=0,
+            multiplicity=2,
+            ncores=2,
+            do_gradient=1,
+        )
+        run_wrapper(input_file)
+        expected_num_atoms = 2
+        expected_energy = -75.68258695326
+        expected_gradients = [
+            -3.78393149e-03,
+            -1.21797854e-02,
+            -3.47019313e-03,
+            3.78393149e-03,
+            1.21797854e-02,
+            3.47019313e-03,
+        ]
+
+        try:
+            num_atoms, energy, gradients = read_result_file(engrad_out)
+        except FileNotFoundError:
+            print("Error wrapper outputfile not found. Check wrapper.out for details")
+
+        self.assertEqual(num_atoms, expected_num_atoms)
+        self.assertAlmostEqual(energy, expected_energy, places=7)
+        for g1, g2 in zip(gradients, expected_gradients):
+            self.assertAlmostEqual(g1, g2, places=7)
 
 if __name__ == "__main__":
     unittest.main()

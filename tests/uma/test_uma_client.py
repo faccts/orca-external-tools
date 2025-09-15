@@ -84,8 +84,8 @@ class UmaTests(unittest.TestCase):
         for g1, g2 in zip(gradients, expected_gradients):
             self.assertAlmostEqual(g1, g2, places=9)
 
-    def test_OH_eng_grad(self):
-        xyz_file, input_file, engrad_out = get_filenames("OH_client")
+    def test_OH_anion_eng_grad(self):
+        xyz_file, input_file, engrad_out = get_filenames("OH")
         write_xyz_file(xyz_file, OH)
         write_input_file(
             filename=input_file,
@@ -99,12 +99,45 @@ class UmaTests(unittest.TestCase):
         expected_num_atoms = 2
         expected_energy = -75.80600885514
         expected_gradients = [
-            -0.001075187698007,
-            -0.003460831707343,
-            -0.0009860402205959,
-            0.001075187698007,
-            0.003460831707343,
-            0.0009860402205959,
+            -1.07518770e-03,
+            -3.46083171e-03,
+            -9.86040221e-04,
+            1.07518770e-03,
+            3.46083171e-03,
+            9.86040221e-04,
+        ]
+
+        try:
+            num_atoms, energy, gradients = read_result_file(engrad_out)
+        except FileNotFoundError:
+            print("Error wrapper outputfile not found. Check wrapper.out for details")
+
+        self.assertEqual(num_atoms, expected_num_atoms)
+        self.assertAlmostEqual(energy, expected_energy, places=9)
+        for g1, g2 in zip(gradients, expected_gradients):
+            self.assertAlmostEqual(g1, g2, places=9)
+
+    def test_OH_rad_eng_grad(self):
+        xyz_file, input_file, engrad_out = get_filenames("OH_client")
+        write_xyz_file(xyz_file, OH)
+        write_input_file(
+            filename=input_file,
+            xyz_filename=xyz_file,
+            charge=0,
+            multiplicity=2,
+            ncores=2,
+            do_gradient=1,
+        )
+        run_wrapper(input_file)
+        expected_num_atoms = 2
+        expected_energy = -75.74213434819
+        expected_gradients = [
+            1.35625619e-03,
+            4.36554058e-03,
+            1.24380342e-03,
+            -1.35625619e-03,
+            -4.36554058e-03,
+            -1.24380342e-03,
         ]
 
         try:

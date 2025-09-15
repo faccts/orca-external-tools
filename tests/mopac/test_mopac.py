@@ -63,7 +63,7 @@ class MopacTests(unittest.TestCase):
         for g1, g2 in zip(gradients, expected_gradients):
             self.assertAlmostEqual(g1, g2, places=9)
 
-    def test_OH_eng_grad(self):
+    def test_OH_anion_eng_grad(self):
         xyz_file, input_file, engrad_out = get_filenames("OH")
         write_xyz_file(xyz_file, OH)
         write_input_file(
@@ -96,6 +96,38 @@ class MopacTests(unittest.TestCase):
         for g1, g2 in zip(gradients, expected_gradients):
             self.assertAlmostEqual(g1, g2, places=9)
 
+    def test_OH_rad_eng_grad(self):
+        xyz_file, input_file, engrad_out = get_filenames("OH")
+        write_xyz_file(xyz_file, OH)
+        write_input_file(
+            filename=input_file,
+            xyz_filename=xyz_file,
+            charge=0,
+            multiplicity=2,
+            ncores=2,
+            do_gradient=1,
+        )
+        run_wrapper(input_file)
+        expected_num_atoms = 2
+        expected_energy = 0.0212775115576
+        expected_gradients = [
+            1.41467827e-03,
+            4.53843190e-03,
+            1.29739489e-03,
+            -1.41467827e-03,
+            -4.53843190e-03,
+            -1.29739489e-03,
+        ]
+
+        try:
+            num_atoms, energy, gradients = read_result_file(engrad_out)
+        except FileNotFoundError:
+            print("Error wrapper outputfile not found. Check wrapper.out for details")
+
+        self.assertEqual(num_atoms, expected_num_atoms)
+        self.assertAlmostEqual(energy, expected_energy, places=9)
+        for g1, g2 in zip(gradients, expected_gradients):
+            self.assertAlmostEqual(g1, g2, places=9)
 
 if __name__ == "__main__":
     unittest.main()
