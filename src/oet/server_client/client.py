@@ -52,7 +52,7 @@ def send_to_server(
         sys.exit(1)
 
 
-def client():
+def client() -> None:
     """Entry point for CLI execution"""
     parser = ArgumentParser(
         prog="ORCA otool client",

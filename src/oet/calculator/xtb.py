@@ -28,7 +28,7 @@ class XtbCalc(BaseCalc):
         """Program keys to search for in PATH"""
         return {"xtb", "otools_xtb"}
 
-    def extend_parser(self, parser: ArgumentParser):
+    def extend_parser(self, parser: ArgumentParser) -> None:
         """Add xtb parsing options.
 
         Parameters
@@ -72,9 +72,9 @@ class XtbCalc(BaseCalc):
                     break
         # read the gradient from the .gradient file
         if settings.dograd:
-            xtbgrad = check_path(xtbgrad)
+            xtbgrad_path = check_path(xtbgrad)
             natoms_read = 0
-            with xtbgrad.open() as f:
+            with xtbgrad_path.open() as f:
                 for line in f:
                     if "$grad" in line:
                         break
@@ -96,6 +96,8 @@ class XtbCalc(BaseCalc):
                         f"Number of gradient entries: {len(gradient)} does not match 3x number of atoms: {natoms}"
                     )
                     exit(1)
+        if not energy:
+            raise ValueError(f"Total enery not found in file {settings.prog_out}")
         return energy, gradient
 
     def run_xtb(
@@ -130,6 +132,8 @@ class XtbCalc(BaseCalc):
             args += ["-u", str(nue)]
         if settings.dograd:
             args += ["--grad"]
+        if not settings.prog_path:
+            raise RuntimeError("Path to program is None.")
         run_command(settings.prog_path, settings.prog_out, args)
 
     def calc(
@@ -180,7 +184,7 @@ class XtbCalc(BaseCalc):
         return energy, gradient
 
 
-def main():
+def main() -> None:
     """
     Main routine for execution
     """

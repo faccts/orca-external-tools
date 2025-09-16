@@ -31,7 +31,6 @@ main: function
     Main function
 """
 from argparse import ArgumentParser
-from pathlib import Path
 import shutil
 import tempfile
 import os
@@ -45,7 +44,7 @@ class MlatomCalc(BaseCalc):
         """Program keys to search for in PATH"""
         return {"mlatom", "$mlatom"}
 
-    def extend_parser(self, parser: ArgumentParser):
+    def extend_parser(self, parser: ArgumentParser) -> None:
         """Add mlatom parsing options.
 
         Parameters
@@ -91,6 +90,8 @@ class MlatomCalc(BaseCalc):
             ]
             if settings.dograd:
                 args += [f"YgradXYZestFile={mlatomgrad}"]
+            if not settings.prog_path:
+                raise RuntimeError("Path to program is None.")
             run_command(settings.prog_path, settings.prog_out, args)
 
     def read_mlatomout(self, settings: BasicSettings) -> tuple[float, list[float]]:
@@ -106,29 +107,31 @@ class MlatomCalc(BaseCalc):
         -------
         energy: float
             The computed energy
-        gradient: list[float]
+        gradient: list[float] | None
             The gradient (X,Y,Z) for each atom
         """
         mlatomenergy = f"{settings.basename}.energy"
         mlatomgrad = f"{settings.basename}.gradient"
         energy = None
         gradient = []
-        mlatomenergy = check_path(mlatomenergy)
-        mlatomgrad = check_path(mlatomgrad)
+        mlatomenergy_path = check_path(mlatomenergy)
         # read the energy from the .energy file
-        with mlatomenergy.open() as f:
+        with mlatomenergy_path.open() as f:
             for line in f:
                 energy = float(line)
         # read the gradient from the .gradient file
         if settings.dograd:
+            mlatomgrad_path = check_path(mlatomgrad)
             icount = 0
-            with mlatomgrad.open() as f:
+            with mlatomgrad_path.open() as f:
                 for line in f:
                     icount += 1
                     if icount > 2:
                         gradient += [
                             float(i) * LENGTH_CONVERSION["Ang"] for i in line.split()
                         ]
+        if not energy:
+            raise ValueError(f"Total enery not found in file {settings.prog_out}")
         return energy, gradient
 
     def calc(
@@ -178,7 +181,7 @@ class MlatomCalc(BaseCalc):
         return energy, gradient
 
 
-def main():
+def main() -> None:
     """
     Main routine for execution
     """

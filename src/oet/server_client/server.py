@@ -12,7 +12,7 @@ function: main
 from __future__ import annotations
 
 import importlib
-from flask import Flask, request, jsonify
+from flask import Flask, Response, request, jsonify
 from waitress import serve
 from typing import Any, Dict, Tuple, List
 from argparse import ArgumentParser
@@ -26,12 +26,13 @@ from oet.core.misc import get_ncores_from_input
 from oet.core.base_calc import CALCULATOR_CLASSES
 
 # Per-process cache of initialized calculators
-_WORKER_CALC_CACHE = {}  # key: (module, class, frozenset(setup_items)) -> calc instance
+# key: (module, class, frozenset(setup_items)) -> calc instance
+_WORKER_CALC_CACHE: dict[tuple[str, str, frozenset[tuple[str, Any]]], Any] = {}
 
 
 def _run_calc_in_process(
-    calc_module: str, calc_class: str, setup_kwargs: dict, run_kwargs: dict
-):
+    calc_module: str, calc_class: str, setup_kwargs: dict[str, Any], run_kwargs: dict[str, Any]
+) -> None:
     """
     Worker entrypoint. Runs in a separate process.
     We lazily create & cache a calculator instance per unique setup.
@@ -59,8 +60,8 @@ def _run_calc_in_process(
         # calc.setup(setup_kwargs.copy())
         _WORKER_CALC_CACHE[key] = calc
 
-    # Run calc.run and return the results
-    return calc.run(**run_kwargs)
+    # Run calc.run
+    calc.run(**run_kwargs)
 
 
 class CoreLimiter:
@@ -69,7 +70,7 @@ class CoreLimiter:
     Blocks until enough cores are free.
     """
 
-    def __init__(self, total_cores: int):
+    def __init__(self, total_cores: int) -> None:
         # Total cores of server
         self.total = int(total_cores)
         # Available cores of server
@@ -97,7 +98,7 @@ class CoreLimiter:
                 self._cv.wait()
             self.available -= n
 
-    def release(self, n: int):
+    def release(self, n: int) -> None:
         """
         Releases number of cores after the job is done
 
@@ -119,7 +120,7 @@ class CalculatorPool:
     Stores and manages free calculators
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         # Class of the calculators
         self._cls: Any = None
 
@@ -159,7 +160,7 @@ class OtoolServer:
         total_cores: int,
         executor: ProcessPoolExecutor,
         calc_spec: tuple[str, str],
-        setup_kwargs: dict,
+        setup_kwargs: dict[str, Any],
     ):
         self.pool = pool
         self.core_limiter = CoreLimiter(total_cores)
@@ -216,7 +217,7 @@ class OtoolServer:
 
         return {"status": "Success"}
 
-    def parse_client_input(self, arguments: List[str]) -> Tuple[str, dict, List[str]]:
+    def parse_client_input(self, arguments: List[str]) -> Tuple[str, dict[str, Any], List[str]]:
         """
         Handles the input sent by client
 
@@ -257,11 +258,11 @@ def create_app(server: OtoolServer) -> Flask:
     app = Flask(__name__)
 
     @app.get("/healthz")
-    def healthz():
+    def healthz() -> Response:
         return jsonify({"status": "OK"})
 
     @app.post("/calculate")
-    def calculate():
+    def calculate() -> Response:
         try:
             data = request.get_json(force=True, silent=False)
             if not isinstance(data, dict):
@@ -315,7 +316,7 @@ def create_app(server: OtoolServer) -> Flask:
     return app
 
 
-def main():
+def main() -> None:
     """
     Main routine of otools
     """

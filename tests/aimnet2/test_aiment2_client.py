@@ -1,11 +1,14 @@
 import unittest
 import subprocess
 import time
+import os
+import signal
 from oet.core.test_utilities import (
     read_result_file,
     write_input_file,
     write_xyz_file,
     get_filenames,
+    run_wrapper,
     WATER,
     OH,
 )
@@ -17,13 +20,8 @@ output_file = "wrapper.out"
 id_port = "127.0.0.1:9000"
 
 
-def run_wrapper(arguments: str) -> None:
-    args = arguments# + " --bind " + id_port
-
-    with open(output_file, "a") as f:
-        subprocess.run(
-            ["python3", aimnet2_script_path, args, "--bind", id_port], stdout=f, stderr=subprocess.STDOUT
-        )
+def run_aimnet2(inputfile: str) -> None:
+    run_wrapper(inputfile=inputfile, script_path=aimnet2_script_path, outfile=output_file, args=["--bind", id_port])
 
 
 class Aimnet2Tests(unittest.TestCase):
@@ -34,7 +32,7 @@ class Aimnet2Tests(unittest.TestCase):
         """
         with open(output_file, "a") as f:
             cls.server = subprocess.Popen(
-                ["python3", aimnet2_server_path, "aimnet2", "--bind", id_port], stdout=f, stderr=subprocess.STDOUT
+                ["python3", aimnet2_server_path, "aimnet2", "--bind", id_port, "--nthreads", "2"], stdout=f, stderr=subprocess.STDOUT, preexec_fn=os.setsid
             )
         # Wait a little to make sure it is setup
         time.sleep(5)
@@ -44,8 +42,8 @@ class Aimnet2Tests(unittest.TestCase):
         """
         Shut the server at the end
         """
-        cls.server.terminate()
-        cls.server.wait()
+        os.killpg(os.getpgid(cls.server.pid), signal.SIGTERM)
+        cls.server.wait(timeout=10)
 
     def test_H2O_engrad(self):
         xyz_file, input_file, engrad_out = get_filenames("H2O_client")
@@ -59,7 +57,7 @@ class Aimnet2Tests(unittest.TestCase):
             ncores=2,
             do_gradient=1,
         )
-        run_wrapper(input_file)
+        run_aimnet2(input_file)
         expected_num_atoms = 3
         expected_energy = -76.47682538331
         expected_gradients = [
@@ -85,7 +83,7 @@ class Aimnet2Tests(unittest.TestCase):
             self.assertAlmostEqual(g1, g2, places=9)
 
     def test_OH_anion_eng_grad(self):
-        xyz_file, input_file, engrad_out = get_filenames("OH")
+        xyz_file, input_file, engrad_out = get_filenames("OH_anion_client")
         write_xyz_file(xyz_file, OH)
         write_input_file(
             filename=input_file,
@@ -95,7 +93,7 @@ class Aimnet2Tests(unittest.TestCase):
             ncores=2,
             do_gradient=1,
         )
-        run_wrapper(input_file)
+        run_aimnet2(input_file)
         expected_num_atoms = 2
         expected_energy = -75.82629634884
         expected_gradients = [
@@ -118,7 +116,7 @@ class Aimnet2Tests(unittest.TestCase):
             self.assertAlmostEqual(g1, g2, places=9)
 
     def test_OH_rad_eng_grad(self):
-        xyz_file, input_file, engrad_out = get_filenames("OH_client")
+        xyz_file, input_file, engrad_out = get_filenames("OH_rad_client")
         write_xyz_file(xyz_file, OH)
         write_input_file(
             filename=input_file,
@@ -128,7 +126,7 @@ class Aimnet2Tests(unittest.TestCase):
             ncores=2,
             do_gradient=1,
         )
-        run_wrapper(input_file)
+        run_aimnet2(input_file)
         expected_num_atoms = 2
         expected_energy = -75.68258695326
         expected_gradients = [

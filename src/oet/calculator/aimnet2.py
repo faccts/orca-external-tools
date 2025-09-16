@@ -108,7 +108,7 @@ class Aimnet2Calc(BaseCalc):
             else:
                 self.set_calculator(model=model)
 
-    def extend_parser(self, parser: ArgumentParser):
+    def extend_parser(self, parser: ArgumentParser) -> None:
         """Add AimNet2 parsing options.
 
         Parameters
@@ -199,17 +199,6 @@ class Aimnet2Calc(BaseCalc):
             "hessian": False,
         }
 
-    def extend_parser_settings(self, parser: ArgumentParser):
-        """
-        Add Uma parsing options that are used for calculation specific settings.
-
-        Parameters
-        ----------
-        parser: ArgumentParser
-            Argument parser to extend
-        """
-        pass
-
     def run_aimnet2(
         self,
         atom_types: list[str],
@@ -249,6 +238,8 @@ class Aimnet2Calc(BaseCalc):
             dograd=settings.dograd,
         )
 
+        if not self._calc:
+            raise RuntimeError("Calculator could not be initialized.")
         results = self._calc(**aimnet2_input)
 
         energy = float(results["energy"]) / ENERGY_CONVERSION["eV"]
@@ -300,7 +291,7 @@ class Aimnet2Calc(BaseCalc):
         return energy, gradient
 
 
-def main():
+def main() -> None:
     """
     Main routine for execution
     """

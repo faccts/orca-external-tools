@@ -228,7 +228,7 @@ class UmaCalc(BaseCalc):
         return energy, gradient
 
 
-def main():
+def main() -> None:
     """
     Main routine for execution
     """

@@ -35,7 +35,7 @@ class GxtbCalc(BaseCalc):
         """Program keys to search for in PATH"""
         return {"gxtb", "g-xTB", "g-xtb"}
 
-    def extend_parser(self, parser: ArgumentParser):
+    def extend_parser(self, parser: ArgumentParser) -> None:
         """Add gxtb parsing options.
 
         Parameters
@@ -92,10 +92,10 @@ class GxtbCalc(BaseCalc):
         # Next the $GXTBHOME
         gxtb_home = os.getenv("GXTBHOME")
         if gxtb_home:
-            gxtb_home = Path(gxtb_home).expanduser().resolve()
-            param_file = (gxtb_home / filename).resolve()
+            gxtb_home_path = Path(gxtb_home).expanduser().resolve()
+            param_file = (gxtb_home_path / filename).resolve()
             if check_file(param_file):
-                print(f"Taking {filename} from GXTBHOME {gxtb_home}.")
+                print(f"Taking {filename} from GXTBHOME {gxtb_home_path}.")
                 return param_file
         # Home directory
         param_file = (Path.home() / filename).resolve()
@@ -146,6 +146,8 @@ class GxtbCalc(BaseCalc):
         if settings.dograd:
             args += ["-grad"]
 
+        if not settings.prog_path:
+            raise RuntimeError("Path to program is None.")
         run_command(settings.prog_path, settings.prog_out, args)
 
         return
@@ -300,7 +302,7 @@ class GxtbCalc(BaseCalc):
         return energy, gradient
 
 
-def main():
+def main() -> None:
     """
     Main routine for execution
     """

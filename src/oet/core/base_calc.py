@@ -74,7 +74,7 @@ class BasicSettings:
         # Tmp directory to run the calculation in
         self.tmp_dir = self.start_dir / Path(self.basename)
         # Prog Path that is used to call external binaries (and python)
-        self.prog_path = None
+        self.prog_path: Path | None = None
         # If program_names is None or if they are not found, self.prog_path remains None
         self.set_program_path(program_names)
         # Read input file
@@ -234,7 +234,7 @@ class BaseCalc(ABC):
     def run(
         self,
         inputfile: str,
-        args_parsed: dict,
+        args_parsed: dict[str, Any],
         args_not_parsed: list[str] = [],
         directory: Path | str | None = None,
     ) -> None:
@@ -289,7 +289,7 @@ class BaseCalc(ABC):
         if directory:
             os.chdir(start_dir)
 
-    def parse_args(self, input: list[str] | None = None) -> tuple[str, dict, list[str]]:
+    def parse_args(self, input: list[str] | None = None) -> tuple[str, dict[str, Any], list[str]]:
         """
         Main parser
         Can be extended by the subclasses with extend_parser routine

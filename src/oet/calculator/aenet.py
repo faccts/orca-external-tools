@@ -16,7 +16,6 @@ from typing import Mapping
 
 from oet.core.base_calc import BaseCalc, BasicSettings
 from oet.core.misc import (
-    search_path,
     xyz2xsf,
     get_nns,
     run_command,
@@ -39,7 +38,7 @@ class AenetCalc(BaseCalc):
         """Program keys to search for in PATH"""
         return {"predict.x"}
 
-    def extend_parser(self, parser: ArgumentParser):
+    def extend_parser(self, parser: ArgumentParser) -> None:
         """Add aenet parsing options."""
         parser.add_argument(
             "-x", "--exe", dest="prog", help="Path to the aenet executable"
@@ -104,7 +103,7 @@ class AenetCalc(BaseCalc):
             # write XSF file (only one supported)
             f.write(f"FILES\n1\n{xsfname}\n")
 
-    def run_predict(self, predictexe: str | Path, inpname: str, ncores: int) -> None:
+    def run_predict(self, predictexe: str | Path, inpname: str, ncores: int, prog_out: str) -> None:
         """
         Run the predict.x program and redirect its STDOUT and STDERR to a file. Exists on a non-zero return code.
 
@@ -116,11 +115,13 @@ class AenetCalc(BaseCalc):
             Path to the input file
         ncores : int
             Number of cores to use # TODO: currently only implemented in serial
+        prog_out: str
+            Output file of program
         """
-        run_command(predictexe, self.prog_out, [inpname])
+        run_command(predictexe, prog_out, [inpname])
 
     def read_predict_output(
-        self, natoms: int, dograd: bool
+        self, natoms: int, dograd: bool, prog_out: str
     ) -> tuple[float, list[float]]:
         """Read the output from predict.x
 
@@ -137,10 +138,12 @@ class AenetCalc(BaseCalc):
             The computed energy
         gradient: list[float]
             The gradient (X,Y,Z) for each atom
+        prog_out: str
+            Outputfile to read from
         """
         energy = None
         gradient = []
-        with open(self.prog_out) as f:
+        with open(prog_out) as f:
             for line in f:
                 if "Total energy" in line:
                     fields = line.split()
@@ -164,6 +167,8 @@ class AenetCalc(BaseCalc):
                             break
                         fields = line2.split()
                         gradient += [float(i) * fac for i in fields[-3:]]
+        if not energy:
+            raise ValueError(f"Total enery not found in file {prog_out}")
         return energy, gradient
 
     def calc(
@@ -205,7 +210,7 @@ class AenetCalc(BaseCalc):
         namespace = settings.basename + ".predict"
         xsfname = namespace + ".xsf"
         inpname = namespace + ".in"
-        self.prog_out = namespace + ".out"
+        prog_out = namespace + ".out"
 
         # process the XYZ file
         natoms, atomtypes = xyz2xsf(xyzname=settings.xyzfile, xsfname=xsfname)
@@ -216,18 +221,18 @@ class AenetCalc(BaseCalc):
             xsfname=xsfname, inpname=inpname, dograd=settings.dograd, nns=nns
         )
         # run predict.x
-        self.run_predict(predictexe=settings.prog_path, inpname=inpname, ncores=settings.ncores)
+        self.run_predict(predictexe=settings.prog_path, inpname=inpname, ncores=settings.ncores, prog_out=prog_out)
         # parse the output
-        energy, gradient = self.read_predict_output(natoms, settings.dograd)
+        energy, gradient = self.read_predict_output(natoms, settings.dograd, prog_out)
 
         # Print filecontent
-        print_filecontent(outfile=self.prog_out)
+        print_filecontent(outfile=prog_out)
 
         return energy, gradient
 
 
-def main():
-    """ """
+def main() -> None:
+    """ Main entry point for wrapper"""
     calculator = AenetCalc()
     inputfile, args, args_not_parsed = calculator.parse_args()
     calculator.run(

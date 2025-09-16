@@ -81,6 +81,7 @@ def install_extra_requirements(venv_dir: Path, extras: list[str]) -> None:
         print(f"Installing extra requirements from {req_path}...")
         subprocess.check_call([str(pip_path), "install", "-r", str(req_path)])
 
+
 def copy_otool_scripts(venv_dir: Path, dest_dir: Path) -> None:
     """
     Copy all scripts starting with 'otool_' from venv/bin to the destination directory.
@@ -118,7 +119,7 @@ def parse_args():
         "--venv-dir",
         "-vd",
         type=Path,
-        default=Path("venv"),
+        default=Path(".venv"),
         help="Path to the virtual environment directory",
     )
     parser.add_argument(
@@ -132,7 +133,7 @@ def parse_args():
         "--extra",
         "-e",
         nargs="*",
-        choices=["uma", "aimnet2"],
+        choices=["uma", "aimnet2", "mlatom"],
         default=[],
         help="Optional extra package sets to install from requirements/<name>.txt",
     )

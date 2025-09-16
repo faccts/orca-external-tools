@@ -1,20 +1,44 @@
-[build-system]
-requires = ["setuptools>=61.0", "wheel"]
-build-backend = "setuptools.build_meta"
-
 [project]
 name = "oet"
-version = "0.1.0"
-description = "External tools for ORCA"
-readme = "README.md"
-requires-python = ">=3.11"
+dynamic = ["version"]
+description = "External methods interface for the quantum chemical ORCA software package."
+authors = [
+    {name = "FACCTS GmbH", email = "info@faccts.de"},
+]
 dependencies = [
 "waitress>=3.0.2",
 "flask>=3.1.2"
 ]
+requires-python = ">=3.11"
+readme = "README.md"
+license = {file = "LICENSE"}
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "Development Status :: 5 - Production/Stable",
+  "Operating System :: OS Independent",
+  "Intended Audience :: Developers",
+  "License :: Other/Proprietary License",
+]
+keywords = [
+  "orca",
+  "hpc",
+  "chemistry",
+  "machine learning",
+  "interface",
+]
 
-[tool.setuptools.packages.find]
-where = ["src"]
+[project.urls]
+Homepage = "https://faccts.de"
+Repository = "https://github.com/faccts/orca-external-tools"
+Issues = "https://github.com/faccts/orca-external-tools/issues"
+
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+# > Wheel target
+[tool.hatch.build.targets.wheel]
+packages = ["src/oet"]
 
 [project.scripts]
 otool_aenet = "oet.calculator.aenet:main"
@@ -26,3 +50,76 @@ otool_uma = "oet.calculator.uma:main"
 otool_xtb = "oet.calculator.xtb:main"
 otool_client = "oet.server_client.client:client"
 otool_server = "oet.server_client.server:main"
+
+# $$$$$$$$$$$$$$$$$$$$$$$$$$$$
+#    DEPENDENCY GROUPS
+# $$$$$$$$$$$$$$$$$$$$$$$$$$$$
+
+[project.optional-dependencies]
+dev = [
+    "nox>=2025.5.1",
+]
+lint = [
+    "ruff>=0.11.12",
+]
+type-check = [
+    "mypy>=1.16.0,<2",
+    "pydantic>=2.11.5,<3",
+    "types-waitress>=3.0.1",
+    "types-requests>=2.32.0",
+]
+spell-check = [
+    "codespell>=2.4.1",
+]
+dead-code = [
+    "vulture>=2.14",
+]
+
+# ////  MYPY  ////
+[tool.mypy]
+strict = true
+pretty = true
+files = "src/"
+plugins = ['pydantic.mypy']
+
+[[tool.mypy.overrides]]
+module = [
+  "aimnet2calc", "aimnet2calc.*",
+  "torch", "torch.*",
+  "fairchem.core", "fairchem.core.*",
+  "ase", "ase.*",
+]
+ignore_missing_imports = true
+
+# ////  RUFF  ////
+[tool.ruff]
+include = [
+    "pyproject.toml",
+    "src/**/*.py",
+    "tests/**/*.py"
+]
+# > Default max line-length: 100 chars
+line-length = 100
+
+[tool.ruff.lint]
+ignore = ["E203"]
+
+
+# ////  CODESPELL  ////
+[tool.codespell]
+skip = '*.pyc,*.densities*,*.gbw,./build/,./_venv'
+count = true
+summary = true
+quiet-level = 3
+ignore-words = '.codespellignore'
+enable-colors = true
+
+
+# ////  VULTURE  ////
+[tool.vulture]
+#exclude = []
+#ignore_decorators = []
+make_whitelist = false
+min_confidence = 70
+paths = ["src/"]
+#verbose = false

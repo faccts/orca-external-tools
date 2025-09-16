@@ -2,6 +2,10 @@
 Utilities used in the test suite
 """
 
+import subprocess
+from pathlib import Path
+
+
 WATER = [
     ("O", 0.0000, 0.0000, 0.0000),
     ("H", 0.2774, 0.8929, 0.2544),
@@ -56,7 +60,7 @@ def write_input_file(
     ncores: int,
     do_gradient: int | bool,
     pointcharges_filename: str | None = None,
-):
+) -> None:
     """
     Write an input file for the extopt wrapper script with the given parameters.
 
@@ -122,11 +126,70 @@ def write_xyz_file(filename: str, atoms: list[tuple[str, float, float, float]]) 
             f.write(f"{symbol} {x:.4f} {y:.4f} {z:.4f}\n")
 
 
+def run_wrapper(inputfile: str, script_path: str, outfile: str, args: list[str] | None = None, timeout: int = 10) -> None:
+    """
+    Run the wrapper
+
+    Parameters
+    ----------
+    inputfile: str
+        Inputfile
+    script_path: str
+        Path to the otool script
+    outfile: str
+        File to write the output to
+    args: list[str] | None, default = None
+        Additional arguments
+    timeout: int, default: 10 s
+        Default timeout time
+    """
+    cmd = ["python3"] + [script_path] + [inputfile]
+    if args:
+        cmd += args
+
+    with open(outfile, "w") as f:
+        subprocess.run(
+            cmd, stdout=f, stderr=subprocess.STDOUT, timeout=timeout
+        )
+
+
+def add_arguments(args: str | list[str], additions: list[str]) -> list[str]:
+    """
+    Add arguments
+
+    Parameters
+    ----------
+    args: str | list[str]
+        Arguments that should be extended
+    additions: list[str]
+        Arguments to add
+
+    Returns
+    -------
+    list[str]: extended arguments
+    """
+    if isinstance(args, str):
+        args = [args]
+    args += additions
+    return args
+
+
 def get_filenames(basename: str) -> tuple[str, str, str]:
     """
-    Set the filenames according to how ORCA would do
+    Set the filenames according to how ORCA would do and cleans any input existing
     """
     xyz_file = basename + ".xyz"
     input_file = basename + ".extinp.tmp"
     engrad_out = basename + ".engrad"
+    clear_files(basename=basename)
     return xyz_file, input_file, engrad_out
+
+
+def clear_files(basename: str) -> None:
+    """
+    Remove every file starting with basename
+    """
+    dir_path = Path.cwd()
+    for f in dir_path.glob(basename + "*"):
+        if f.is_file():
+            f.unlink()  # remove file

@@ -10,24 +10,24 @@ from oet.core.test_utilities import (
     OH,
 )
 
-gxtb_script_path = "../../scripts/otool_gxtb"
-# Leave uma_executable_path empty, if gxtb from system path should be called
-gxtb_executable_path = ""
+mlatom_script_path = "../../scripts/otool_mlatom"
+# Leave mlatom_executable_path empty, if mlatom from system path should be called
+mlatom_executable_path = ""
 output_file = "wrapper.out"
 
 
-def run_gxtb(inputfile: str) -> None:
-    if gxtb_executable_path:
-        arguments = ["--exe", gxtb_executable_path]
-    else:
-        arguments = None
-    run_wrapper(inputfile=inputfile, script_path=gxtb_script_path, outfile=output_file, args=arguments)
+def run_mlatom(inputfile: str) -> None:
+    arguments = []
+    if mlatom_executable_path:
+        arguments = ["--exe", mlatom_executable_path]
+    arguments.append("ANI-1ccx")
+    #print(inputfile, arguments)
+    run_wrapper(inputfile=inputfile, script_path=mlatom_script_path, outfile=output_file, args=arguments)
 
 
-class GxtbTests(unittest.TestCase):
+class MLatomTests(unittest.TestCase):
     def test_H2O_engrad(self):
         xyz_file, input_file, engrad_out = get_filenames("H2O")
-
         write_xyz_file(xyz_file, WATER)
         write_input_file(
             filename=input_file,
@@ -37,19 +37,20 @@ class GxtbTests(unittest.TestCase):
             ncores=2,
             do_gradient=1,
         )
-        run_gxtb(input_file)
+        run_mlatom(input_file)
+        
         expected_num_atoms = 3
-        expected_energy = -76.43736490412
+        expected_energy = -76.38342071002
         expected_gradients = [
-            -8.58374584e-03,
-            -6.34732203e-03,
-            4.48788670e-03,
-            3.68390440e-03,
-            5.26218976e-03,
-            -4.49684003e-04,
-            4.89984144e-03,
-            1.08513227e-03,
-            -4.03820270e-03,
+            -9.34811007e-03,
+            -6.92128305e-03,
+            4.88938529e-03,
+            2.98246744e-03,
+            9.27055785e-03,
+            2.54374613e-03,
+            6.36564281e-03,
+            -2.34927474e-03,
+            -7.43313148e-03,
         ]
 
         try:
@@ -73,16 +74,16 @@ class GxtbTests(unittest.TestCase):
             ncores=2,
             do_gradient=1,
         )
-        run_gxtb(input_file)
+        run_mlatom(input_file)
         expected_num_atoms = 2
-        expected_energy = -75.80305584316
+        expected_energy = -75.76385998084
         expected_gradients = [
-            2.28916816e-03,
-            7.36155354e-03,
-            2.09936121e-03,
-            -2.28916816e-03,
-            -7.36155354e-03,
-            -2.09936121e-03,
+            -1.07623156e-02,
+            -3.46419311e-02,
+            -9.86998337e-03,
+            1.07623156e-02,
+            3.46419311e-02,
+            9.86998337e-03,
         ]
 
         try:
@@ -106,16 +107,16 @@ class GxtbTests(unittest.TestCase):
             ncores=2,
             do_gradient=1,
         )
-        run_gxtb(input_file)
+        run_mlatom(input_file)
         expected_num_atoms = 2
-        expected_energy = -75.74502880794
+        expected_energy = -75.76385998084
         expected_gradients = [
-            -1.02890363e-04,
-            -3.55911885e-04,
-            -1.29478984e-04,
-            1.02890363e-04,
-            3.55911885e-04,
-            1.29478984e-04,
+            -1.07623156e-02,
+            -3.46419311e-02,
+            -9.86998337e-03,
+            1.07623156e-02,
+            3.46419311e-02,
+            9.86998337e-03,
         ]
 
         try:
@@ -124,9 +125,10 @@ class GxtbTests(unittest.TestCase):
             print("Error wrapper outputfile not found. Check wrapper.out for details")
 
         self.assertEqual(num_atoms, expected_num_atoms)
-        self.assertAlmostEqual(energy, expected_energy, places=7)
+        self.assertAlmostEqual(energy, expected_energy, places=9)
         for g1, g2 in zip(gradients, expected_gradients):
-            self.assertAlmostEqual(g1, g2, places=7)
+            self.assertAlmostEqual(g1, g2, places=9)
+
 
 if __name__ == "__main__":
     unittest.main()

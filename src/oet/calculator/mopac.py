@@ -34,7 +34,7 @@ class MopacCalc(BaseCalc):
         """Program keys to search for in PATH"""
         return {"mopac", "otools_mopac"}
 
-    def extend_parser(self, parser: ArgumentParser):
+    def extend_parser(self, parser: ArgumentParser) -> None:
         """Add mopac parsing options.
 
         Parameters
@@ -227,6 +227,8 @@ class MopacCalc(BaseCalc):
         """
         # Add method to the clear args
         args.insert(0, mopac_inp)
+        if not settings.prog_path:
+            raise RuntimeError("Path to program is None.")
         run_command(settings.prog_path, settings.prog_out, args)
 
     def calc(
@@ -291,7 +293,7 @@ class MopacCalc(BaseCalc):
         return energy, gradient
 
 
-def main():
+def main() -> None:
     """
     Main routine for execution
     """

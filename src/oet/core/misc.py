@@ -428,7 +428,7 @@ def xyzfile_to_at_coord(
                 break
             parts = line.split()
             atom_types.append(parts[0])
-            coords = tuple(float(c) for c in parts[1:4])
+            coords = (float(parts[1]), float(parts[2]), float(parts[3]))
             coordinates.append(coords)
     return atom_types, coordinates
 
