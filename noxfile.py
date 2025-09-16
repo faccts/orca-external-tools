@@ -1,13 +1,8 @@
-# > UV requires Python >= 3.8. So we cannot test any version older than that (not that we would want to anyway!).
 import os
 
 # > External packages
 import nox
 
-# > Don't update lock file when setting up virtual envs.
-os.environ.update({"UV_FROZEN": "1"})
-# > Disable automatic donwload of Python distributions
-os.environ.update({"UV_PYTHON_DOWNLOADS": "never"})
 # > Making sure Nox session only see their packages and not any globally installed packages.
 os.environ.pop("PYTHONPATH", None)
 # > Hiding any virtual environments from outside.

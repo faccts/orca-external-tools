@@ -10,14 +10,16 @@ class: Aimnet2Calc(CalcServer)
 main: function
     Main function
 """
+
 import os
+import sys
+import warnings
 from argparse import ArgumentParser
 from pathlib import Path
 from typing import Any
-import sys
-import warnings
-from oet.core.base_calc import BasicSettings, BaseCalc
-from oet.core.misc import xyzfile_to_at_coord, ENERGY_CONVERSION, LENGTH_CONVERSION
+
+from oet.core.base_calc import BaseCalc, BasicSettings
+from oet.core.misc import ENERGY_CONVERSION, LENGTH_CONVERSION, xyzfile_to_at_coord
 
 try:
     # Suppress PySisiphus missing warning
@@ -41,7 +43,6 @@ except ImportError as e:
 
 
 class Aimnet2Calc(BaseCalc):
-
     # Elements covered by AIMNet2
     ELEMENT_TO_ATOMIC_NUMBER = {
         "H": 1,
@@ -130,8 +131,8 @@ class Aimnet2Calc(BaseCalc):
             "--model-dir",
             metavar="MODEL_DIR",
             dest="model_dir",
-            type=Path,
-            default=default_model_path,
+            type=str,
+            default=str(default_model_path),
             help=f'The directory to look for AIMNet2 model files. Default: "{default_model_path}".',
         )
 
@@ -254,9 +255,8 @@ class Aimnet2Calc(BaseCalc):
     def calc(
         self,
         settings: BasicSettings,
+        args_parsed: dict[str, Any],
         args_not_parsed: list[str],
-        model: str,
-        model_dir: str,
     ) -> tuple[float, list[float]]:
         """
         Routine for calculating energy and optional gradient.
@@ -267,15 +267,16 @@ class Aimnet2Calc(BaseCalc):
         ----------
         settings: BasicSettings
             Object with basic settings for the run
-        directory: Path
-            Directory where to work in
+        args_parsed: dict[str, Any]
+            Arguments parsed as defined in extend_parser
         args_not_parsed: list[str]
             Arguments not parsed so far
-        model: str
-            AIMNet2 model to use
-        model_dir: str
-            Directory to the model files
         """
+        # Get the arguments parsed as defined in extend_parser
+        model = args_parsed.get("model")
+        model_dir = args_parsed.get("model_dir")
+        if not isinstance(model, str) or not isinstance(model_dir, str):
+            raise RuntimeError("Problems detecting model parameters.")
         # setup calculator if not already set
         # this is important as usage on a server would otherwise cause
         # initialization with every call so that nothing is gained
@@ -297,9 +298,7 @@ def main() -> None:
     """
     calculator = Aimnet2Calc()
     inputfile, args, args_not_parsed = calculator.parse_args()
-    calculator.run(
-        inputfile=inputfile, args_parsed=args, args_not_parsed=args_not_parsed
-    )
+    calculator.run(inputfile=inputfile, args_parsed=args, args_not_parsed=args_not_parsed)
 
 
 # Python entry point

@@ -12,22 +12,22 @@ class: CalcServer(BaseCalc)
     using it in a server/client layout (e.g. heavy imports)
 """
 
+import os
 import shutil
 import sys
-import os
-from typing import Any
-from abc import abstractmethod, ABC
+from abc import ABC, abstractmethod
+from argparse import ArgumentParser
 from pathlib import Path
+from typing import Any
 
 from oet.core.misc import (
     check_multi_progs,
     check_path,
-    search_path,
-    read_input,
-    write_output,
     nat_from_xyzfile,
+    read_input,
+    search_path,
+    write_output,
 )
-from argparse import ArgumentParser
 
 # Full list of all available calculator types.
 # Used, e.g., by otool and server.py
@@ -81,7 +81,7 @@ class BasicSettings:
         xyzfile, charge, mult, ncores, dograd, pointcharges = read_input(
             inputfile=self.orig_inputfile_path
         )
-        # Origianl structure file location
+        # Original structure file location
         self.orig_xyzfile = check_path(Path(xyzfile).resolve())
         # Molecular charge
         self.charge = charge
@@ -178,7 +178,7 @@ class BaseCalc(ABC):
 
     Things that must be overwritten:
     calc:
-        Main routine for calculation. Recieves relevant settings
+        Main routine for calculation. Receives relevant settings
         and should return and energy in Hartree and a gradient in
         Hartree/Bohr. Gradient can be empty if dograd = False.
 
@@ -205,10 +205,8 @@ class BaseCalc(ABC):
     def calc(
         self,
         settings: BasicSettings,
-        directory: Path,
+        args_parsed: dict[str, Any],
         args_not_parsed: list[str],
-        *args: Any,
-        **kwargs: Any,
     ) -> tuple[float, list[float]]:
         """
         Main routing for calculating engrad.
@@ -219,8 +217,8 @@ class BaseCalc(ABC):
         ----------
         settings: BasicSettings
             Object with all information about the calculation
-        directory: Path
-            Directory where to work
+        args_parsed: dict[str, Any]
+            All arguments parsed with options defined by the subclasses
         args_not_parsed: list[str]
             Additional arguments not parsed so far
 
@@ -272,8 +270,8 @@ class BaseCalc(ABC):
             # Perform calculation
             energy, gradient = self.calc(
                 settings=settings,
+                args_parsed=args_parsed,
                 args_not_parsed=args_not_parsed,
-                **args_parsed,
             )
             # Go back to starting dir
             os.chdir(settings.start_dir)
@@ -339,7 +337,7 @@ class BaseCalc(ABC):
 
     def _check_python_version(self) -> None:
         """
-        Checks wether the Python version matches the minimum requirement
+        Checks whether the Python version matches the minimum requirement
 
         Raises
         ------

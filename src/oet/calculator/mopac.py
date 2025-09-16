@@ -17,14 +17,16 @@ main: function
 import sys
 from argparse import ArgumentParser
 from pathlib import Path
+from typing import Any
+
 from oet.core.base_calc import BaseCalc, BasicSettings
 from oet.core.misc import (
     ENERGY_CONVERSION,
     LENGTH_CONVERSION,
-    run_command,
+    check_path,
     nat_from_xyzfile,
     print_filecontent,
-    check_path,
+    run_command,
 )
 
 
@@ -48,9 +50,7 @@ class MopacCalc(BaseCalc):
             dest="method",
             help="MOPAC method (default: PM6-D3H4X)",
         )
-        parser.add_argument(
-            "-e", "--exe", dest="prog", help="Path to the MOPAC executable"
-        )
+        parser.add_argument("-e", "--exe", dest="prog", help="Path to the MOPAC executable")
 
     def write_mopac_input(
         self,
@@ -109,9 +109,7 @@ class MopacCalc(BaseCalc):
             for line in coord_lines:
                 f_out.write(line)
 
-    def read_mopac_out(
-        self, settings: BasicSettings, natoms: int
-    ) -> tuple[float, list[float]]:
+    def read_mopac_out(self, settings: BasicSettings, natoms: int) -> tuple[float, list[float]]:
         """
         Read the output from MOPAC.
 
@@ -148,9 +146,7 @@ class MopacCalc(BaseCalc):
                         idx = tokens.index("=")
                         try:
                             # Convert energy from kcal/mol to Eh.
-                            energy = float(tokens[idx + 1]) * (
-                                1 / ENERGY_CONVERSION["kcal/mol"]
-                            )
+                            energy = float(tokens[idx + 1]) * (1 / ENERGY_CONVERSION["kcal/mol"])
                         except (IndexError, ValueError):
                             pass
                         break
@@ -189,8 +185,7 @@ class MopacCalc(BaseCalc):
                 try:
                     # Extract the gradient value (seventh token) in kcal/Å and convert it to Eh/Bohr.
                     grad_val = float(tokens[6]) * (
-                        (1 / ENERGY_CONVERSION["kcal/mol"])
-                        / (1 / LENGTH_CONVERSION["Ang"])
+                        (1 / ENERGY_CONVERSION["kcal/mol"]) / (1 / LENGTH_CONVERSION["Ang"])
                     )
                 except ValueError:
                     continue
@@ -232,11 +227,7 @@ class MopacCalc(BaseCalc):
         run_command(settings.prog_path, settings.prog_out, args)
 
     def calc(
-        self,
-        settings: BasicSettings,
-        args_not_parsed: list[str],
-        prog: str,
-        method: str,
+        self, settings: BasicSettings, args_parsed: dict[str, Any], args_not_parsed: list[str]
     ) -> tuple[float, list[float]]:
         """
         Routine for calculating energy and optional gradient.
@@ -246,20 +237,21 @@ class MopacCalc(BaseCalc):
         ----------
         settings: BasicSettings
             Object with basic settings for the run
-        directory: Path
-            Directory where to work in
+        args_parsed: dict[str, Any]
+            Arguments parsed as defined in extend_parser
         args_not_parsed: list[str]
             Arguments not parsed so far
-        prog: str
-            Which program executable to use
-        method: sre
-            Method to perform the calculation with
 
         Returns
         -------
         float: energy
         list[float]: gradients
         """
+        # Get options that were parsed
+        prog = args_parsed.get("prog")
+        method = args_parsed.get("method")
+        if not isinstance(method, str):
+            raise RuntimeError("Problems detecting method.")
         # Set and check the program path if its executable
         settings.set_program_path(prog)
         if settings.prog_path:
@@ -299,9 +291,7 @@ def main() -> None:
     """
     calculator = MopacCalc()
     inputfile, args, args_not_parsed = calculator.parse_args()
-    calculator.run(
-        inputfile=inputfile, args_parsed=args, args_not_parsed=args_not_parsed
-    )
+    calculator.run(inputfile=inputfile, args_parsed=args, args_not_parsed=args_not_parsed)
 
 
 # Python entry point

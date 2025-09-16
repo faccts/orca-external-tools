@@ -10,15 +10,17 @@ class: XtbCalc(BaseCalc)
 main: function
     Main function
 """
+
 from argparse import ArgumentParser
-from pathlib import Path
+from typing import Any
+
 from oet.core.base_calc import BaseCalc, BasicSettings
 from oet.core.misc import (
-    run_command,
+    check_path,
     mult_to_nue,
     nat_from_xyzfile,
     print_filecontent,
-    check_path,
+    run_command,
 )
 
 
@@ -36,13 +38,9 @@ class XtbCalc(BaseCalc):
         parser: ArgumentParser
             Parser that should be extended
         """
-        parser.add_argument(
-            "-e", "--exe", dest="prog", help="Path to the xtb executable"
-        )
+        parser.add_argument("-e", "--exe", dest="prog", help="Path to the xtb executable")
 
-    def read_xtbout(
-        self, settings: BasicSettings, natoms: int
-    ) -> tuple[float, list[float]]:
+    def read_xtbout(self, settings: BasicSettings, natoms: int) -> tuple[float, list[float]]:
         """
         Read the output from XTB
 
@@ -97,7 +95,7 @@ class XtbCalc(BaseCalc):
                     )
                     exit(1)
         if not energy:
-            raise ValueError(f"Total enery not found in file {settings.prog_out}")
+            raise ValueError(f"Total energy not found in file {settings.prog_out}")
         return energy, gradient
 
     def run_xtb(
@@ -137,7 +135,7 @@ class XtbCalc(BaseCalc):
         run_command(settings.prog_path, settings.prog_out, args)
 
     def calc(
-        self, settings: BasicSettings, args_not_parsed: list[str], prog: str
+        self, settings: BasicSettings, args_parsed: dict[str, Any], args_not_parsed: list[str]
     ) -> tuple[float, list[float]]:
         """
         Routine for calculating energy and optional gradient.
@@ -147,16 +145,18 @@ class XtbCalc(BaseCalc):
         ----------
         settings: BasicSettings
             Object with basic settings for the run
+        args_parsed: dict[str, Any]
+            Arguments parsed as defined in extend_parser
         args_not_parsed: list[str]
             Arguments not parsed so far
-        prog: str
-            Which program executable to use
 
         Returns
         -------
         float: energy
         list[float]: gradients
         """
+        # Get parsed options
+        prog = args_parsed.get("prog")
         # Set and check the program path if its executable
         settings.set_program_path(prog)
         if settings.prog_path:
@@ -190,9 +190,7 @@ def main() -> None:
     """
     calculator = XtbCalc()
     inputfile, args, args_not_parsed = calculator.parse_args()
-    calculator.run(
-        inputfile=inputfile, args_parsed=args, args_not_parsed=args_not_parsed
-    )
+    calculator.run(inputfile=inputfile, args_parsed=args, args_not_parsed=args_not_parsed)
 
 
 # Python entry point

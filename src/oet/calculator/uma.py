@@ -11,17 +11,20 @@ class: UmaCalc(CalcServer)
 main: function
     Main function
 """
-from argparse import ArgumentParser
+
 import sys
 import warnings
-from oet.core.base_calc import BasicSettings, BaseCalc
-from oet.core.misc import xyzfile_to_at_coord, ENERGY_CONVERSION, LENGTH_CONVERSION
+from argparse import ArgumentParser
+from typing import Any
+
+from oet.core.base_calc import BaseCalc, BasicSettings
+from oet.core.misc import ENERGY_CONVERSION, LENGTH_CONVERSION, xyzfile_to_at_coord
 
 try:
     # Suppress pkg_resources deprecated warning
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        from fairchem.core import pretrained_mlip, FAIRChemCalculator
+        from fairchem.core import FAIRChemCalculator, pretrained_mlip
 except ImportError as e:
     print(
         f"[MISSING] Required module umacalc not found: {e}.\n"
@@ -47,7 +50,6 @@ except ImportError as e:
 
 
 class UmaCalc(BaseCalc):
-
     # Fairchem calculator used to compute energy and grad
     _calc: FAIRChemCalculator | None = None
 
@@ -183,10 +185,8 @@ class UmaCalc(BaseCalc):
     def calc(
         self,
         settings: BasicSettings,
+        args_parsed: dict[str, Any],
         args_not_parsed: list[str],
-        param: str,
-        basemodel: str,
-        device: str,
     ) -> tuple[float, list[float]]:
         """
         Routine for calculating energy and optional gradient.
@@ -197,21 +197,26 @@ class UmaCalc(BaseCalc):
         ----------
         settings: BasicSettings
             Object with basic settings for the run
+        args_parsed: dict[str, Any]
+            Arguments parsed as defined in extend_parser
         args_not_parsed: list[str]
             Arguments not parsed so far
-        param: str
-            Parameter set used by fairchem
-        basemode: str
-            Basemodel
-        device:
-            device to run the calculation on
 
         Returns
         -------
         float: energy
         list[float]: gradients
         """
-
+        # Get the arguments parsed as defined in extend_parser
+        param = args_parsed.get("param")
+        basemodel = args_parsed.get("basemodel")
+        device = args_parsed.get("device")
+        if (
+            not isinstance(param, str)
+            or not isinstance(basemodel, str)
+            or not isinstance(device, str)
+        ):
+            raise RuntimeError("Problems handling input parameters.")
         # setup calculator if not already set
         # this is important as usage on a server would otherwise cause
         # initialization with every call so that nothing is gained
@@ -234,9 +239,7 @@ def main() -> None:
     """
     calculator = UmaCalc()
     inputfile, args, args_not_parsed = calculator.parse_args()
-    calculator.run(
-        inputfile=inputfile, args_parsed=args, args_not_parsed=args_not_parsed
-    )
+    calculator.run(inputfile=inputfile, args_parsed=args, args_not_parsed=args_not_parsed)
 
 
 # Python entry point

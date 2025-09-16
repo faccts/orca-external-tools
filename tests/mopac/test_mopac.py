@@ -1,13 +1,13 @@
 import unittest
-import subprocess
+
 from oet.core.test_utilities import (
+    OH,
+    WATER,
+    get_filenames,
     read_result_file,
+    run_wrapper,
     write_input_file,
     write_xyz_file,
-    get_filenames,
-    run_wrapper,
-    WATER,
-    OH,
 )
 
 mopac_script_path = "../../scripts/otool_mopac"
@@ -21,7 +21,9 @@ def run_mopac(inputfile: str) -> None:
         arguments = ["--exe", mopac_executable_path]
     else:
         arguments = None
-    run_wrapper(inputfile=inputfile, script_path=mopac_script_path, outfile=output_file, args=arguments)
+    run_wrapper(
+        inputfile=inputfile, script_path=mopac_script_path, outfile=output_file, args=arguments
+    )
 
 
 class MopacTests(unittest.TestCase):
@@ -37,7 +39,7 @@ class MopacTests(unittest.TestCase):
             do_gradient=1,
         )
         run_mopac(input_file)
-        
+
         expected_num_atoms = 3
         expected_energy = -7.849286623778e-02
         expected_gradients = [
@@ -126,6 +128,7 @@ class MopacTests(unittest.TestCase):
         self.assertAlmostEqual(energy, expected_energy, places=9)
         for g1, g2 in zip(gradients, expected_gradients):
             self.assertAlmostEqual(g1, g2, places=9)
+
 
 if __name__ == "__main__":
     unittest.main()

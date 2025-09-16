@@ -79,7 +79,9 @@ dead-code = [
 [tool.mypy]
 strict = true
 pretty = true
-files = "src/"
+files = [
+    "src/",
+]
 plugins = ['pydantic.mypy']
 
 [[tool.mypy.overrides]]
@@ -111,7 +113,6 @@ skip = '*.pyc,*.densities*,*.gbw,./build/,./_venv'
 count = true
 summary = true
 quiet-level = 3
-ignore-words = '.codespellignore'
 enable-colors = true
 
 

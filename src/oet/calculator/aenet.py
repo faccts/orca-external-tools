@@ -10,24 +10,24 @@ class: AenetCalc(BaseCalc)
 main: function
     Main function
 """
+
 from argparse import ArgumentParser
 from pathlib import Path
-from typing import Mapping
+from typing import Any, Mapping
 
 from oet.core.base_calc import BaseCalc, BasicSettings
 from oet.core.misc import (
-    xyz2xsf,
-    get_nns,
-    run_command,
-    print_filecontent,
-    check_path,
     ENERGY_CONVERSION,
     LENGTH_CONVERSION,
+    check_path,
+    get_nns,
+    print_filecontent,
+    run_command,
+    xyz2xsf,
 )
 
 
 class AenetCalc(BaseCalc):
-
     # directory, containing the NN files
     NNPATH: str | Path | None = None  # Path('/path/to/nns')
     # extension for the NN files (<Symbol>.<NNEXT>)
@@ -40,9 +40,7 @@ class AenetCalc(BaseCalc):
 
     def extend_parser(self, parser: ArgumentParser) -> None:
         """Add aenet parsing options."""
-        parser.add_argument(
-            "-x", "--exe", dest="prog", help="Path to the aenet executable"
-        )
+        parser.add_argument("-x", "--exe", dest="prog", help="Path to the aenet executable")
         parser.add_argument(
             "-n",
             "--nnpath",
@@ -94,9 +92,7 @@ class AenetCalc(BaseCalc):
             # write types
             f.write(f"TYPES\n{len(nns)}\n" + "\n".join(nns) + "\n\n")
             # write NN paths
-            f.write(
-                "NETWORKS\n" + "\n".join(f'{a}  "{p}"' for a, p in nns.items()) + "\n\n"
-            )
+            f.write("NETWORKS\n" + "\n".join(f'{a}  "{p}"' for a, p in nns.items()) + "\n\n")
             # forces tag if gradient is requested
             if dograd:
                 f.write("FORCES\n\n")
@@ -168,16 +164,14 @@ class AenetCalc(BaseCalc):
                         fields = line2.split()
                         gradient += [float(i) * fac for i in fields[-3:]]
         if not energy:
-            raise ValueError(f"Total enery not found in file {prog_out}")
+            raise ValueError(f"Total energy not found in file {prog_out}")
         return energy, gradient
 
     def calc(
         self,
         settings: BasicSettings,
+        args_parsed: dict[str, Any],
         args_not_parsed: list[str],
-        prog: str,
-        nnpath: str | Path,
-        nnext: str,
     ) -> tuple[float, list[float]]:
         """
         Routine for calculating energy and optional gradient.
@@ -187,15 +181,17 @@ class AenetCalc(BaseCalc):
         ----------
         settings: BasicSettings
             Object with basic settings for the run
+        args_parsed: dict[str, Any]
+            Arguments parsed as defined in extend_parser
         args_not_parsed: list[str]
             Arguments not parsed so far
-        prog: str
-            Path to program
-        nnpath: str
-            Path to nn files
-        nnext: str
-            extension of the nnfiles
         """
+        # Get the arguments parsed as defined in extend_parser
+        prog = args_parsed.get("prog")
+        nnpath_name = args_parsed.get("nnpath")
+        nnext = args_parsed.get("nnext")
+
+        # Set and check program path
         settings.set_program_path(prog)
         if settings.prog_path:
             print(f"Using executable {settings.prog_path}")
@@ -204,7 +200,9 @@ class AenetCalc(BaseCalc):
                 f"Could not find a valid executable from standard program names: {self.PROGRAM_NAMES}"
             )
         # Check other files
-        nnpath = check_path(nnpath)
+        if not isinstance(nnpath_name, str):
+            raise RuntimeError("Problem detecting nnfiles. Please check your input")
+        nnpath = check_path(nnpath_name)
 
         # set filenames
         namespace = settings.basename + ".predict"
@@ -217,11 +215,14 @@ class AenetCalc(BaseCalc):
         # find the NN files
         nns = get_nns(atomtypes=atomtypes, nnpath=nnpath, nnext=nnext)
         # write the input for predict.x
-        self.write_predict_input(
-            xsfname=xsfname, inpname=inpname, dograd=settings.dograd, nns=nns
-        )
+        self.write_predict_input(xsfname=xsfname, inpname=inpname, dograd=settings.dograd, nns=nns)
         # run predict.x
-        self.run_predict(predictexe=settings.prog_path, inpname=inpname, ncores=settings.ncores, prog_out=prog_out)
+        self.run_predict(
+            predictexe=settings.prog_path,
+            inpname=inpname,
+            ncores=settings.ncores,
+            prog_out=prog_out,
+        )
         # parse the output
         energy, gradient = self.read_predict_output(natoms, settings.dograd, prog_out)
 
@@ -232,12 +233,10 @@ class AenetCalc(BaseCalc):
 
 
 def main() -> None:
-    """ Main entry point for wrapper"""
+    """Main entry point for wrapper"""
     calculator = AenetCalc()
     inputfile, args, args_not_parsed = calculator.parse_args()
-    calculator.run(
-        inputfile=inputfile, args_parsed=args, args_not_parsed=args_not_parsed
-    )
+    calculator.run(inputfile=inputfile, args_parsed=args, args_not_parsed=args_not_parsed)
 
 
 # Python entry point

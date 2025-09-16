@@ -1,15 +1,17 @@
-import unittest
+import os
+import signal
 import subprocess
 import time
-import os, signal
+import unittest
+
 from oet.core.test_utilities import (
+    OH,
+    WATER,
+    get_filenames,
     read_result_file,
+    run_wrapper,
     write_input_file,
     write_xyz_file,
-    get_filenames,
-    run_wrapper,
-    WATER,
-    OH,
 )
 
 uma_script_path = "../../scripts/otool_client"
@@ -20,7 +22,12 @@ id_port = "127.0.0.1:9000"
 
 
 def run_uma(inputfile: str) -> None:
-    run_wrapper(inputfile=inputfile, script_path=uma_script_path, outfile=output_file, args=["--bind", id_port])
+    run_wrapper(
+        inputfile=inputfile,
+        script_path=uma_script_path,
+        outfile=output_file,
+        args=["--bind", id_port],
+    )
 
 
 class UmaTests(unittest.TestCase):
@@ -31,7 +38,10 @@ class UmaTests(unittest.TestCase):
         """
         with open(output_file, "a") as f:
             cls.server = subprocess.Popen(
-                ["python3", uma_server_path, "uma", "--bind", id_port, "--nthreads", "2"], stdout=f, stderr=subprocess.STDOUT, preexec_fn=os.setsid
+                ["python3", uma_server_path, "uma", "--bind", id_port, "--nthreads", "2"],
+                stdout=f,
+                stderr=subprocess.STDOUT,
+                preexec_fn=os.setsid,
             )
         # Wait a little to make sure it is setup
         time.sleep(5)

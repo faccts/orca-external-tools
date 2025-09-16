@@ -11,21 +11,23 @@ class: GxtbCalc(BaseCalc)
 main: function
     Main function
 """
-import shutil
+
 import os
+import shutil
 import sys
 from argparse import ArgumentParser
 from pathlib import Path
+from typing import Any
 
 from oet.core.base_calc import BaseCalc, BasicSettings
 from oet.core.misc import (
-    run_command,
-    write_to_file,
+    check_file,
+    check_path,
     mult_to_nue,
     nat_from_xyzfile,
     print_filecontent,
-    check_path,
-    check_file,
+    run_command,
+    write_to_file,
 )
 
 
@@ -43,9 +45,7 @@ class GxtbCalc(BaseCalc):
         parser: ArgumentParser
             Parser that should be extended
         """
-        parser.add_argument(
-            "-x", "--exe", dest="prog", help="Path to the gxtb executable"
-        )
+        parser.add_argument("-x", "--exe", dest="prog", help="Path to the gxtb executable")
         parser.add_argument(
             "-p",
             metavar="gxtb_parameterfile",
@@ -224,11 +224,8 @@ class GxtbCalc(BaseCalc):
     def calc(
         self,
         settings: BasicSettings,
+        args_parsed: dict[str, Any],
         args_not_parsed: list[str],
-        gxtb_parameterfile: str,
-        eeq_parameterfile: str,
-        basis_parameterfile: str,
-        prog: str,
     ) -> tuple[float, list[float]]:
         """
         Routine for calculating energy and optional gradient.
@@ -236,22 +233,24 @@ class GxtbCalc(BaseCalc):
 
         Parameters
         ----------
+        settings: BasicSettings
+            Parameters of the calculation
+        args_parsed: dict[str, Any]
+            Arguments parsed as defined in extend_parser
         args_not_parsed: list[str]
             Arguments not parser so far
-        gxtb_parameterfile: str
-            Parameterfile .gxtb
-        eeq_parameterfile: str
-            Parameterfile .eeq
-        basis_parameterfile: str
-            Parameterfile .basisq
-        prog: str
-            Executable to gxtb
 
         Returns
         -------
         float: energy
         list[float]: gradient; empty if not calculated
         """
+        # Get the arguments parsed as defined in extend_parser
+        prog = args_parsed.get("prog")
+        gxtb_parameterfile = args_parsed.get("gxtb_parameterfile")
+        eeq_parameterfile = args_parsed.get("eeq_parameterfile")
+        basis_parameterfile = args_parsed.get("basis_parameterfile")
+        settings.set_program_path(prog)
         # Set and check the program path if its executable
         settings.set_program_path(prog)
         if settings.prog_path:
@@ -308,9 +307,7 @@ def main() -> None:
     """
     calculator = GxtbCalc()
     inputfile, args, args_not_parsed = calculator.parse_args()
-    calculator.run(
-        inputfile=inputfile, args_parsed=args, args_not_parsed=args_not_parsed
-    )
+    calculator.run(inputfile=inputfile, args_parsed=args, args_not_parsed=args_not_parsed)
 
 
 # Python entry point

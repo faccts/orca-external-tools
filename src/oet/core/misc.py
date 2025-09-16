@@ -2,18 +2,17 @@
 General functions utilities used by oet
 """
 
-from pathlib import Path
-from shutil import which
 import os
-from typing import Iterable
 import subprocess
 import sys
+from pathlib import Path
+from shutil import which
+from typing import Iterable
 
-
-# Energy conversition factors (Hartree -> unit)
+# Energy conversion factors (Hartree -> unit)
 ENERGY_CONVERSION = {"eV": 27.21138625, "kcal/mol": 627.509}
 
-# Length converstion factors (Bohr -> unit)
+# Length conversion factors (Bohr -> unit)
 LENGTH_CONVERSION = {"Ang": 0.529177210903}
 
 
@@ -48,9 +47,8 @@ def search_path(file: str | Path) -> Path:
     if path_str:
         return Path(path_str)
 
-    raise FileNotFoundError(
-        f"File '{file}' not found in current directory or PATH."
-    )
+    raise FileNotFoundError(f"File '{file}' not found in current directory or PATH.")
+
 
 def check_path(file: str | Path) -> Path:
     """
@@ -76,9 +74,8 @@ def check_path(file: str | Path) -> Path:
     if local_path.exists():
         return local_path
 
-    raise FileNotFoundError(
-        f"File '{file}' not found in current directory or PATH."
-    )
+    raise FileNotFoundError(f"File '{file}' not found in current directory or PATH.")
+
 
 def check_prog(prog: str | Path) -> Path:
     """
@@ -177,9 +174,7 @@ def read_input(
     # Get every first entry of each line of input file
     try:
         with open(inputfile, "r") as f:
-            lines = [
-                line.split(" ")[0].strip() for line in f.readlines() if line.strip()
-            ]
+            lines = [line.split(" ")[0].strip() for line in f.readlines() if line.strip()]
     except FileNotFoundError:
         raise FileNotFoundError(f"Input file not found: {inputfile}")
     # Save information
@@ -237,9 +232,7 @@ def get_ncores_from_input(
     # Get every first entry of each line of input file
     try:
         with open(inputfile, "r") as f:
-            lines = [
-                line.split(" ")[0].strip() for line in f.readlines() if line.strip()
-            ]
+            lines = [line.split(" ")[0].strip() for line in f.readlines() if line.strip()]
     except FileNotFoundError:
         raise FileNotFoundError(f"Input file not found: {inputfile}")
     # Save information

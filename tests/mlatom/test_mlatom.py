@@ -1,13 +1,13 @@
 import unittest
-import subprocess
+
 from oet.core.test_utilities import (
+    OH,
+    WATER,
+    get_filenames,
     read_result_file,
+    run_wrapper,
     write_input_file,
     write_xyz_file,
-    get_filenames,
-    run_wrapper,
-    WATER,
-    OH,
 )
 
 mlatom_script_path = "../../scripts/otool_mlatom"
@@ -21,8 +21,10 @@ def run_mlatom(inputfile: str) -> None:
     if mlatom_executable_path:
         arguments = ["--exe", mlatom_executable_path]
     arguments.append("ANI-1ccx")
-    #print(inputfile, arguments)
-    run_wrapper(inputfile=inputfile, script_path=mlatom_script_path, outfile=output_file, args=arguments)
+    # print(inputfile, arguments)
+    run_wrapper(
+        inputfile=inputfile, script_path=mlatom_script_path, outfile=output_file, args=arguments
+    )
 
 
 class MLatomTests(unittest.TestCase):
@@ -38,7 +40,7 @@ class MLatomTests(unittest.TestCase):
             do_gradient=1,
         )
         run_mlatom(input_file)
-        
+
         expected_num_atoms = 3
         expected_energy = -76.38342071002
         expected_gradients = [

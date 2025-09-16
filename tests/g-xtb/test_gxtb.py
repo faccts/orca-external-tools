@@ -1,13 +1,13 @@
 import unittest
-import subprocess
+
 from oet.core.test_utilities import (
+    OH,
+    WATER,
+    get_filenames,
     read_result_file,
+    run_wrapper,
     write_input_file,
     write_xyz_file,
-    get_filenames,
-    run_wrapper,
-    WATER,
-    OH,
 )
 
 gxtb_script_path = "../../scripts/otool_gxtb"
@@ -21,7 +21,9 @@ def run_gxtb(inputfile: str) -> None:
         arguments = ["--exe", gxtb_executable_path]
     else:
         arguments = None
-    run_wrapper(inputfile=inputfile, script_path=gxtb_script_path, outfile=output_file, args=arguments)
+    run_wrapper(
+        inputfile=inputfile, script_path=gxtb_script_path, outfile=output_file, args=arguments
+    )
 
 
 class GxtbTests(unittest.TestCase):
@@ -127,6 +129,7 @@ class GxtbTests(unittest.TestCase):
         self.assertAlmostEqual(energy, expected_energy, places=7)
         for g1, g2 in zip(gradients, expected_gradients):
             self.assertAlmostEqual(g1, g2, places=7)
+
 
 if __name__ == "__main__":
     unittest.main()

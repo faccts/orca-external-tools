@@ -2,11 +2,14 @@
 """
 Module for sending input to server
 """
-import requests
-import sys
+
 import os
+import sys
 import traceback
 from argparse import ArgumentParser
+
+import requests
+
 
 def send_to_server(
     host_port: str,
@@ -33,8 +36,8 @@ def send_to_server(
         response.raise_for_status()
         data = response.json()
         if data.get("status") == "Error":
-            print(f"Server error {data.get("error_type")}: {data.get("error_message")}.")
-            print(f"Exact traceback: {data.get("traceback")}")
+            print(f"Server error {data.get('error_type')}: {data.get('error_message')}.")
+            print(f"Exact traceback: {data.get('traceback')}")
             sys.exit(1)
     except requests.exceptions.Timeout:
         print("Connection timed out.")
@@ -48,7 +51,7 @@ def send_to_server(
     except Exception as e:
         print(f"Unexpected error: {type(e).__name__}: {e}")
         traceback.print_exc()
-        print(f"Recieved the following from server: {data}")
+        print(f"Received the following from server: {data}")
         sys.exit(1)
 
 

@@ -30,12 +30,15 @@ class: MlatomCalc(BaseCalc)
 main: function
     Main function
 """
-from argparse import ArgumentParser
+
+import os
 import shutil
 import tempfile
-import os
+from argparse import ArgumentParser
+from typing import Any
+
 from oet.core.base_calc import BaseCalc, BasicSettings
-from oet.core.misc import run_command, print_filecontent, check_path, LENGTH_CONVERSION
+from oet.core.misc import LENGTH_CONVERSION, check_path, print_filecontent, run_command
 
 
 class MlatomCalc(BaseCalc):
@@ -52,9 +55,7 @@ class MlatomCalc(BaseCalc):
         parser: ArgumentParser
             Parser that should be extended
         """
-        parser.add_argument(
-            "-e", "--exe", dest="prog", help="Path to the mlatom executable"
-        )
+        parser.add_argument("-e", "--exe", dest="prog", help="Path to the mlatom executable")
 
     def run_mlatom(
         self,
@@ -127,18 +128,16 @@ class MlatomCalc(BaseCalc):
                 for line in f:
                     icount += 1
                     if icount > 2:
-                        gradient += [
-                            float(i) * LENGTH_CONVERSION["Ang"] for i in line.split()
-                        ]
+                        gradient += [float(i) * LENGTH_CONVERSION["Ang"] for i in line.split()]
         if not energy:
-            raise ValueError(f"Total enery not found in file {settings.prog_out}")
+            raise ValueError(f"Total energy not found in file {settings.prog_out}")
         return energy, gradient
 
     def calc(
         self,
         settings: BasicSettings,
+        args_parsed: dict[str, Any],
         args_not_parsed: list[str],
-        prog: str,
     ) -> tuple[float, list[float]]:
         """
         Routine for calculating energy and optional gradient.
@@ -148,16 +147,19 @@ class MlatomCalc(BaseCalc):
         ----------
         settings: BasicSettings
             Basic calculation settings
+        args_parsed: dict[str, Any]
+            Arguments parsed as defined in extend_parser
         args_not_parsed: list[str]
             Arguments not parsed so far
-        prog: str
-            Which program executable to use
 
         Returns
         -------
         float: energy
         list[float]: gradients
         """
+        # Get options that were parsed
+        prog = args_parsed.get("prog")
+
         settings.set_program_path(prog)
         if settings.prog_path:
             print(f"Using executable {settings.prog_path}")
@@ -187,9 +189,7 @@ def main() -> None:
     """
     calculator = MlatomCalc()
     inputfile, args, args_not_parsed = calculator.parse_args()
-    calculator.run(
-        inputfile=inputfile, args_parsed=args, args_not_parsed=args_not_parsed
-    )
+    calculator.run(inputfile=inputfile, args_parsed=args, args_not_parsed=args_not_parsed)
 
 
 # Python entry point

@@ -1,16 +1,17 @@
-import unittest
-import subprocess
-import time
 import os
 import signal
+import subprocess
+import time
+import unittest
+
 from oet.core.test_utilities import (
+    OH,
+    WATER,
+    get_filenames,
     read_result_file,
+    run_wrapper,
     write_input_file,
     write_xyz_file,
-    get_filenames,
-    run_wrapper,
-    WATER,
-    OH,
 )
 
 aimnet2_script_path = "../../scripts/otool_client"
@@ -21,7 +22,12 @@ id_port = "127.0.0.1:9000"
 
 
 def run_aimnet2(inputfile: str) -> None:
-    run_wrapper(inputfile=inputfile, script_path=aimnet2_script_path, outfile=output_file, args=["--bind", id_port])
+    run_wrapper(
+        inputfile=inputfile,
+        script_path=aimnet2_script_path,
+        outfile=output_file,
+        args=["--bind", id_port],
+    )
 
 
 class Aimnet2Tests(unittest.TestCase):
@@ -32,7 +38,10 @@ class Aimnet2Tests(unittest.TestCase):
         """
         with open(output_file, "a") as f:
             cls.server = subprocess.Popen(
-                ["python3", aimnet2_server_path, "aimnet2", "--bind", id_port, "--nthreads", "2"], stdout=f, stderr=subprocess.STDOUT, preexec_fn=os.setsid
+                ["python3", aimnet2_server_path, "aimnet2", "--bind", id_port, "--nthreads", "2"],
+                stdout=f,
+                stderr=subprocess.STDOUT,
+                preexec_fn=os.setsid,
             )
         # Wait a little to make sure it is setup
         time.sleep(5)
@@ -69,7 +78,7 @@ class Aimnet2Tests(unittest.TestCase):
             0.001832913258113,
             0.0066316309385,
             -0.001464945613407,
-            -0.007172833196819
+            -0.007172833196819,
         ]
 
         try:
@@ -102,7 +111,7 @@ class Aimnet2Tests(unittest.TestCase):
             -0.0004455488233361,
             0.000485832511913,
             0.001563805621117,
-            0.0004455488233361
+            0.0004455488233361,
         ]
 
         try:
@@ -148,6 +157,6 @@ class Aimnet2Tests(unittest.TestCase):
         for g1, g2 in zip(gradients, expected_gradients):
             self.assertAlmostEqual(g1, g2, places=7)
 
+
 if __name__ == "__main__":
     unittest.main()
-

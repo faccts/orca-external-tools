@@ -1,13 +1,13 @@
 import unittest
-import subprocess
+
 from oet.core.test_utilities import (
+    OH,
+    WATER,
+    get_filenames,
     read_result_file,
+    run_wrapper,
     write_input_file,
     write_xyz_file,
-    get_filenames,
-    run_wrapper,
-    WATER,
-    OH,
 )
 
 xtb_script_path = "../../scripts/otool_xtb"
@@ -21,7 +21,9 @@ def run_xtb(inputfile: str) -> None:
         arguments = ["--exe", xtb_executable_path]
     else:
         arguments = None
-    run_wrapper(inputfile=inputfile, script_path=xtb_script_path, outfile=output_file, args=arguments)
+    run_wrapper(
+        inputfile=inputfile, script_path=xtb_script_path, outfile=output_file, args=arguments
+    )
 
 
 class XtbTests(unittest.TestCase):
@@ -37,7 +39,7 @@ class XtbTests(unittest.TestCase):
             do_gradient=1,
         )
         run_xtb(input_file)
-        
+
         expected_num_atoms = 3
         expected_energy = -5.07020855616
         expected_gradients = [
@@ -49,7 +51,7 @@ class XtbTests(unittest.TestCase):
             -0.0008356358368765,
             0.006266545114891,
             0.001703027521994,
-            -0.004984021145997
+            -0.004984021145997,
         ]
 
         try:
@@ -82,7 +84,7 @@ class XtbTests(unittest.TestCase):
             0.002093061259517,
             -0.002282292426847,
             -0.007346283013453,
-            -0.002093061259517
+            -0.002093061259517,
         ]
 
         try:
@@ -127,6 +129,7 @@ class XtbTests(unittest.TestCase):
         self.assertAlmostEqual(energy, expected_energy, places=9)
         for g1, g2 in zip(gradients, expected_gradients):
             self.assertAlmostEqual(g1, g2, places=9)
+
 
 if __name__ == "__main__":
     unittest.main()

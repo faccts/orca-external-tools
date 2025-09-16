@@ -5,7 +5,6 @@ Utilities used in the test suite
 import subprocess
 from pathlib import Path
 
-
 WATER = [
     ("O", 0.0000, 0.0000, 0.0000),
     ("H", 0.2774, 0.8929, 0.2544),
@@ -42,7 +41,7 @@ def read_result_file(filename: str) -> tuple[int, float, list[float]]:
         lines = f.readlines()
 
     # Remove comments from '#' to the end of line:
-    data_lines = [li for line in lines if (li := line.partition('#')[0].strip())]
+    data_lines = [li for line in lines if (li := line.partition("#")[0].strip())]
 
     # Extract data
     num_atoms = int(data_lines[0])
@@ -101,9 +100,7 @@ def write_input_file(
         f.write(f"{ncores} # NCores: positive integer\n")
         f.write(f"{do_gradient} # do gradient: 0 or 1\n")
         if pointcharges_filename:
-            f.write(
-                f"{pointcharges_filename} # point charge filename: string (optional)\n"
-            )
+            f.write(f"{pointcharges_filename} # point charge filename: string (optional)\n")
         else:
             f.write("\n")  # Write a blank line if no point charges file given
 
@@ -126,7 +123,9 @@ def write_xyz_file(filename: str, atoms: list[tuple[str, float, float, float]]) 
             f.write(f"{symbol} {x:.4f} {y:.4f} {z:.4f}\n")
 
 
-def run_wrapper(inputfile: str, script_path: str, outfile: str, args: list[str] | None = None, timeout: int = 10) -> None:
+def run_wrapper(
+    inputfile: str, script_path: str, outfile: str, args: list[str] | None = None, timeout: int = 10
+) -> None:
     """
     Run the wrapper
 
@@ -148,9 +147,7 @@ def run_wrapper(inputfile: str, script_path: str, outfile: str, args: list[str] 
         cmd += args
 
     with open(outfile, "w") as f:
-        subprocess.run(
-            cmd, stdout=f, stderr=subprocess.STDOUT, timeout=timeout
-        )
+        subprocess.run(cmd, stdout=f, stderr=subprocess.STDOUT, timeout=timeout)
 
 
 def add_arguments(args: str | list[str], additions: list[str]) -> list[str]:
