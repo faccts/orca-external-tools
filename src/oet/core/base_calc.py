@@ -63,16 +63,20 @@ class BasicSettings:
         # ------------------
         # Original input file location
         self.orig_inputfile_path = check_path(Path(inputfile).resolve())
+        # Path to the orca input if its in a different directory, e.g.,
+        # orca /path/to/input
+        self.path_to_input_file = Path(inputfile).parent.resolve()
         # Basname of the calculation
-        self.basename = inputfile.removesuffix(".extinp.tmp")
+        self.basename = Path(inputfile.removesuffix(".extinp.tmp")).name
         # Outputfile read by ORCA
         self.orca_engrad = Path(self.basename + ".engrad")
+        print("UFF", self.orca_engrad)
         # Outputfile of the program
         self.prog_out = Path(self.basename + ".tmp.out")
         # Directory the calculation was called from
         self.start_dir = Path.cwd()
         # Tmp directory to run the calculation in
-        self.tmp_dir = self.start_dir / Path(self.basename)
+        self.tmp_dir = self.start_dir / self.path_to_input_file / Path(self.basename)
         # Prog Path that is used to call external binaries (and python)
         self.prog_path: Path | None = None
         # If program_names is None or if they are not found, self.prog_path remains None
@@ -273,8 +277,8 @@ class BaseCalc(ABC):
                 args_parsed=args_parsed,
                 args_not_parsed=args_not_parsed,
             )
-            # Go back to starting dir
-            os.chdir(settings.start_dir)
+            # Go back to directory where input file was located
+            os.chdir(settings.path_to_input_file)
         except Exception as e:
             raise RuntimeError(f"Failed to compute energy and/or gradient: {e}")
         # Get number of atoms
