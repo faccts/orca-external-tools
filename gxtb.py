@@ -450,22 +450,27 @@ def main(argv: list[str]) -> None:
     remove_file("gxtbrestart")
 
     # read the ORCA-generated input
-    xyzname, charge, mult, ncores, dograd = read_input(args.inputfile)
+    xyz_path, charge, mult, ncores, dograd = read_input(args.inputfile)
 
-    # set filenames
+    # Get the name of the xyz file
+    xyzname = Path(xyz_path).name
+    # Get the path to input file
+    path_to_input_file = Path(xyz_path).parent.resolve()
+    # Get the basename of the calculation
     basename = xyzname.rstrip(".xyz")
+    # set filenames
     orca_engrad = basename + ".engrad"
     gxtb_namespace = basename + ".gxtb"
     gxtbout = gxtb_namespace + ".out"
 
     # tmp directory
-    tmp_dir = Path(gxtb_namespace)
+    tmp_dir = path_to_input_file / Path(gxtb_namespace)
 
     # make tmp file and copy xyz
     tmp_dir.mkdir(parents=True, exist_ok=True)
 
     # Copy input file(s) to work_dir
-    shutil.copy(xyzname, tmp_dir)
+    shutil.copy(xyz_path, tmp_dir)
     # Copy Parameterfiles to work_dir, so that they are provided to
     # the gxtb binary later on as relative paths.
     # This is necessary as the gxtb binary does not
@@ -475,7 +480,6 @@ def main(argv: list[str]) -> None:
     shutil.copy2(basis_param, tmp_dir)
 
     # Change current directory to work_dir
-    base_dir = Path.cwd()
     os.chdir(tmp_dir)
 
     # Set the GXTBHOME (usually not necessary, but better be safe here)
@@ -503,8 +507,8 @@ def main(argv: list[str]) -> None:
     # print the output file to STDOUT
     print_filecontent(gxtbout)
 
-    # go back to parent dir
-    os.chdir(base_dir)
+    # go back to directory of input
+    os.chdir(path_to_input_file)
 
     # write the ORCA engrad file
     write_engrad(orca_engrad, natoms, energy, dograd, gradient)
