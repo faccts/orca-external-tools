@@ -1,4 +1,5 @@
 import unittest
+from pathlib import Path
 
 from oet.core.test_utilities import (
     OH,
@@ -10,7 +11,7 @@ from oet.core.test_utilities import (
     write_xyz_file,
 )
 
-mlatom_script_path = "../../scripts/otool_mlatom"
+mlatom_script_path = Path(__file__).parent / "../../scripts/otool_mlatom"
 # Leave mlatom_executable_path empty, if mlatom from system path should be called
 mlatom_executable_path = ""
 output_file = "wrapper.out"
@@ -57,8 +58,8 @@ class MLatomTests(unittest.TestCase):
 
         try:
             num_atoms, energy, gradients = read_result_file(engrad_out)
-        except FileNotFoundError:
-            print("Error wrapper outputfile not found. Check wrapper.out for details")
+        except Exception as e:
+            raise FileNotFoundError(f"Error wrapper outputfile not found. Check {output_file} for details") from e
 
         self.assertEqual(num_atoms, expected_num_atoms)
         self.assertAlmostEqual(energy, expected_energy, places=9)
@@ -90,8 +91,8 @@ class MLatomTests(unittest.TestCase):
 
         try:
             num_atoms, energy, gradients = read_result_file(engrad_out)
-        except FileNotFoundError:
-            print("Error wrapper outputfile not found. Check wrapper.out for details")
+        except Exception as e:
+            raise FileNotFoundError(f"Error wrapper outputfile not found. Check {output_file} for details") from e
 
         self.assertEqual(num_atoms, expected_num_atoms)
         self.assertAlmostEqual(energy, expected_energy, places=9)
@@ -123,8 +124,8 @@ class MLatomTests(unittest.TestCase):
 
         try:
             num_atoms, energy, gradients = read_result_file(engrad_out)
-        except FileNotFoundError:
-            print("Error wrapper outputfile not found. Check wrapper.out for details")
+        except Exception as e:
+            raise FileNotFoundError(f"Error wrapper outputfile not found. Check {output_file} for details") from e
 
         self.assertEqual(num_atoms, expected_num_atoms)
         self.assertAlmostEqual(energy, expected_energy, places=9)

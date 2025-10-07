@@ -75,7 +75,7 @@ def check_path(file: str | Path) -> Path:
     if local_path.exists():
         return local_path
 
-    raise FileNotFoundError(f"File '{file}' not found in current directory or PATH.")
+    raise FileNotFoundError(f"File '{file}' not found.")
 
 
 def check_prog(prog: str | Path) -> Path:

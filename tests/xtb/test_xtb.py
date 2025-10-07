@@ -1,4 +1,5 @@
 import unittest
+from pathlib import Path
 
 from oet.core.test_utilities import (
     OH,
@@ -10,7 +11,7 @@ from oet.core.test_utilities import (
     write_xyz_file,
 )
 
-xtb_script_path = "../../scripts/otool_xtb"
+xtb_script_path = Path(__file__).parent / "../../scripts/otool_xtb"
 # Leave xtb_executable_path empty, if xtb from system path should be called
 xtb_executable_path = ""
 output_file = "wrapper.out"
@@ -22,7 +23,8 @@ def run_xtb(inputfile: str) -> None:
     else:
         arguments = None
     run_wrapper(
-        inputfile=inputfile, script_path=xtb_script_path, outfile=output_file, args=arguments
+        inputfile=inputfile, script_path=xtb_script_path, outfile=output_file, args=arguments,
+        timeout=None
     )
 
 
@@ -56,8 +58,8 @@ class XtbTests(unittest.TestCase):
 
         try:
             num_atoms, energy, gradients = read_result_file(engrad_out)
-        except FileNotFoundError:
-            print("Error wrapper outputfile not found. Check wrapper.out for details")
+        except Exception as e:
+            raise FileNotFoundError(f"Error wrapper outputfile not found. Check {output_file} for details") from e
 
         self.assertEqual(num_atoms, expected_num_atoms)
         self.assertAlmostEqual(energy, expected_energy, places=9)
@@ -89,8 +91,8 @@ class XtbTests(unittest.TestCase):
 
         try:
             num_atoms, energy, gradients = read_result_file(engrad_out)
-        except FileNotFoundError:
-            print("Error wrapper outputfile not found. Check wrapper.out for details")
+        except Exception as e:
+            raise FileNotFoundError(f"Error wrapper outputfile not found. Check {output_file} for details") from e
 
         self.assertEqual(num_atoms, expected_num_atoms)
         self.assertAlmostEqual(energy, expected_energy, places=9)
@@ -122,8 +124,8 @@ class XtbTests(unittest.TestCase):
 
         try:
             num_atoms, energy, gradients = read_result_file(engrad_out)
-        except FileNotFoundError:
-            print("Error wrapper outputfile not found. Check wrapper.out for details")
+        except Exception as e:
+            raise FileNotFoundError(f"Error wrapper outputfile not found. Check {output_file} for details") from e
 
         self.assertEqual(num_atoms, expected_num_atoms)
         self.assertAlmostEqual(energy, expected_energy, places=9)

@@ -3,6 +3,7 @@ import signal
 import subprocess
 import time
 import unittest
+from pathlib import Path
 
 from oet.core.test_utilities import (
     OH,
@@ -14,8 +15,8 @@ from oet.core.test_utilities import (
     write_xyz_file,
 )
 
-uma_script_path = "../../scripts/otool_client"
-uma_server_path = "../../scripts/otool_server"
+uma_script_path = Path(__file__).parent / "../../scripts/otool_client"
+uma_server_path = Path(__file__).parent / "../../scripts/otool_server"
 output_file = "wrapper.out"
 # Default ID and port of server. Change if needed
 id_port = "127.0.0.1:9000"
@@ -83,8 +84,8 @@ class UmaTests(unittest.TestCase):
 
         try:
             num_atoms, energy, gradients = read_result_file(engrad_out)
-        except FileNotFoundError:
-            print("Error wrapper outputfile not found. Check wrapper.out for details")
+        except Exception as e:
+            raise FileNotFoundError(f"Error wrapper outputfile not found. Check {output_file} for details") from e
 
         self.assertEqual(num_atoms, expected_num_atoms)
         self.assertAlmostEqual(energy, expected_energy, places=9)
@@ -116,8 +117,8 @@ class UmaTests(unittest.TestCase):
 
         try:
             num_atoms, energy, gradients = read_result_file(engrad_out)
-        except FileNotFoundError:
-            print("Error wrapper outputfile not found. Check wrapper.out for details")
+        except Exception as e:
+            raise FileNotFoundError(f"Error wrapper outputfile not found. Check {output_file} for details") from e
 
         self.assertEqual(num_atoms, expected_num_atoms)
         self.assertAlmostEqual(energy, expected_energy, places=9)
@@ -149,8 +150,8 @@ class UmaTests(unittest.TestCase):
 
         try:
             num_atoms, energy, gradients = read_result_file(engrad_out)
-        except FileNotFoundError:
-            print("Error wrapper outputfile not found. Check wrapper.out for details")
+        except Exception as e:
+            raise FileNotFoundError(f"Error wrapper outputfile not found. Check {output_file} for details") from e
 
         self.assertEqual(num_atoms, expected_num_atoms)
         self.assertAlmostEqual(energy, expected_energy, places=7)

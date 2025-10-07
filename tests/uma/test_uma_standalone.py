@@ -1,4 +1,5 @@
 import unittest
+from pathlib import Path
 
 from oet.core.test_utilities import (
     OH,
@@ -10,7 +11,7 @@ from oet.core.test_utilities import (
     write_xyz_file,
 )
 
-uma_script_path = "../../scripts/otool_uma"
+uma_script_path = Path(__file__).parent / "../../scripts/otool_uma"
 output_file = "wrapper.out"
 
 
@@ -48,8 +49,8 @@ class UmaTests(unittest.TestCase):
 
         try:
             num_atoms, energy, gradients = read_result_file(engrad_out)
-        except FileNotFoundError:
-            print("Error wrapper outputfile not found. Check wrapper.out for details")
+        except Exception as e:
+            raise FileNotFoundError(f"Error wrapper outputfile not found. Check {output_file} for details") from e
 
         self.assertEqual(num_atoms, expected_num_atoms)
         self.assertAlmostEqual(energy, expected_energy, places=9)
@@ -81,8 +82,8 @@ class UmaTests(unittest.TestCase):
 
         try:
             num_atoms, energy, gradients = read_result_file(engrad_out)
-        except FileNotFoundError:
-            print("Error wrapper outputfile not found. Check wrapper.out for details")
+        except Exception as e:
+            raise FileNotFoundError(f"Error wrapper outputfile not found. Check {output_file} for details") from e
 
         self.assertEqual(num_atoms, expected_num_atoms)
         self.assertAlmostEqual(energy, expected_energy, places=9)
@@ -114,8 +115,8 @@ class UmaTests(unittest.TestCase):
 
         try:
             num_atoms, energy, gradients = read_result_file(engrad_out)
-        except FileNotFoundError:
-            print("Error wrapper outputfile not found. Check wrapper.out for details")
+        except Exception as e:
+            raise FileNotFoundError(f"Error wrapper outputfile not found. Check {output_file} for details") from e
 
         self.assertEqual(num_atoms, expected_num_atoms)
         self.assertAlmostEqual(energy, expected_energy, places=7)

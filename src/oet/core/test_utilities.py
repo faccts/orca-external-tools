@@ -17,7 +17,7 @@ OH = [
 ]
 
 
-def read_result_file(filename: str) -> tuple[int, float, list[float]]:
+def read_result_file(filename: str | Path) -> tuple[int, float, list[float]]:
     """
     Reads the engrad file written by the wrapper
 
@@ -52,7 +52,7 @@ def read_result_file(filename: str) -> tuple[int, float, list[float]]:
 
 
 def write_input_file(
-    filename: str,
+    filename: str | Path,
     xyz_filename: str,
     charge: int,
     multiplicity: int,
@@ -105,7 +105,7 @@ def write_input_file(
             f.write("\n")  # Write a blank line if no point charges file given
 
 
-def write_xyz_file(filename: str, atoms: list[tuple[str, float, float, float]]) -> None:
+def write_xyz_file(filename: str | Path, atoms: list[tuple[str, float, float, float]]) -> None:
     """
     Write a file with the given format:
 
@@ -124,25 +124,29 @@ def write_xyz_file(filename: str, atoms: list[tuple[str, float, float, float]]) 
 
 
 def run_wrapper(
-    inputfile: str, script_path: str, outfile: str, args: list[str] | None = None, timeout: int = 10
+        inputfile: str | Path,
+        script_path: str | Path,
+        outfile: str | Path,
+        args: list[str] | None = None,
+        timeout: float | None = 10.
 ) -> None:
     """
     Run the wrapper
 
     Parameters
     ----------
-    inputfile: str
+    inputfile: str | Path
         Inputfile
-    script_path: str
+    script_path: str | Path
         Path to the otool script
-    outfile: str
+    outfile: str | Path
         File to write the output to
     args: list[str] | None, default = None
         Additional arguments
-    timeout: int, default: 10 s
-        Default timeout time
+    timeout: float | None, default: 10 s
+        Default timeout time (seconds)
     """
-    cmd = ["python3"] + [script_path] + [inputfile]
+    cmd = ["python3", str(script_path), str(inputfile)]
     if args:
         cmd += args
 
