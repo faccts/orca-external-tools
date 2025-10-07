@@ -15,7 +15,7 @@ from argparse import ArgumentParser
 from pathlib import Path
 from typing import Any, Mapping
 
-from oet.core.base_calc import BaseCalc, BasicSettings
+from oet.core.base_calc import BaseCalc, CalculationData
 from oet.core.misc import (
     ENERGY_CONVERSION,
     LENGTH_CONVERSION,
@@ -28,7 +28,7 @@ from oet.core.misc import (
 
 
 class AenetCalc(BaseCalc):
-    # directory, containing the NN files
+    # directory, containing the NN files - can be hard-coded here for convenience
     NNPATH: str | Path | None = None  # Path('/path/to/nns')
     # extension for the NN files (<Symbol>.<NNEXT>)
     NNEXT: str | None = None
@@ -38,7 +38,8 @@ class AenetCalc(BaseCalc):
         """Program keys to search for in PATH"""
         return {"predict.x"}
 
-    def extend_parser(self, parser: ArgumentParser) -> None:
+    @classmethod
+    def extend_parser(cls, parser: ArgumentParser) -> None:
         """Add aenet parsing options."""
         parser.add_argument("-x", "--exe", dest="prog", help="Path to the aenet executable")
         parser.add_argument(
@@ -46,10 +47,10 @@ class AenetCalc(BaseCalc):
             "--nnpath",
             metavar="DIR",
             dest="nnpath",
-            required=(not self.NNPATH),
+            required=(not cls.NNPATH),
             help="directory containing the NN files <Symbol>.<EXT>"
-            + (f' (default: "{self.NNPATH}")' if self.NNPATH else ""),
-            default=self.NNPATH,
+            + (f' (default: "{cls.NNPATH}")' if cls.NNPATH else ""),
+            default=cls.NNPATH,
         )
         parser.add_argument(
             "-e",
@@ -57,11 +58,11 @@ class AenetCalc(BaseCalc):
             metavar="EXT",
             dest="nnext",
             required=False,
-            default=self.NNEXT,
+            default=cls.NNEXT,
             help="extension of the NN files. "
             + (
-                f"(default: {self.NNEXT})"
-                if self.NNEXT
+                f"(default: {cls.NNEXT})"
+                if cls.NNEXT
                 else "If not provided, there must be a single file that matches the glob <Symbol>.*"
             ),
         )
@@ -169,7 +170,7 @@ class AenetCalc(BaseCalc):
 
     def calc(
         self,
-        settings: BasicSettings,
+        calc_data: CalculationData,
         args_parsed: dict[str, Any],
         args_not_parsed: list[str],
     ) -> tuple[float, list[float]]:
@@ -179,8 +180,8 @@ class AenetCalc(BaseCalc):
 
         Parameters
         ----------
-        settings: BasicSettings
-            Object with basic settings for the run
+        calc_data: CalculationData
+            Object with calculation data for the run
         args_parsed: dict[str, Any]
             Arguments parsed as defined in extend_parser
         args_not_parsed: list[str]
@@ -192,9 +193,9 @@ class AenetCalc(BaseCalc):
         nnext = args_parsed.get("nnext")
 
         # Set and check program path
-        settings.set_program_path(prog)
-        if settings.prog_path:
-            print(f"Using executable {settings.prog_path}")
+        calc_data.set_program_path(prog)
+        if calc_data.prog_path:
+            print(f"Using executable {calc_data.prog_path}")
         else:
             raise FileNotFoundError(
                 f"Could not find a valid executable from standard program names: {self.PROGRAM_NAMES}"
@@ -205,26 +206,26 @@ class AenetCalc(BaseCalc):
         nnpath = check_path(nnpath_name)
 
         # set filenames
-        namespace = settings.basename + ".predict"
+        namespace = calc_data.basename + ".predict"
         xsfname = namespace + ".xsf"
         inpname = namespace + ".in"
         prog_out = namespace + ".out"
 
         # process the XYZ file
-        natoms, atomtypes = xyz2xsf(xyzname=settings.xyzfile, xsfname=xsfname)
+        natoms, atomtypes = xyz2xsf(xyzname=calc_data.xyzfile, xsfname=xsfname)
         # find the NN files
         nns = get_nns(atomtypes=atomtypes, nnpath=nnpath, nnext=nnext)
         # write the input for predict.x
-        self.write_predict_input(xsfname=xsfname, inpname=inpname, dograd=settings.dograd, nns=nns)
+        self.write_predict_input(xsfname=xsfname, inpname=inpname, dograd=calc_data.dograd, nns=nns)
         # run predict.x
         self.run_predict(
-            predictexe=settings.prog_path,
+            predictexe=calc_data.prog_path,
             inpname=inpname,
-            ncores=settings.ncores,
+            ncores=calc_data.ncores,
             prog_out=prog_out,
         )
         # parse the output
-        energy, gradient = self.read_predict_output(natoms, settings.dograd, prog_out)
+        energy, gradient = self.read_predict_output(natoms, calc_data.dograd, prog_out)
 
         # Print filecontent
         print_filecontent(outfile=prog_out)

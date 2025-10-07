@@ -37,7 +37,7 @@ import tempfile
 from argparse import ArgumentParser
 from typing import Any
 
-from oet.core.base_calc import BaseCalc, BasicSettings
+from oet.core.base_calc import BaseCalc, CalculationData
 from oet.core.misc import LENGTH_CONVERSION, check_path, print_filecontent, run_command
 
 
@@ -47,7 +47,8 @@ class MlatomCalc(BaseCalc):
         """Program keys to search for in PATH"""
         return {"mlatom", "$mlatom"}
 
-    def extend_parser(self, parser: ArgumentParser) -> None:
+    @classmethod
+    def extend_parser(cls, parser: ArgumentParser) -> None:
         """Add mlatom parsing options.
 
         Parameters
@@ -59,7 +60,7 @@ class MlatomCalc(BaseCalc):
 
     def run_mlatom(
         self,
-        settings: BasicSettings,
+        calc_data: CalculationData,
         args: list[str],
     ) -> None:
         """
@@ -67,42 +68,42 @@ class MlatomCalc(BaseCalc):
 
         Parameters
         ----------
-        settings: BasicSettings
-            Basic calculation settings
+        calc_data: CalculationData
+            Calculation data
         args : list[str, ...]
             additional arguments to pass to MLatom
         """
         args = list(args)
         cwd = os.getcwd()
         with tempfile.TemporaryDirectory() as tmpdirname:
-            mlatomenergy = os.path.join(cwd, f"{settings.basename}.energy")
-            mlatomgrad = os.path.join(cwd, f"{settings.basename}.gradient")
+            mlatomenergy = os.path.join(cwd, f"{calc_data.basename}.energy")
+            mlatomgrad = os.path.join(cwd, f"{calc_data.basename}.gradient")
             shutil.rmtree(tmpdirname)
             shutil.copytree(cwd, tmpdirname)
             args += [
                 str(i)
                 for i in [
-                    f"XYZfile={settings.xyzfile}",
-                    f"charges={settings.charge}",
-                    f"multiplicities={settings.mult}",
-                    f"nthreads={settings.ncores}",
+                    f"XYZfile={calc_data.xyzfile}",
+                    f"charges={calc_data.charge}",
+                    f"multiplicities={calc_data.mult}",
+                    f"nthreads={calc_data.ncores}",
                     f"YestFile={mlatomenergy}",
                 ]
             ]
-            if settings.dograd:
+            if calc_data.dograd:
                 args += [f"YgradXYZestFile={mlatomgrad}"]
-            if not settings.prog_path:
+            if not calc_data.prog_path:
                 raise RuntimeError("Path to program is None.")
-            run_command(settings.prog_path, settings.prog_out, args)
+            run_command(calc_data.prog_path, calc_data.prog_out, args)
 
-    def read_mlatomout(self, settings: BasicSettings) -> tuple[float, list[float]]:
+    def read_mlatomout(self, calc_data: CalculationData) -> tuple[float, list[float]]:
         """
         Read the output from MLatom
 
         Parameters
         ----------
-        settings: BasicSettings
-            Basic calculation settings
+        calc_data: CalculationData
+            Calculation data
 
         Returns
         -------
@@ -111,8 +112,8 @@ class MlatomCalc(BaseCalc):
         gradient: list[float] | None
             The gradient (X,Y,Z) for each atom
         """
-        mlatomenergy = f"{settings.basename}.energy"
-        mlatomgrad = f"{settings.basename}.gradient"
+        mlatomenergy = f"{calc_data.basename}.energy"
+        mlatomgrad = f"{calc_data.basename}.gradient"
         energy = None
         gradient = []
         mlatomenergy_path = check_path(mlatomenergy)
@@ -121,7 +122,7 @@ class MlatomCalc(BaseCalc):
             for line in f:
                 energy = float(line)
         # read the gradient from the .gradient file
-        if settings.dograd:
+        if calc_data.dograd:
             mlatomgrad_path = check_path(mlatomgrad)
             icount = 0
             with mlatomgrad_path.open() as f:
@@ -130,12 +131,12 @@ class MlatomCalc(BaseCalc):
                     if icount > 2:
                         gradient += [float(i) * LENGTH_CONVERSION["Ang"] for i in line.split()]
         if not energy:
-            raise ValueError(f"Total energy not found in file {settings.prog_out}")
+            raise ValueError(f"Total energy not found in file {calc_data.prog_out}")
         return energy, gradient
 
     def calc(
         self,
-        settings: BasicSettings,
+        calc_data: CalculationData,
         args_parsed: dict[str, Any],
         args_not_parsed: list[str],
     ) -> tuple[float, list[float]]:
@@ -145,8 +146,8 @@ class MlatomCalc(BaseCalc):
 
         Parameters
         ----------
-        settings: BasicSettings
-            Basic calculation settings
+        calc_data: CalculationData
+            Calculation data
         args_parsed: dict[str, Any]
             Arguments parsed as defined in extend_parser
         args_not_parsed: list[str]
@@ -160,9 +161,9 @@ class MlatomCalc(BaseCalc):
         # Get options that were parsed
         prog = args_parsed.get("prog")
 
-        settings.set_program_path(prog)
-        if settings.prog_path:
-            print(f"Using executable {settings.prog_path}")
+        calc_data.set_program_path(prog)
+        if calc_data.prog_path:
+            print(f"Using executable {calc_data.prog_path}")
         else:
             raise FileNotFoundError(
                 f"Could not find a valid executable from standard program names: {self.PROGRAM_NAMES}"
@@ -170,15 +171,15 @@ class MlatomCalc(BaseCalc):
 
         # run MLatom
         self.run_mlatom(
-            settings=settings,
+            calc_data=calc_data,
             args=args_not_parsed,
         )
 
         # parse the MLatom output
-        energy, gradient = self.read_mlatomout(settings=settings)
+        energy, gradient = self.read_mlatomout(calc_data=calc_data)
 
         # Print filecontent
-        print_filecontent(outfile=settings.prog_out)
+        print_filecontent(outfile=calc_data.prog_out)
 
         return energy, gradient
 

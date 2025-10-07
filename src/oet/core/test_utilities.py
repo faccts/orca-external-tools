@@ -78,7 +78,7 @@ def write_input_file(
     do_gradient: int
         Compute gradient (1) or not (0)
     pointcharges_filename: str | None = None
-        optional filename of the the pointcharges
+        optional filename of the pointcharges
     """
 
     # Validate inputs (basic checks)

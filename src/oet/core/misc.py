@@ -3,6 +3,7 @@ General functions utilities used by oet
 """
 
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -373,6 +374,30 @@ def write_to_file(content: str | int | float, file: str) -> None:
     file_path = Path(file)
     with open(file_path, "w") as f:
         f.write(f"{content}\n")
+
+
+def copy_files_to_tmpdir(files_to_copy: list[Path], tmp_dir: Path) -> list[Path]:
+    """
+    Makes a temporary directory and copies files
+
+    Parameters
+    ----------
+    files_to_copy: list[Path]
+        Paths of the files that should be copied
+    tmp_dir: Path
+        Path to the tmp directory to be created
+
+    Returns
+    -------
+    list[Path]: List of the Paths of the copied files
+    """
+    tmp_dir.mkdir(parents=True, exist_ok=True)  # FIXME both False?
+    final_file_paths = []
+    for file_path in files_to_copy:
+        new_path = tmp_dir / file_path.name
+        shutil.copy2(file_path, new_path)
+        final_file_paths.append(new_path)
+    return final_file_paths
 
 
 def mult_to_nue(mult: int) -> int:

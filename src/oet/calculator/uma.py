@@ -17,7 +17,7 @@ import warnings
 from argparse import ArgumentParser
 from typing import Any
 
-from oet.core.base_calc import BaseCalc, BasicSettings
+from oet.core.base_calc import BaseCalc, CalculationData
 from oet.core.misc import ENERGY_CONVERSION, LENGTH_CONVERSION, xyzfile_to_at_coord
 
 try:
@@ -102,7 +102,8 @@ class UmaCalc(BaseCalc):
                 device=device,
             )
 
-    def extend_parser(self, parser: ArgumentParser) -> None:
+    @classmethod
+    def extend_parser(cls, parser: ArgumentParser) -> None:
         """Add Uma parsing options.
 
         Parameters
@@ -139,7 +140,7 @@ class UmaCalc(BaseCalc):
         self,
         atom_types: list[str],
         coordinates: list[tuple[float, float, float]],
-        settings: BasicSettings,
+        calc_data: CalculationData,
     ) -> tuple[float, list[float]]:
         """
         Runs an UMA calculation.
@@ -150,8 +151,8 @@ class UmaCalc(BaseCalc):
             List of element symbols (e.g., ["O", "H", "H"])
         coordinates : list[tuple[float, float, float]]
             List of (x, y, z) coordinates
-        settings: BasicSettings
-            Object with basic settings for the run
+        calc_data: CalculationData
+            Object with calculation data for the run
 
         Returns
         -------
@@ -162,11 +163,11 @@ class UmaCalc(BaseCalc):
         """
 
         # set the number of threads
-        torch.set_num_threads(settings.ncores)
+        torch.set_num_threads(calc_data.ncores)
 
         # make ase atoms object for calculation
         atoms = Atoms(symbols=atom_types, positions=coordinates)
-        atoms.info = {"charge": settings.charge, "spin": settings.mult}
+        atoms.info = {"charge": calc_data.charge, "spin": calc_data.mult}
         atoms.calc = self._calc
 
         energy = atoms.get_potential_energy() / ENERGY_CONVERSION["eV"]
@@ -184,7 +185,7 @@ class UmaCalc(BaseCalc):
 
     def calc(
         self,
-        settings: BasicSettings,
+        calc_data: CalculationData,
         args_parsed: dict[str, Any],
         args_not_parsed: list[str],
     ) -> tuple[float, list[float]]:
@@ -195,8 +196,8 @@ class UmaCalc(BaseCalc):
 
         Parameters
         ----------
-        settings: BasicSettings
-            Object with basic settings for the run
+        calc_data: CalculationData
+            Object with calculation data for the run
         args_parsed: dict[str, Any]
             Arguments parsed as defined in extend_parser
         args_not_parsed: list[str]
@@ -223,11 +224,11 @@ class UmaCalc(BaseCalc):
         self.setup(param=param, basemodel=basemodel, device=device)
 
         # process the XYZ file
-        atom_types, coordinates = xyzfile_to_at_coord(settings.xyzfile)
+        atom_types, coordinates = xyzfile_to_at_coord(calc_data.xyzfile)
 
         # run uma
         energy, gradient = self.run_uma(
-            atom_types=atom_types, coordinates=coordinates, settings=settings
+            atom_types=atom_types, coordinates=coordinates, calc_data=calc_data
         )
 
         return energy, gradient

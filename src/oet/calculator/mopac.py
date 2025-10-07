@@ -19,7 +19,7 @@ from argparse import ArgumentParser
 from pathlib import Path
 from typing import Any
 
-from oet.core.base_calc import BaseCalc, BasicSettings
+from oet.core.base_calc import BaseCalc, CalculationData
 from oet.core.misc import (
     ENERGY_CONVERSION,
     LENGTH_CONVERSION,
@@ -36,7 +36,8 @@ class MopacCalc(BaseCalc):
         """Program keys to search for in PATH"""
         return {"mopac", "otools_mopac"}
 
-    def extend_parser(self, parser: ArgumentParser) -> None:
+    @classmethod
+    def extend_parser(cls, parser: ArgumentParser) -> None:
         """Add mopac parsing options.
 
         Parameters
@@ -54,7 +55,7 @@ class MopacCalc(BaseCalc):
 
     def write_mopac_input(
         self,
-        settings: BasicSettings,
+        calc_data: CalculationData,
         method: str,
         outputfile: str,
     ) -> None:
@@ -81,12 +82,12 @@ class MopacCalc(BaseCalc):
         ----------
         method: str
             Method to compute with
-        settings: BasicSettings
-            Object with basic settings for the run
+        calc_data: CalculationData
+            Object with calculation data for the run
         outputfile: str
             File to write the MOPAC input to
         """
-        with settings.xyzfile.open() as f:
+        with calc_data.xyzfile.open() as f:
             lines = f.readlines()
         # If file is in standard XYZ format (first line is atom count), skip first two lines.
         if lines and lines[0].strip().isdigit():
@@ -94,13 +95,13 @@ class MopacCalc(BaseCalc):
         else:
             coord_lines = lines
 
-        spin = (settings.mult - 1) * 0.5
+        spin = (calc_data.mult - 1) * 0.5
         # Format spin to one decimal place (e.g., "0.5" for a doublet)
         spin_formatted = f"{spin:.1f}"
-        header = f"{method} 1SCF XYZ MS={spin_formatted} CHARGE={settings.charge} THREADS={settings.ncores}"
-        if settings.mult != 1:
+        header = f"{method} 1SCF XYZ MS={spin_formatted} CHARGE={calc_data.charge} THREADS={calc_data.ncores}"
+        if calc_data.mult != 1:
             header += " UHF"
-        if settings.dograd:
+        if calc_data.dograd:
             header += " GRADIENTS"
 
         with Path(outputfile).open("w") as f_out:
@@ -109,7 +110,7 @@ class MopacCalc(BaseCalc):
             for line in coord_lines:
                 f_out.write(line)
 
-    def read_mopac_out(self, settings: BasicSettings, natoms: int) -> tuple[float, list[float]]:
+    def read_mopac_out(self, calc_data: CalculationData, natoms: int) -> tuple[float, list[float]]:
         """
         Read the output from MOPAC.
 
@@ -123,8 +124,8 @@ class MopacCalc(BaseCalc):
 
         Parameters
         ----------
-        settings: BasicSettings
-            Object with basic settings for the run
+        calc_data: CalculationData
+            Object with calculation data for the run
         natoms : int
             Number of atoms in the system.
 
@@ -135,7 +136,7 @@ class MopacCalc(BaseCalc):
         """
         energy = None
         gradient = []
-        mopac_out = check_path(settings.basename + ".out")
+        mopac_out = check_path(calc_data.basename + ".out")
         print("Checking:", mopac_out)
         with mopac_out.open() as f:
             for line in f:
@@ -155,7 +156,7 @@ class MopacCalc(BaseCalc):
             print("Could not find energy in MOPAC output.")
             sys.exit(1)
 
-        if settings.dograd:
+        if calc_data.dograd:
             # Read the entire output file into memory.
             with mopac_out.open() as f:
                 lines = f.readlines()
@@ -204,7 +205,7 @@ class MopacCalc(BaseCalc):
 
     def run_mopac(
         self,
-        settings: BasicSettings,
+        calc_data: CalculationData,
         mopac_inp: str,
         args: list[str],
     ) -> None:
@@ -213,8 +214,8 @@ class MopacCalc(BaseCalc):
 
         Parameters
         ----------
-        settings: BasicSettings
-            Object with basic settings for the run
+        calc_data: CalculationData
+            Object with calculation data for the run
         mopac_inp : str
             The generated MOPAC input file.
         args: list[str]
@@ -222,12 +223,12 @@ class MopacCalc(BaseCalc):
         """
         # Add method to the clear args
         args.insert(0, mopac_inp)
-        if not settings.prog_path:
+        if not calc_data.prog_path:
             raise RuntimeError("Path to program is None.")
-        run_command(settings.prog_path, settings.prog_out, args)
+        run_command(calc_data.prog_path, calc_data.prog_out, args)
 
     def calc(
-        self, settings: BasicSettings, args_parsed: dict[str, Any], args_not_parsed: list[str]
+        self, calc_data: CalculationData, args_parsed: dict[str, Any], args_not_parsed: list[str]
     ) -> tuple[float, list[float]]:
         """
         Routine for calculating energy and optional gradient.
@@ -235,8 +236,8 @@ class MopacCalc(BaseCalc):
 
         Parameters
         ----------
-        settings: BasicSettings
-            Object with basic settings for the run
+        calc_data: CalculationData
+            Object with calculation data for the run
         args_parsed: dict[str, Any]
             Arguments parsed as defined in extend_parser
         args_not_parsed: list[str]
@@ -253,34 +254,34 @@ class MopacCalc(BaseCalc):
         if not isinstance(method, str):
             raise RuntimeError("Problems detecting method.")
         # Set and check the program path if its executable
-        settings.set_program_path(prog)
-        if settings.prog_path:
-            print(f"Using executable {settings.prog_path}")
+        calc_data.set_program_path(prog)
+        if calc_data.prog_path:
+            print(f"Using executable {calc_data.prog_path}")
         else:
             raise FileNotFoundError(
                 f"Could not find a valid executable from standard program names: {self.PROGRAM_NAMES}"
             )
         # Set name for MOPAC input
-        mopac_inp = settings.basename + ".mop"
+        mopac_inp = calc_data.basename + ".mop"
 
         # Write Mopac input
         self.write_mopac_input(
-            settings=settings,
+            calc_data=calc_data,
             method=method,
             outputfile=mopac_inp,
         )
 
         # run mopac
-        self.run_mopac(settings=settings, mopac_inp=mopac_inp, args=args_not_parsed)
+        self.run_mopac(calc_data=calc_data, mopac_inp=mopac_inp, args=args_not_parsed)
 
         # get the number of atoms from the xyz file
-        natoms = nat_from_xyzfile(xyz_file=settings.xyzfile)
+        natoms = nat_from_xyzfile(xyz_file=calc_data.xyzfile)
 
         # parse the mopac output
-        energy, gradient = self.read_mopac_out(settings=settings, natoms=natoms)
+        energy, gradient = self.read_mopac_out(calc_data=calc_data, natoms=natoms)
 
         # Print filecontent
-        print_filecontent(outfile=settings.prog_out)
+        print_filecontent(outfile=calc_data.prog_out)
 
         return energy, gradient
 

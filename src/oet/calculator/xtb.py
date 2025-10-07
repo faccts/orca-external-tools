@@ -14,7 +14,7 @@ main: function
 from argparse import ArgumentParser
 from typing import Any
 
-from oet.core.base_calc import BaseCalc, BasicSettings
+from oet.core.base_calc import BaseCalc, CalculationData
 from oet.core.misc import (
     check_path,
     mult_to_nue,
@@ -30,7 +30,8 @@ class XtbCalc(BaseCalc):
         """Program keys to search for in PATH"""
         return {"xtb", "otools_xtb"}
 
-    def extend_parser(self, parser: ArgumentParser) -> None:
+    @classmethod
+    def extend_parser(cls, parser: ArgumentParser) -> None:
         """Add xtb parsing options.
 
         Parameters
@@ -40,14 +41,14 @@ class XtbCalc(BaseCalc):
         """
         parser.add_argument("-e", "--exe", dest="prog", help="Path to the xtb executable")
 
-    def read_xtbout(self, settings: BasicSettings, natoms: int) -> tuple[float, list[float]]:
+    def read_xtbout(self, calc_data: CalculationData, natoms: int) -> tuple[float, list[float]]:
         """
         Read the output from XTB
 
         Parameters
         ----------
-        settings: BasicSettings
-            Basic calculation settings
+        calc_data: CalculationData
+            Calculation data
         natoms
             number of atoms in the system
 
@@ -58,18 +59,18 @@ class XtbCalc(BaseCalc):
         gradient: list[float]
             The gradient (X,Y,Z) for each atom
         """
-        xtbgrad = f"{settings.basename}.gradient"
+        xtbgrad = f"{calc_data.basename}.gradient"
         energy = None
         gradient = []
         # read the energy from the output file
-        xtbout = check_path(settings.prog_out)
+        xtbout = check_path(calc_data.prog_out)
         with xtbout.open() as f:
             for line in f:
                 if "TOTAL ENERGY" in line:
                     energy = float(line.split()[3])
                     break
         # read the gradient from the .gradient file
-        if settings.dograd:
+        if calc_data.dograd:
             xtbgrad_path = check_path(xtbgrad)
             natoms_read = 0
             with xtbgrad_path.open() as f:
@@ -95,12 +96,12 @@ class XtbCalc(BaseCalc):
                     )
                     exit(1)
         if not energy:
-            raise ValueError(f"Total energy not found in file {settings.prog_out}")
+            raise ValueError(f"Total energy not found in file {calc_data.prog_out}")
         return energy, gradient
 
     def run_xtb(
         self,
-        settings: BasicSettings,
+        calc_data: CalculationData,
         args: list[str],
     ) -> None:
         """
@@ -110,32 +111,32 @@ class XtbCalc(BaseCalc):
         ----------
         args: list[str]
             Arguments not parsed so far
-        settings: BasicSettings
-            Object with basic settings for the run
+        calc_data: CalculationData
+            Object with calculation data for the run
         """
         args += [
             str(i)
             for i in [
-                settings.xyzfile,
+                calc_data.xyzfile,
                 "-c",
-                settings.charge,
+                calc_data.charge,
                 "-P",
-                settings.ncores,
+                calc_data.ncores,
                 "--namespace",
-                settings.basename,
+                calc_data.basename,
             ]
         ]
-        nue = mult_to_nue(settings.mult)
+        nue = mult_to_nue(calc_data.mult)
         if nue:
             args += ["-u", str(nue)]
-        if settings.dograd:
+        if calc_data.dograd:
             args += ["--grad"]
-        if not settings.prog_path:
+        if not calc_data.prog_path:
             raise RuntimeError("Path to program is None.")
-        run_command(settings.prog_path, settings.prog_out, args)
+        run_command(calc_data.prog_path, calc_data.prog_out, args)
 
     def calc(
-        self, settings: BasicSettings, args_parsed: dict[str, Any], args_not_parsed: list[str]
+        self, calc_data: CalculationData, args_parsed: dict[str, Any], args_not_parsed: list[str]
     ) -> tuple[float, list[float]]:
         """
         Routine for calculating energy and optional gradient.
@@ -143,8 +144,8 @@ class XtbCalc(BaseCalc):
 
         Parameters
         ----------
-        settings: BasicSettings
-            Object with basic settings for the run
+        calc_data: CalculationData
+            Object with calculation data for the run
         args_parsed: dict[str, Any]
             Arguments parsed as defined in extend_parser
         args_not_parsed: list[str]
@@ -158,9 +159,9 @@ class XtbCalc(BaseCalc):
         # Get parsed options
         prog = args_parsed.get("prog")
         # Set and check the program path if its executable
-        settings.set_program_path(prog)
-        if settings.prog_path:
-            print(f"Using executable {settings.prog_path}")
+        calc_data.set_program_path(prog)
+        if calc_data.prog_path:
+            print(f"Using executable {calc_data.prog_path}")
         else:
             raise FileNotFoundError(
                 f"Could not find a valid executable from standard program names: {self.PROGRAM_NAMES}"
@@ -168,18 +169,18 @@ class XtbCalc(BaseCalc):
 
         # run xtb
         self.run_xtb(
-            settings=settings,
+            calc_data=calc_data,
             args=args_not_parsed,
         )
 
         # get the number of atoms from the xyz file
-        natoms = nat_from_xyzfile(xyz_file=settings.xyzfile)
+        natoms = nat_from_xyzfile(xyz_file=calc_data.xyzfile)
 
         # parse the xtb output
-        energy, gradient = self.read_xtbout(settings=settings, natoms=natoms)
+        energy, gradient = self.read_xtbout(calc_data=calc_data, natoms=natoms)
 
         # Print filecontent
-        print_filecontent(outfile=settings.prog_out)
+        print_filecontent(outfile=calc_data.prog_out)
 
         return energy, gradient
 

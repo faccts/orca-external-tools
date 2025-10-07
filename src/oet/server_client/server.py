@@ -19,15 +19,18 @@ import traceback
 from argparse import ArgumentParser
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Tuple, Type
 
 from flask import Flask, Response, jsonify, request
 from waitress import serve
 
-from oet.core.base_calc import CALCULATOR_CLASSES
+from oet.core.base_calc import CALCULATOR_CLASSES, BaseCalc
 from oet.core.misc import get_ncores_from_input
 
-# Per-process cache of initialized calculators
+# Cache of initialized calculators: each worker process populates its own copy of the cache
+# This guarantees that for calculators which are inadvertently not thread-safe
+# (because they temporarily hold calculation data in member variables)
+# we never use the same instance by multiple processes in parallel.
 # key: (module, class, frozenset(setup_items)) -> calc instance
 _WORKER_CALC_CACHE: dict[tuple[str, str, frozenset[tuple[str, Any]]], Any] = {}
 
@@ -137,34 +140,30 @@ class CalculatorClass:
         # Import module
         mod = importlib.import_module(import_module)
         # Set calculator type
-        self._cls = getattr(mod, calculator_name)
+        self._cls: Type[BaseCalc] = getattr(mod, calculator_name)
 
-    def build_full_parser(self, hook_name: str, parser: ArgumentParser) -> None:
+    def build_full_parser(self, parser: ArgumentParser) -> None:
         """
-        Extends parser based on subroutine hook_name
+        Extends the given argument parser by calling the class method `extend_parser` of the calculator class
 
-        hook_name: str
-            Name of the subroutine of the calculator
         parser: ArgumentParser
             Parser to be extended
         """
         if self._cls is None:
             raise RuntimeError("Call set_calculator_type() first.")
-        tmp = self._cls()  # assumes default constructor
-        meth = getattr(tmp, hook_name)
-        meth(parser)
+        self._cls.extend_parser(parser)
 
 
 class OtoolServer:
     def __init__(
         self,
-        calcClass: CalculatorClass,
+        calc_class: CalculatorClass,
         total_cores: int,
         executor: ProcessPoolExecutor,
         setup_kwargs: dict[str, Any],
     ):
         # Calculator class used to build parser
-        self.calcClass = calcClass
+        self.calc_class = calc_class
         # Core limiter to prevent using more cores than the server has
         self.core_limiter = CoreLimiter(total_cores)
         # Executor to run the actual calculation
@@ -209,8 +208,8 @@ class OtoolServer:
             }
             fut = self.executor.submit(
                 _run_calc_in_process,
-                self.calcClass.import_module,
-                self.calcClass.calculator_name,
+                self.calc_class.import_module,
+                self.calc_class.calculator_name,
                 self.setup_kwargs,
                 run_kwargs,
             )
@@ -244,7 +243,7 @@ class OtoolServer:
         parser.add_argument("inputfile")
 
         # Let the calculator define its per-request flags
-        self.calcClass.build_full_parser("extend_parser", parser)
+        self.calc_class.build_full_parser(parser)
 
         args, remaining_args = parser.parse_known_args(arguments)
 
@@ -320,7 +319,7 @@ def create_app(server: OtoolServer) -> Flask:
 
 def main() -> None:
     """
-    Main routine of otools
+    Main routine of otool_server
     """
     # First parse arguments
     parser = ArgumentParser(
@@ -365,7 +364,7 @@ def main() -> None:
     calcClass = CalculatorClass(args.method)
 
     # Let the calculator add any *setup* options to the CLI (if they exist)
-    calcClass.build_full_parser("extend_parser", parser)
+    calcClass.build_full_parser(parser)
 
     # Re-parse now that setup flags may be registered
     args, _ = parser.parse_known_args()
@@ -378,9 +377,9 @@ def main() -> None:
     # Initialize the ProcessPool
     executor = ProcessPoolExecutor(max_workers=workers)
 
-    # Then initialize a server instance that uses the calcClass
+    # Then initialize a server instance that uses the calc_class
     server = OtoolServer(
-        calcClass=calcClass,
+        calc_class=calcClass,
         total_cores=args.nthreads,  # or another CLI flag like --total-cores
         executor=executor,
         setup_kwargs=setup_kwargs,

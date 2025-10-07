@@ -18,11 +18,11 @@ from argparse import ArgumentParser
 from pathlib import Path
 from typing import Any
 
-from oet.core.base_calc import BaseCalc, BasicSettings
+from oet.core.base_calc import BaseCalc, CalculationData
 from oet.core.misc import ENERGY_CONVERSION, LENGTH_CONVERSION, xyzfile_to_at_coord
 
 try:
-    # Suppress PySisiphus missing warning
+    # Suppress PySisyphus missing warning
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         from aimnet2calc import AIMNet2Calculator
@@ -109,7 +109,8 @@ class Aimnet2Calc(BaseCalc):
             else:
                 self.set_calculator(model=model)
 
-    def extend_parser(self, parser: ArgumentParser) -> None:
+    @classmethod
+    def extend_parser(cls, parser: ArgumentParser) -> None:
         """Add AimNet2 parsing options.
 
         Parameters
@@ -204,7 +205,7 @@ class Aimnet2Calc(BaseCalc):
         self,
         atom_types: list[str],
         coordinates: list[tuple[float, float, float]],
-        settings: BasicSettings,
+        calc_data: CalculationData,
     ) -> tuple[float, list[float]]:
         """
         Runs an AimNet2 calculation.
@@ -215,8 +216,8 @@ class Aimnet2Calc(BaseCalc):
             List of element symbols (e.g., ["O", "H", "H"])
         coordinates : list[tuple[float, float, float]]
             List of (x, y, z) coordinates
-        settings: BasicSettings
-            Object with basic settings for the run
+        calc_data: CalculationData
+            Object with calculation data for the run
 
         Returns
         -------
@@ -228,15 +229,15 @@ class Aimnet2Calc(BaseCalc):
         """
 
         # set the number of threads
-        torch.set_num_threads(settings.ncores)
+        torch.set_num_threads(calc_data.ncores)
 
         # make ase atoms object for calculation
         aimnet2_input = self.serialize_input(
             atom_types=atom_types,
             coordinates=coordinates,
-            mult=settings.mult,
-            charge=settings.charge,
-            dograd=settings.dograd,
+            mult=calc_data.mult,
+            charge=calc_data.charge,
+            dograd=calc_data.dograd,
         )
 
         if not self._calc:
@@ -254,7 +255,7 @@ class Aimnet2Calc(BaseCalc):
 
     def calc(
         self,
-        settings: BasicSettings,
+        calc_data: CalculationData,
         args_parsed: dict[str, Any],
         args_not_parsed: list[str],
     ) -> tuple[float, list[float]]:
@@ -265,8 +266,8 @@ class Aimnet2Calc(BaseCalc):
 
         Parameters
         ----------
-        settings: BasicSettings
-            Object with basic settings for the run
+        calc_data: CalculationData
+            Object with calculation data for the run
         args_parsed: dict[str, Any]
             Arguments parsed as defined in extend_parser
         args_not_parsed: list[str]
@@ -282,11 +283,11 @@ class Aimnet2Calc(BaseCalc):
         # initialization with every call so that nothing is gained
         self.setup(model=model, model_dir=model_dir)
         # process the XYZ file
-        atom_types, coordinates = xyzfile_to_at_coord(settings.xyzfile)
+        atom_types, coordinates = xyzfile_to_at_coord(calc_data.xyzfile)
 
         # run uma
         energy, gradient = self.run_aimnet2(
-            atom_types=atom_types, coordinates=coordinates, settings=settings
+            atom_types=atom_types, coordinates=coordinates, calc_data=calc_data
         )
 
         return energy, gradient

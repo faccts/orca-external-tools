@@ -19,7 +19,7 @@ from argparse import ArgumentParser
 from pathlib import Path
 from typing import Any
 
-from oet.core.base_calc import BaseCalc, BasicSettings
+from oet.core.base_calc import BaseCalc, CalculationData
 from oet.core.misc import (
     check_file,
     check_path,
@@ -37,7 +37,8 @@ class GxtbCalc(BaseCalc):
         """Program keys to search for in PATH"""
         return {"gxtb", "g-xTB", "g-xtb"}
 
-    def extend_parser(self, parser: ArgumentParser) -> None:
+    @classmethod
+    def extend_parser(cls, parser: ArgumentParser) -> None:
         """Add gxtb parsing options.
 
         Parameters
@@ -115,7 +116,7 @@ class GxtbCalc(BaseCalc):
 
     def run_gxtb(
         self,
-        settings: BasicSettings,
+        calc_data: CalculationData,
         args: list[str],
     ) -> None:
         """
@@ -123,18 +124,18 @@ class GxtbCalc(BaseCalc):
 
         Parameters
         ----------
-        settings: BasicSettings
+        calc_data: CalculationData
             Settings for the calculation
         args : list[str, ...]
             additional arguments to pass to gxtb
         """
 
         # Set number of cores by setting OMP_NUM_THREADS
-        os.environ["OMP_NUM_THREADS"] = f"{settings.ncores},1"
+        os.environ["OMP_NUM_THREADS"] = f"{calc_data.ncores},1"
 
         args += [
             "-c",
-            settings.xyzfile.name,
+            calc_data.xyzfile.name,
             "-p",
             ".gxtb",
             "-e",
@@ -143,12 +144,12 @@ class GxtbCalc(BaseCalc):
             ".basisq",
         ]
 
-        if settings.dograd:
+        if calc_data.dograd:
             args += ["-grad"]
 
-        if not settings.prog_path:
+        if not calc_data.prog_path:
             raise RuntimeError("Path to program is None.")
-        run_command(settings.prog_path, settings.prog_out, args)
+        run_command(calc_data.prog_path, calc_data.prog_out, args)
 
         return
 
@@ -223,7 +224,7 @@ class GxtbCalc(BaseCalc):
 
     def calc(
         self,
-        settings: BasicSettings,
+        calc_data: CalculationData,
         args_parsed: dict[str, Any],
         args_not_parsed: list[str],
     ) -> tuple[float, list[float]]:
@@ -233,7 +234,7 @@ class GxtbCalc(BaseCalc):
 
         Parameters
         ----------
-        settings: BasicSettings
+        calc_data: CalculationData
             Parameters of the calculation
         args_parsed: dict[str, Any]
             Arguments parsed as defined in extend_parser
@@ -250,11 +251,11 @@ class GxtbCalc(BaseCalc):
         gxtb_parameterfile = args_parsed.get("gxtb_parameterfile")
         eeq_parameterfile = args_parsed.get("eeq_parameterfile")
         basis_parameterfile = args_parsed.get("basis_parameterfile")
-        settings.set_program_path(prog)
+        calc_data.set_program_path(prog)
         # Set and check the program path if its executable
-        settings.set_program_path(prog)
-        if settings.prog_path:
-            print(f"Using executable {settings.prog_path}")
+        calc_data.set_program_path(prog)
+        if calc_data.prog_path:
+            print(f"Using executable {calc_data.prog_path}")
         else:
             raise FileNotFoundError(
                 f"Could not find a valid executable from standard program names: {self.PROGRAM_NAMES}"
@@ -274,14 +275,14 @@ class GxtbCalc(BaseCalc):
         shutil.copy2(basis_param, Path.cwd())
 
         # write .CHRG and .UHF file
-        write_to_file(content=settings.charge, file=".CHRG")
-        write_to_file(content=mult_to_nue(settings.mult), file=".UHF")
+        write_to_file(content=calc_data.charge, file=".CHRG")
+        write_to_file(content=mult_to_nue(calc_data.mult), file=".UHF")
 
         # run gxtb
-        self.run_gxtb(settings=settings, args=args_not_parsed)
+        self.run_gxtb(calc_data=calc_data, args=args_not_parsed)
 
         # get the number of atoms from the xyz file
-        natoms = nat_from_xyzfile(xyz_file=settings.xyzfile)
+        natoms = nat_from_xyzfile(xyz_file=calc_data.xyzfile)
 
         # energy and gradient file
         energy_out = "energy"
@@ -292,11 +293,11 @@ class GxtbCalc(BaseCalc):
             energy_out=energy_out,
             grad_out=gradient_out,
             natoms=natoms,
-            dograd=settings.dograd,
+            dograd=calc_data.dograd,
         )
 
         # print the output file to STDOUT
-        print_filecontent(outfile=settings.prog_out)
+        print_filecontent(outfile=calc_data.prog_out)
 
         return energy, gradient
 
