@@ -149,7 +149,7 @@ class GxtbCalc(BaseCalc):
 
         if not calc_data.prog_path:
             raise RuntimeError("Path to program is None.")
-        run_command(calc_data.prog_path, calc_data.prog_out, args)
+        run_command(calc_data.prog_path, calc_data.output_file, args)
 
         return
 
@@ -295,9 +295,6 @@ class GxtbCalc(BaseCalc):
             natoms=natoms,
             dograd=calc_data.dograd,
         )
-
-        # print the output file to STDOUT
-        print_filecontent(outfile=calc_data.prog_out)
 
         return energy, gradient
 

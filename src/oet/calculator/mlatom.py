@@ -94,7 +94,7 @@ class MlatomCalc(BaseCalc):
                 args += [f"YgradXYZestFile={mlatomgrad}"]
             if not calc_data.prog_path:
                 raise RuntimeError("Path to program is None.")
-            run_command(calc_data.prog_path, calc_data.prog_out, args)
+            run_command(calc_data.prog_path, calc_data.output_file, args)
 
     def read_mlatomout(self, calc_data: CalculationData) -> tuple[float, list[float]]:
         """
@@ -131,7 +131,7 @@ class MlatomCalc(BaseCalc):
                     if icount > 2:
                         gradient += [float(i) * LENGTH_CONVERSION["Ang"] for i in line.split()]
         if not energy:
-            raise ValueError(f"Total energy not found in file {calc_data.prog_out}")
+            raise ValueError(f"Total energy not found in file {calc_data.output_file}")
         return energy, gradient
 
     def calc(
@@ -177,9 +177,6 @@ class MlatomCalc(BaseCalc):
 
         # parse the MLatom output
         energy, gradient = self.read_mlatomout(calc_data=calc_data)
-
-        # Print filecontent
-        print_filecontent(outfile=calc_data.prog_out)
 
         return energy, gradient
 

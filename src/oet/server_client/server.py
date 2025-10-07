@@ -13,11 +13,13 @@ function: main
 from __future__ import annotations
 
 import importlib
+import io
 import logging
 import threading
 import traceback
 from argparse import ArgumentParser
 from concurrent.futures import ProcessPoolExecutor
+from contextlib import redirect_stdout
 from pathlib import Path
 from typing import Any, Dict, List, Tuple, Type
 
@@ -37,7 +39,7 @@ _WORKER_CALC_CACHE: dict[tuple[str, str, frozenset[tuple[str, Any]]], Any] = {}
 
 def _run_calc_in_process(
     calc_module: str, calc_class: str, setup_kwargs: dict[str, Any], run_kwargs: dict[str, Any]
-) -> None:
+) -> str:
     """
     Worker entrypoint. Runs in a separate process.
     We lazily create & cache a calculator instance per unique setup.
@@ -52,6 +54,11 @@ def _run_calc_in_process(
         Keywords of setup
     run_kwargs: dict
         Infos from client about the run
+
+    Returns
+    -------
+    str
+        The STDOUT of the calculator's `run` function
     """
 
     key = (calc_module, calc_class, frozenset(setup_kwargs.items()))
@@ -64,8 +71,11 @@ def _run_calc_in_process(
         # calc.setup(setup_kwargs.copy())
         _WORKER_CALC_CACHE[key] = calc
 
-    # Run calc.run
-    calc.run(**run_kwargs)
+    # Run calc.run and return its STDOUT
+    buf = io.StringIO()
+    with redirect_stdout(buf):
+        calc.run(**run_kwargs)
+    return buf.getvalue()
 
 
 class CoreLimiter:
@@ -214,11 +224,13 @@ class OtoolServer:
                 run_kwargs,
             )
             # Will raise if the worker raised
-            _ = fut.result()
+            output = fut.result()
+        except:
+            raise
+        else:
+            return {"status": "Success", "stdout": output}
         finally:
             self.core_limiter.release(ncores_job)
-
-        return {"status": "Success"}
 
     def parse_client_input(self, arguments: List[str]) -> Tuple[str, dict[str, Any], List[str]]:
         """

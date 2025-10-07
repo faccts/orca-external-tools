@@ -39,6 +39,9 @@ def send_to_server(
             print(f"Server error {data.get('error_type')}: {data.get('error_message')}.")
             print(f"Exact traceback: {data.get('traceback')}")
             sys.exit(1)
+        else:
+            # print the stdout of the calculation
+            print(data.get("stdout", ""), end="")
     except requests.exceptions.Timeout:
         print("Connection timed out.")
         sys.exit(1)

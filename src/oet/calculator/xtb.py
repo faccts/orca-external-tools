@@ -63,7 +63,7 @@ class XtbCalc(BaseCalc):
         energy = None
         gradient = []
         # read the energy from the output file
-        xtbout = check_path(calc_data.prog_out)
+        xtbout = check_path(calc_data.output_file)
         with xtbout.open() as f:
             for line in f:
                 if "TOTAL ENERGY" in line:
@@ -96,7 +96,7 @@ class XtbCalc(BaseCalc):
                     )
                     exit(1)
         if not energy:
-            raise ValueError(f"Total energy not found in file {calc_data.prog_out}")
+            raise ValueError(f"Total energy not found in file {calc_data.output_file}")
         return energy, gradient
 
     def run_xtb(
@@ -133,7 +133,7 @@ class XtbCalc(BaseCalc):
             args += ["--grad"]
         if not calc_data.prog_path:
             raise RuntimeError("Path to program is None.")
-        run_command(calc_data.prog_path, calc_data.prog_out, args)
+        run_command(calc_data.prog_path, calc_data.output_file, args)
 
     def calc(
         self, calc_data: CalculationData, args_parsed: dict[str, Any], args_not_parsed: list[str]
@@ -178,9 +178,6 @@ class XtbCalc(BaseCalc):
 
         # parse the xtb output
         energy, gradient = self.read_xtbout(calc_data=calc_data, natoms=natoms)
-
-        # Print filecontent
-        print_filecontent(outfile=calc_data.prog_out)
 
         return energy, gradient
 

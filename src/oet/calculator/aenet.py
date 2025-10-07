@@ -128,6 +128,8 @@ class AenetCalc(BaseCalc):
             The number of atoms in the system
         dograd : bool
             Whether the gradient was computed
+        prog_out : str
+            The output file from predict.x
 
         Returns
         -------
@@ -226,9 +228,6 @@ class AenetCalc(BaseCalc):
         )
         # parse the output
         energy, gradient = self.read_predict_output(natoms, calc_data.dograd, prog_out)
-
-        # Print filecontent
-        print_filecontent(outfile=prog_out)
 
         return energy, gradient
 

@@ -25,7 +25,7 @@ from oet.core.misc import (
     nat_from_xyzfile,
     read_input,
     search_path,
-    write_output,
+    write_output, print_filecontent,
 )
 
 # Full list of all available calculator types.
@@ -58,53 +58,67 @@ class CalculationData:
         program_names: list[str] | None
             List of program names that are tried to detect for settings path to program
         """
-        # Path and filenames
+        # Store the original input file location
+        # This should not be needed after reading
+        self._input_file: Path = check_path(Path(inputfile).resolve())
+
+        # Read the input file
         # ------------------
-        # Original input file location
-        self.orig_inputfile_path = check_path(Path(inputfile).resolve())
+        xyzfile, charge, mult, ncores, dograd, pointcharges = read_input(
+            inputfile=self._input_file
+        )
+        # Original structure file location
+        # This should not be touched after copying to tmp dir
+        self._orig_xyzfile: Path = check_path(Path(xyzfile).resolve())
+        # Molecular charge
+        self.charge: int = charge
+        # Multiplicity
+        self.mult: int = mult
+        # Number of cores
+        self.ncores: int = ncores
+        # Do gradient?
+        self.dograd: bool = dograd
+        # Original point charge file location (if any)
+        # This should not be touched after copying to tmp dir
+        self._orig_pointcharges: Path | None = check_path(Path(pointcharges).resolve()) if pointcharges else None
+        # Number of atoms (needed to write output for ORCA)
+        self.natoms = nat_from_xyzfile(self._orig_xyzfile)
+
+        # Paths and filenames
+        # -------------------
         # Path to the orca input if it's in a different directory, e.g.,
         # orca /path/to/input
-        self.path_to_input_file = Path(inputfile).parent.resolve()
-        # Basname of the calculation
-        self.basename = Path(inputfile.removesuffix(".extinp.tmp")).name
-        # Outputfile read by ORCA
-        self.orca_engrad = Path(self.basename + ".engrad")
-        # Outputfile of the program
-        self.prog_out = Path(self.basename + ".tmp.out")
+        self.orca_input_dir: Path = self._input_file.parent
+        # Basename of the calculation (this is usually the ORCA BaseName + "_EXT")
+        self.basename: str = self._orig_xyzfile.name.removesuffix(".xyz")
         # Directory the calculation was called from
-        self.start_dir = Path.cwd()
+        self.start_dir: Path = Path.cwd()
         # Tmp directory to run the calculation in
-        self.tmp_dir = self.start_dir / self.path_to_input_file / Path(self.basename)
+        self.tmp_dir: Path = self.orca_input_dir / self.basename
+        # Output file read by ORCA
+        self.orca_engrad = self.orca_input_dir / (self.basename + ".engrad")
+        # Temporary output file for the external program
+        # At the end of the run. this will be printed to STDOUT and deleted
+        self.output_file = self.tmp_dir / (self.basename + ".out")
         # Prog Path that is used to call external binaries (and python)
         self.prog_path: Path | None = None
         # If program_names is None or if they are not found, self.prog_path remains None
         self.set_program_path(program_names)
-        # Read input file
-        xyzfile, charge, mult, ncores, dograd, pointcharges = read_input(
-            inputfile=self.orig_inputfile_path
-        )
-        # Original structure file location
-        self.orig_xyzfile = check_path(Path(xyzfile).resolve())
-        # Molecular charge
-        self.charge = charge
-        # Multiplicity
-        self.mult = mult
-        # Number of cores
-        self.ncores = ncores
-        # Do gradient?
-        self.dograd = dograd
-        # File with pointcharges
-        self.pointcharges = pointcharges
 
+        # Set up tmp dir and copy files
+        # -----------------------------
+        files_to_copy = [self._orig_xyzfile]
+        if self._orig_pointcharges:
+            files_to_copy.append(self._orig_pointcharges)
         # Make tmp directory so that every calculation is performed in its own directory
-        inp_tmp, xyz_tmp = copy_files_to_tmpdir(
-            files_to_copy=[self.orig_inputfile_path, self.orig_xyzfile],
+        copied_files = copy_files_to_tmpdir(
+            files_to_copy=files_to_copy,
             tmp_dir=self.tmp_dir,
         )
-        # Input file in tmp directory
-        self.inputfile_path = inp_tmp
         # Structure file in tmp directory (should be used for calculation)
-        self.xyzfile = xyz_tmp
+        self.xyzfile: Path = copied_files[0]
+        # Point charge file in tmp directory (should be used for calculation)
+        self.pointcharges: Path | None = copied_files[1] if self._orig_pointcharges else None
 
     def remove_tmp(self) -> None:
         """
@@ -253,7 +267,7 @@ class BaseCalc(ABC):
                 args_not_parsed=list(args_not_parsed),
             )
             # Go back to directory where input file was located
-            os.chdir(calc_data.path_to_input_file)
+            os.chdir(calc_data.orca_input_dir)
         except Exception as e:
             raise RuntimeError(f"Failed to compute energy and/or gradient") from e
         # Get number of atoms

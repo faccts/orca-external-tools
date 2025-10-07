@@ -225,7 +225,7 @@ class MopacCalc(BaseCalc):
         args.insert(0, mopac_inp)
         if not calc_data.prog_path:
             raise RuntimeError("Path to program is None.")
-        run_command(calc_data.prog_path, calc_data.prog_out, args)
+        run_command(calc_data.prog_path, calc_data.output_file, args)
 
     def calc(
         self, calc_data: CalculationData, args_parsed: dict[str, Any], args_not_parsed: list[str]
@@ -279,9 +279,6 @@ class MopacCalc(BaseCalc):
 
         # parse the mopac output
         energy, gradient = self.read_mopac_out(calc_data=calc_data, natoms=natoms)
-
-        # Print filecontent
-        print_filecontent(outfile=calc_data.prog_out)
 
         return energy, gradient
 
