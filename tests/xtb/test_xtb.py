@@ -23,7 +23,6 @@ def run_xtb(inputfile: str, output_file: str) -> None:
         arguments = None
     run_wrapper(
         inputfile=inputfile, script_path=xtb_script_path, outfile=output_file, args=arguments,
-        timeout=None
     )
 
 
