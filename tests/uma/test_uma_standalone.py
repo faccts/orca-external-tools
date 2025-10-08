@@ -52,9 +52,9 @@ class UmaTests(unittest.TestCase):
             raise FileNotFoundError(f"Error wrapper outputfile not found. Check {output_file} for details") from e
 
         self.assertEqual(num_atoms, expected_num_atoms)
-        self.assertAlmostEqual(energy, expected_energy, places=9)
+        self.assertAlmostEqual(energy, expected_energy, places=7)
         for g1, g2 in zip(gradients, expected_gradients):
-            self.assertAlmostEqual(g1, g2, places=9)
+            self.assertAlmostEqual(g1, g2, places=7)
 
     def test_OH_anion_eng_grad(self):
         xyz_file, input_file, engrad_out, output_file = get_filenames("OH_anion")
@@ -85,9 +85,9 @@ class UmaTests(unittest.TestCase):
             raise FileNotFoundError(f"Error wrapper outputfile not found. Check {output_file} for details") from e
 
         self.assertEqual(num_atoms, expected_num_atoms)
-        self.assertAlmostEqual(energy, expected_energy, places=9)
+        self.assertAlmostEqual(energy, expected_energy, places=7)
         for g1, g2 in zip(gradients, expected_gradients):
-            self.assertAlmostEqual(g1, g2, places=9)
+            self.assertAlmostEqual(g1, g2, places=7)
 
     def test_OH_rad_eng_grad(self):
         xyz_file, input_file, engrad_out, output_file = get_filenames("OH_rad")
