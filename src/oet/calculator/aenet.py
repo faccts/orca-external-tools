@@ -12,8 +12,9 @@ main: function
 """
 
 from argparse import ArgumentParser
+from collections.abc import Mapping
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any
 
 from oet.core.base_calc import BaseCalc, CalculationData
 from oet.core.misc import (
@@ -34,9 +35,9 @@ class AenetCalc(BaseCalc):
     NNEXT: str | None = None
 
     @property
-    def PROGRAM_NAMES(self) -> set[str]:
-        """Program keys to search for in PATH"""
-        return {"predict.x"}
+    def PROGRAM_NAMES(self) -> list[str]:
+        """Program names to search for in PATH"""
+        return ["predict.x"]
 
     @classmethod
     def extend_parser(cls, parser: ArgumentParser) -> None:

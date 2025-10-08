@@ -32,9 +32,9 @@ from oet.core.misc import (
 
 class MopacCalc(BaseCalc):
     @property
-    def PROGRAM_NAMES(self) -> set[str]:
-        """Program keys to search for in PATH"""
-        return {"mopac", "otools_mopac"}
+    def PROGRAM_NAMES(self) -> list[str]:
+        """Program names to search for in PATH"""
+        return ["mopac"]
 
     @classmethod
     def extend_parser(cls, parser: ArgumentParser) -> None:

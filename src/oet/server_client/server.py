@@ -18,10 +18,11 @@ import logging
 import threading
 import traceback
 from argparse import ArgumentParser
+from collections.abc import Mapping, Sequence
 from concurrent.futures import ProcessPoolExecutor
 from contextlib import redirect_stdout
 from pathlib import Path
-from typing import Any, Dict, List, Tuple, Type
+from typing import Any
 
 from flask import Flask, Response, jsonify, request
 from waitress import serve
@@ -150,7 +151,7 @@ class CalculatorClass:
         # Import module
         mod = importlib.import_module(import_module)
         # Set calculator type
-        self._cls: Type[BaseCalc] = getattr(mod, calculator_name)
+        self._cls: type[BaseCalc] = getattr(mod, calculator_name)
 
     def build_full_parser(self, parser: ArgumentParser) -> None:
         """
@@ -181,20 +182,20 @@ class OtoolServer:
         # Keywords for setup
         self.setup_kwargs = setup_kwargs
 
-    def handle_client(self, content: Dict[str, Any]) -> Dict[str, Any]:
+    def handle_client(self, content: Mapping[str, Any]) -> dict[str, Any]:
         """
         Takes the input from client and runs the calculation
 
         Parameters
         ----------
-        content: Dict[str, Any]
+        content: Mapping[str, Any]
             Message received from client
 
         Returns
         -------
-        Dict[str, Any]: Message to be sent to client
+        dict[str, Any]: Message to be sent to client
         """
-        arguments: List[str] = content["arguments"]
+        arguments: Sequence[str] = content["arguments"]
         working_dir = Path(content["directory"]).resolve()
 
         # Parse client args
@@ -232,7 +233,7 @@ class OtoolServer:
         finally:
             self.core_limiter.release(ncores_job)
 
-    def parse_client_input(self, arguments: List[str]) -> Tuple[str, dict[str, Any], List[str]]:
+    def parse_client_input(self, arguments: Sequence[str]) -> tuple[str, dict[str, Any], list[str]]:
         """
         Handles the input sent by client
 

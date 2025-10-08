@@ -33,9 +33,9 @@ from oet.core.misc import (
 
 class GxtbCalc(BaseCalc):
     @property
-    def PROGRAM_NAMES(self) -> set[str]:
-        """Program keys to search for in PATH"""
-        return {"gxtb", "g-xTB", "g-xtb"}
+    def PROGRAM_NAMES(self) -> list[str]:
+        """Program names to search for in PATH"""
+        return ["gxtb", "g-xTB", "g-xtb"]
 
     @classmethod
     def extend_parser(cls, parser: ArgumentParser) -> None:

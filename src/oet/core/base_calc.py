@@ -15,8 +15,9 @@ import shutil
 import sys
 from abc import ABC, abstractmethod
 from argparse import ArgumentParser
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any
 
 from oet.core.misc import (
     check_multi_progs,
@@ -47,7 +48,7 @@ class CalculationData:
     Holds the data for a given calculation. Performs file handling and input reading
     """
 
-    def __init__(self, inputfile: str, program_names: set[str] | None) -> None:
+    def __init__(self, inputfile: str, program_names: Sequence[str] | None) -> None:
         """
         Initialize the calculation data. Also, create tmp dir
 
@@ -55,7 +56,7 @@ class CalculationData:
         ----------
         inputfile: str
             Name of the input file
-        program_names: list[str] | None
+        program_names: Sequence[str] | None
             List of program names that are tried to detect for settings path to program
         """
         # Store the original input file location
@@ -129,14 +130,14 @@ class CalculationData:
             os.chdir(self.start_dir)
         shutil.rmtree(self.tmp_dir)
 
-    def set_program_path(self, exe_path_or_name: set[str] | str | Path | None) -> bool:
+    def set_program_path(self, exe_path_or_name: Sequence[str] | str | Path | None) -> bool:
         """
         Checks for executable of program and sets self.prog_path to it.
         If nothing was found, False is returned and self.prog_path is None
 
         Params
         ------
-        exe_path_or_name: set[str] | str | Path | None
+        exe_path_or_name: Sequence[str] | str | Path | None
             Full path to an executable, just its name or list of names.
             If a list is provided, the first match will set the program path.
             If just a name is provided, it is searched for and set to the name.
@@ -145,15 +146,11 @@ class CalculationData:
         -------
         bool: True if an executable was found, False otherwise
         """
-        # If exe_path_or_name is None, return False
+        # If exe_path_or_name is None or empty, return False
         if not exe_path_or_name:
             return False
-        # Set handling
-        if isinstance(exe_path_or_name, set):
-            self.prog_path = check_multi_progs(exe_path_or_name)
-            return self.prog_path is not None
         # str | Path handling
-        else:
+        if isinstance(exe_path_or_name, str) or isinstance(exe_path_or_name, Path):
             try:
                 self.prog_path = search_path(exe_path_or_name)
                 return True
@@ -162,6 +159,10 @@ class CalculationData:
             except Exception as e:
                 print(f"Warning: Provided executable not valid: {e}")
                 return False
+        # Sequence handling
+        else:
+            self.prog_path = check_multi_progs(exe_path_or_name)
+            return self.prog_path is not None
 
 
 class BaseCalc(ABC):
@@ -190,8 +191,8 @@ class BaseCalc(ABC):
     minimal_python_version: tuple[int, int] = (3, 10)
 
     @property
-    def PROGRAM_NAMES(self) -> set[str] | None:
-        """Set of executables to search for in Path."""
+    def PROGRAM_NAMES(self) -> list[str] | None:
+        """List of executables to search for in Path."""
         return None
 
     @abstractmethod

@@ -6,9 +6,9 @@ import os
 import shutil
 import subprocess
 import sys
+from collections.abc import Sequence, Iterable
 from pathlib import Path
 from shutil import which
-from typing import Iterable
 
 # Energy conversion factors (Hartree -> unit)
 ENERGY_CONVERSION = {"eV": 27.21138625, "kcal/mol": 627.509}
@@ -104,31 +104,25 @@ def check_prog(prog: str | Path) -> Path:
     return path_to_prog
 
 
-def check_multi_progs(keys: set[str]) -> Path | None:
+def check_multi_progs(keys: Sequence[str]) -> Path | None:
     """
     Checks multiple string for paths
 
     Parameters
     ----------
-    keys: set[str]
+    keys: Sequence[str]
         strings to be checked
 
     Returns
     -------
     Path | None: Path of executable or none
     """
-    prog_path = None
     for key in keys:
         try:
-            prog_path = check_prog(key)
-            break
+            return check_prog(key)
         except Exception:
             continue
-
-    if prog_path:
-        return prog_path
-    else:
-        return None
+    return None
 
 
 def print_filecontent(outfile: str | Path) -> None:

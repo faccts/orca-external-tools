@@ -113,7 +113,7 @@ def copy_otool_scripts(venv_dir: Path, dest_dir: Path) -> None:
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        description="Installation for orca-exteranl-tools package."
+        description="Installation for orca-external-tools package."
     )
     parser.add_argument(
         "--venv-dir",
