@@ -14,10 +14,9 @@ from oet.core.test_utilities import (
 mopac_script_path = Path(__file__).parent / "../../scripts/oet_mopac"
 # Leave moppac_executable_path empty, if mopac from system path should be called
 mopac_executable_path = ""
-output_file = "wrapper.out"
 
 
-def run_mopac(inputfile: str) -> None:
+def run_mopac(inputfile: str, output_file: str) -> None:
     if mopac_executable_path:
         arguments = ["--exe", mopac_executable_path]
     else:
@@ -29,7 +28,7 @@ def run_mopac(inputfile: str) -> None:
 
 class MopacTests(unittest.TestCase):
     def test_H2O_engrad(self):
-        xyz_file, input_file, engrad_out = get_filenames("OH")
+        xyz_file, input_file, engrad_out, output_file = get_filenames("OH")
         write_xyz_file(xyz_file, WATER)
         write_input_file(
             filename=input_file,
@@ -39,7 +38,7 @@ class MopacTests(unittest.TestCase):
             ncores=2,
             do_gradient=1,
         )
-        run_mopac(input_file)
+        run_mopac(input_file, output_file)
 
         expected_num_atoms = 3
         expected_energy = -7.849286623778e-02
@@ -65,7 +64,7 @@ class MopacTests(unittest.TestCase):
             self.assertAlmostEqual(g1, g2, places=9)
 
     def test_OH_anion_eng_grad(self):
-        xyz_file, input_file, engrad_out = get_filenames("OH_anion")
+        xyz_file, input_file, engrad_out, output_file = get_filenames("OH_anion")
         write_xyz_file(xyz_file, OH)
         write_input_file(
             filename=input_file,
@@ -75,7 +74,7 @@ class MopacTests(unittest.TestCase):
             ncores=2,
             do_gradient=1,
         )
-        run_mopac(input_file)
+        run_mopac(input_file, output_file)
         expected_num_atoms = 2
         expected_energy = -4.909937546712478e-02
         expected_gradients = [
@@ -98,7 +97,7 @@ class MopacTests(unittest.TestCase):
             self.assertAlmostEqual(g1, g2, places=9)
 
     def test_OH_rad_eng_grad(self):
-        xyz_file, input_file, engrad_out = get_filenames("OH_rad")
+        xyz_file, input_file, engrad_out, output_file = get_filenames("OH_rad")
         write_xyz_file(xyz_file, OH)
         write_input_file(
             filename=input_file,
@@ -108,7 +107,7 @@ class MopacTests(unittest.TestCase):
             ncores=2,
             do_gradient=1,
         )
-        run_mopac(input_file)
+        run_mopac(input_file, output_file)
         expected_num_atoms = 2
         expected_energy = 0.0212775115576
         expected_gradients = [

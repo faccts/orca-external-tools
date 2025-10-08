@@ -17,12 +17,11 @@ from oet.core.test_utilities import (
 
 aimnet2_script_path = Path(__file__).parent / "../../scripts/oet_client"
 aimnet2_server_path = Path(__file__).parent / "../../scripts/oet_server"
-output_file = "wrapper.out"
 # Default ID and port of server. Change if needed
 id_port = "127.0.0.1:9000"
 
 
-def run_aimnet2(inputfile: str) -> None:
+def run_aimnet2(inputfile: str, output_file: str) -> None:
     run_wrapper(
         inputfile=inputfile,
         script_path=aimnet2_script_path,
@@ -37,7 +36,7 @@ class Aimnet2Tests(unittest.TestCase):
         """
         Test starting the server
         """
-        with open(output_file, "a") as f:
+        with open("server.out", "a") as f:
             cls.server = subprocess.Popen(
                 ["python3", aimnet2_server_path, "aimnet2", "--bind", id_port, "--nthreads", "2"],
                 stdout=f,
@@ -56,7 +55,7 @@ class Aimnet2Tests(unittest.TestCase):
         cls.server.wait(timeout=10)
 
     def test_H2O_engrad(self):
-        xyz_file, input_file, engrad_out = get_filenames("H2O_client")
+        xyz_file, input_file, engrad_out, output_file = get_filenames("H2O_client")
 
         write_xyz_file(xyz_file, WATER)
         write_input_file(
@@ -67,7 +66,7 @@ class Aimnet2Tests(unittest.TestCase):
             ncores=2,
             do_gradient=1,
         )
-        run_aimnet2(input_file)
+        run_aimnet2(input_file, output_file)
         expected_num_atoms = 3
         expected_energy = -76.47682538331
         expected_gradients = [
@@ -93,7 +92,7 @@ class Aimnet2Tests(unittest.TestCase):
             self.assertAlmostEqual(g1, g2, places=9)
 
     def test_OH_anion_eng_grad(self):
-        xyz_file, input_file, engrad_out = get_filenames("OH_anion_client")
+        xyz_file, input_file, engrad_out, output_file = get_filenames("OH_anion_client")
         write_xyz_file(xyz_file, OH)
         write_input_file(
             filename=input_file,
@@ -103,7 +102,7 @@ class Aimnet2Tests(unittest.TestCase):
             ncores=2,
             do_gradient=1,
         )
-        run_aimnet2(input_file)
+        run_aimnet2(input_file, output_file)
         expected_num_atoms = 2
         expected_energy = -75.82629634884
         expected_gradients = [
@@ -126,7 +125,7 @@ class Aimnet2Tests(unittest.TestCase):
             self.assertAlmostEqual(g1, g2, places=9)
 
     def test_OH_rad_eng_grad(self):
-        xyz_file, input_file, engrad_out = get_filenames("OH_rad_client")
+        xyz_file, input_file, engrad_out, output_file = get_filenames("OH_rad_client")
         write_xyz_file(xyz_file, OH)
         write_input_file(
             filename=input_file,
@@ -136,7 +135,7 @@ class Aimnet2Tests(unittest.TestCase):
             ncores=2,
             do_gradient=1,
         )
-        run_aimnet2(input_file)
+        run_aimnet2(input_file, output_file)
         expected_num_atoms = 2
         expected_energy = -75.68258695326
         expected_gradients = [

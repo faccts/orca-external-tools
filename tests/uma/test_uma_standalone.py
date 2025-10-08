@@ -12,16 +12,15 @@ from oet.core.test_utilities import (
 )
 
 uma_script_path = Path(__file__).parent / "../../scripts/oet_uma"
-output_file = "wrapper.out"
 
 
-def run_uma(inputfile: str) -> None:
+def run_uma(inputfile: str, output_file: str) -> None:
     run_wrapper(inputfile=inputfile, script_path=uma_script_path, outfile=output_file)
 
 
 class UmaTests(unittest.TestCase):
     def test_H2O_engrad(self):
-        xyz_file, input_file, engrad_out = get_filenames("H2O")
+        xyz_file, input_file, engrad_out, output_file = get_filenames("H2O")
 
         write_xyz_file(xyz_file, WATER)
         write_input_file(
@@ -32,7 +31,7 @@ class UmaTests(unittest.TestCase):
             ncores=2,
             do_gradient=1,
         )
-        run_uma(input_file)
+        run_uma(input_file, output_file)
         expected_num_atoms = 3
         expected_energy = -76.43349724311
         expected_gradients = [
@@ -58,7 +57,7 @@ class UmaTests(unittest.TestCase):
             self.assertAlmostEqual(g1, g2, places=9)
 
     def test_OH_anion_eng_grad(self):
-        xyz_file, input_file, engrad_out = get_filenames("OH_anion")
+        xyz_file, input_file, engrad_out, output_file = get_filenames("OH_anion")
         write_xyz_file(xyz_file, OH)
         write_input_file(
             filename=input_file,
@@ -68,7 +67,7 @@ class UmaTests(unittest.TestCase):
             ncores=2,
             do_gradient=1,
         )
-        run_uma(input_file)
+        run_uma(input_file, output_file)
         expected_num_atoms = 2
         expected_energy = -75.80600885514
         expected_gradients = [
@@ -91,7 +90,7 @@ class UmaTests(unittest.TestCase):
             self.assertAlmostEqual(g1, g2, places=9)
 
     def test_OH_rad_eng_grad(self):
-        xyz_file, input_file, engrad_out = get_filenames("OH_rad")
+        xyz_file, input_file, engrad_out, output_file = get_filenames("OH_rad")
         write_xyz_file(xyz_file, OH)
         write_input_file(
             filename=input_file,
@@ -101,7 +100,7 @@ class UmaTests(unittest.TestCase):
             ncores=2,
             do_gradient=1,
         )
-        run_uma(input_file)
+        run_uma(input_file, output_file)
         expected_num_atoms = 2
         expected_energy = -75.74213434819
         expected_gradients = [

@@ -14,10 +14,9 @@ from oet.core.test_utilities import (
 gxtb_script_path = Path(__file__).parent / "../../scripts/oet_gxtb"
 # Leave uma_executable_path empty, if gxtb from system path should be called
 gxtb_executable_path = ""
-output_file = "wrapper.out"
 
 
-def run_gxtb(inputfile: str) -> None:
+def run_gxtb(inputfile: str, output_file: str) -> None:
     if gxtb_executable_path:
         arguments = ["--exe", gxtb_executable_path]
     else:
@@ -29,7 +28,7 @@ def run_gxtb(inputfile: str) -> None:
 
 class GxtbTests(unittest.TestCase):
     def test_H2O_engrad(self):
-        xyz_file, input_file, engrad_out = get_filenames("H2O")
+        xyz_file, input_file, engrad_out, output_file = get_filenames("H2O")
 
         write_xyz_file(xyz_file, WATER)
         write_input_file(
@@ -40,7 +39,7 @@ class GxtbTests(unittest.TestCase):
             ncores=2,
             do_gradient=1,
         )
-        run_gxtb(input_file)
+        run_gxtb(input_file, output_file)
         expected_num_atoms = 3
         expected_energy = -76.43736490412
         expected_gradients = [
@@ -66,7 +65,7 @@ class GxtbTests(unittest.TestCase):
             self.assertAlmostEqual(g1, g2, places=9)
 
     def test_OH_anion_eng_grad(self):
-        xyz_file, input_file, engrad_out = get_filenames("OH_anion")
+        xyz_file, input_file, engrad_out, output_file = get_filenames("OH_anion")
         write_xyz_file(xyz_file, OH)
         write_input_file(
             filename=input_file,
@@ -76,7 +75,7 @@ class GxtbTests(unittest.TestCase):
             ncores=2,
             do_gradient=1,
         )
-        run_gxtb(input_file)
+        run_gxtb(input_file, output_file)
         expected_num_atoms = 2
         expected_energy = -75.80305584316
         expected_gradients = [
@@ -99,7 +98,7 @@ class GxtbTests(unittest.TestCase):
             self.assertAlmostEqual(g1, g2, places=9)
 
     def test_OH_rad_eng_grad(self):
-        xyz_file, input_file, engrad_out = get_filenames("OH_rad")
+        xyz_file, input_file, engrad_out, output_file = get_filenames("OH_rad")
         write_xyz_file(xyz_file, OH)
         write_input_file(
             filename=input_file,
@@ -109,7 +108,7 @@ class GxtbTests(unittest.TestCase):
             ncores=2,
             do_gradient=1,
         )
-        run_gxtb(input_file)
+        run_gxtb(input_file, output_file)
         expected_num_atoms = 2
         expected_energy = -75.74502880794
         expected_gradients = [

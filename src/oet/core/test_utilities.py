@@ -175,15 +175,16 @@ def add_arguments(args: str | list[str], additions: list[str]) -> list[str]:
     return args
 
 
-def get_filenames(basename: str) -> tuple[str, str, str]:
+def get_filenames(basename: str) -> tuple[str, str, str, str]:
     """
     Set the filenames according to how ORCA would do and cleans any input existing
     """
     xyz_file = basename + ".xyz"
     input_file = basename + ".extinp.tmp"
     engrad_out = basename + ".engrad"
+    output_file = basename + ".out"
     clear_files(basename=basename)
-    return xyz_file, input_file, engrad_out
+    return xyz_file, input_file, engrad_out, output_file
 
 
 def clear_files(basename: str) -> None:
