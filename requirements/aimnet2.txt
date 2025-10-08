@@ -1,7 +1,7 @@
 --index-url https://download.pytorch.org/whl/cpu
 --extra-index-url https://pypi.org/simple
---find-links https://data.pyg.org/whl/torch-2.5.0+cpu.html
+--find-links https://data.pyg.org/whl/torch-2.8.0+cpu.html
 
-torch==2.5.0
+torch==2.8.0
 torch-cluster
 aimnet2calc @ https://github.com/isayevlab/AIMNet2/archive/refs/heads/main.zip

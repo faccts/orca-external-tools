@@ -16,7 +16,7 @@ import sys
 import warnings
 from argparse import ArgumentParser
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from oet.core.base_calc import BaseCalc, CalculationData
 from oet.core.misc import ENERGY_CONVERSION, LENGTH_CONVERSION, xyzfile_to_at_coord
@@ -74,7 +74,7 @@ class Aimnet2Calc(BaseCalc):
         """
         return self._calc
 
-    def set_calculator(self, model: str) -> None:
+    def set_calculator(self, model: str, device: Literal["cpu", "cuda", "auto"]) -> None:
         """
         Set the calculator
 
@@ -82,10 +82,19 @@ class Aimnet2Calc(BaseCalc):
         ----------
         model: str
             Model of the calculator
+        device: Literal["cpu", "cuda", "auto"]
+            device to use
         """
+        if device == "cpu":
+            # Monkey-patch torch.cuda.is_available() to return False
+            # Another way to do it would be to set CUDA_VISIBLE_DEVICES="" *before* the initial import of torch
+            # Ideally, AIMNet2Calculator would just have an extra argument for this.
+            torch.cuda.is_available = lambda : False
+        elif device == "cuda" and not torch.cuda.is_available():
+            raise RuntimeError("CUDA requested but not available")
         self._calc = AIMNet2Calculator(model=model)
 
-    def setup(self, model: str, model_dir: str) -> None:
+    def setup(self, model: str, model_dir: str, device: Literal["cpu", "cuda", "auto"]) -> None:
         """
         Sets the calculator. Does nothing, if it is already set.
 
@@ -95,6 +104,8 @@ class Aimnet2Calc(BaseCalc):
             Model that the calculator should have
         model_dir: str
             Path to the model files
+        device: Literal["cpu", "cuda", "auto"]
+            device to use
 
         Returns
         -------
@@ -104,10 +115,10 @@ class Aimnet2Calc(BaseCalc):
             # Check whether models are present
             model_path = str(Path(model_dir) / Path(model))
             if os.path.isfile(model_path):
-                self.set_calculator(model=model_path)
+                self.set_calculator(model=model_path, device=device)
             # If not, aimnet will download them automatically
             else:
-                self.set_calculator(model=model)
+                self.set_calculator(model=model, device=device)
 
     @classmethod
     def extend_parser(cls, parser: ArgumentParser) -> None:
@@ -125,16 +136,28 @@ class Aimnet2Calc(BaseCalc):
             type=str,
             dest="model",
             default="aimnet2_wb97m",
-            help='The AIMNet2 model file name (must be in MODEL_DIR) or absolute path. Default: "aimnet2_wb97m".',
+            help='The AIMNet2 model file name (must be in DIR) or absolute path. Default: "aimnet2_wb97m".',
         )
         parser.add_argument(
-            "-d",
-            "--model-dir",
-            metavar="MODEL_DIR",
+            "-p",
+            "--model-path",
+            metavar="DIR",
             dest="model_dir",
             type=str,
             default=str(default_model_path),
             help=f'The directory to look for AIMNet2 model files. Default: "{default_model_path}".',
+        )
+        parser.add_argument(
+            "-d",
+            "--device",
+            metavar="DEVICE",
+            dest="device",
+            type=str,
+            choices=["cpu", "cuda", "auto"],
+            default="cpu",
+            help="Device to perform the calculation on. "
+                 "Options: cpu, cuda, or auto (i.e. use cuda if available, otherwise cpu). "
+                 f"Default: cpu. ",
         )
 
     def atomic_symbol_to_number(self, symbol: str) -> int:
@@ -276,12 +299,13 @@ class Aimnet2Calc(BaseCalc):
         # Get the arguments parsed as defined in extend_parser
         model = args_parsed.get("model")
         model_dir = args_parsed.get("model_dir")
+        device = args_parsed.get("device")
         if not isinstance(model, str) or not isinstance(model_dir, str):
             raise RuntimeError("Problems detecting model parameters.")
         # setup calculator if not already set
         # this is important as usage on a server would otherwise cause
         # initialization with every call so that nothing is gained
-        self.setup(model=model, model_dir=model_dir)
+        self.setup(model=model, model_dir=model_dir, device=device)
         # process the XYZ file
         atom_types, coordinates = xyzfile_to_at_coord(calc_data.xyzfile)
 

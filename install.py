@@ -3,8 +3,13 @@ import os
 import subprocess
 import sys
 import argparse
+from collections.abc import Sequence
 from pathlib import Path
 import shutil
+
+
+# Available extras
+EXTRAS = ["uma", "aimnet2", "mlatom"]
 
 
 def create_venv(venv_dir: Path) -> None:
@@ -82,9 +87,10 @@ def install_extra_requirements(venv_dir: Path, extras: list[str]) -> None:
         subprocess.check_call([str(pip_path), "install", "-r", str(req_path)])
 
 
-def copy_oet_scripts(venv_dir: Path, dest_dir: Path) -> None:
+def copy_oet_scripts(venv_dir: Path, dest_dir: Path, extras: Sequence[str]) -> None:
     """
     Copy all scripts starting with 'oet_' from venv/bin to the destination directory.
+    Scripts which are "extras" are only copied if actually installed.
 
     Parameters
     ----------
@@ -92,6 +98,8 @@ def copy_oet_scripts(venv_dir: Path, dest_dir: Path) -> None:
         Path to the virtual environment root directory.
     dest_dir : Path
         Directory where the scripts should be copied.
+    extras : Sequence[str]
+        Installed extras
     """
     bin_dir = venv_dir / ("Scripts" if os.name == "nt" else "bin")
     if not bin_dir.exists():
@@ -102,6 +110,9 @@ def copy_oet_scripts(venv_dir: Path, dest_dir: Path) -> None:
     count = 0
     for script in bin_dir.glob("oet_*"):
         if script.is_file():
+            # skip not installed extras
+            if (module := script.name.removeprefix("oet_")) in EXTRAS and module not in extras:
+                continue
             target = dest_dir / script.name
             shutil.copy2(script, target)  # copy with metadata (executable bit)
             print(f"Copied {script.name} → {target}")
@@ -132,8 +143,8 @@ def parse_args():
     parser.add_argument(
         "--extra",
         "-e",
-        nargs="*",
-        choices=["uma", "aimnet2", "mlatom"],
+        nargs="+",
+        choices=EXTRAS,
         default=[],
         help="Optional extra package sets to install from requirements/<name>.txt",
     )
@@ -160,7 +171,7 @@ def main():
     pip_install_target(args.venv_dir, args.script_dir)
 
     # Copy scripts for easier usability
-    copy_oet_scripts(venv_dir=args.venv_dir ,dest_dir=args.script_dir)
+    copy_oet_scripts(venv_dir=args.venv_dir, dest_dir=args.script_dir, extras=args.extra)
 
 if __name__ == "__main__":
     main()
