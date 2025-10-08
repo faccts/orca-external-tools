@@ -25,6 +25,8 @@ try:
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         from fairchem.core import FAIRChemCalculator, pretrained_mlip
+        from fairchem.core.calculate.pretrained_mlip import available_models
+        from fairchem.core.units.mlip_unit.api.inference import UMATask
 except ImportError as e:
     print(
         f"[MISSING] Required module umacalc not found: {e}.\n"
@@ -112,28 +114,40 @@ class UmaCalc(BaseCalc):
             Parser that should be extended
         """
         parser.add_argument(
+            "-t",
+            "--task",
+            type=UMATask,
+            choices=list(UMATask),
+            default=(default_task := UMATask.OMOL),
+            metavar="TASK",
+            dest="param",
+            help="The UMA task/parameter set name. "
+                 "Options: " + ", ".join(UMATask) + ". "
+                 f"Default: {default_task}. ",
+        )
+        parser.add_argument(
             "-m",
             "--model",
             type=str,
-            default="omol",
-            dest="param",
-            help="The uma param.",
-        )
-        parser.add_argument(
-            "-bm",
-            "--basemodel",
-            type=str,
-            default="uma-s-1",
+            default=(default_model := "uma-s-1"),
+            metavar="MODEL",
             dest="basemodel",
-            help="The uma basemodel.",
+            choices=available_models,
+            help="The UMA base model. "
+                 "Options: " + ", ".join(available_models) + ". "
+                 f"Default: {default_model}. ",
         )
         parser.add_argument(
             "-d",
             "--device",
             type=str,
             default="cpu",
+            metavar="DEVICE",
             dest="device",
-            help="Device to perform the calculation on.",
+            choices=(device_choices := ["cpu", "cuda"]),
+            help="Device to perform the calculation on. "
+                 "Options: " + ", ".join(device_choices) + ". "
+                 f"Default: cpu. ",
         )
 
     def run_uma(
