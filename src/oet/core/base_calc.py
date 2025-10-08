@@ -270,10 +270,11 @@ class BaseCalc(ABC):
             os.chdir(calc_data.orca_input_dir)
         except Exception as e:
             raise RuntimeError(f"Failed to compute energy and/or gradient") from e
-        # Get number of atoms
-        nat = nat_from_xyzfile(calc_data.xyzfile)
-        # Write ORCA input
-        write_output(filename=calc_data.orca_engrad, nat=nat, etot=energy, grad=gradient)
+        # Write output for ORCA
+        write_output(filename=calc_data.orca_engrad, nat=calc_data.natoms, etot=energy, grad=gradient)
+        # Write program output to STDOUT
+        if calc_data.output_file.exists():
+            print_filecontent(calc_data.output_file)
         # Remove tmp dir
         calc_data.remove_tmp()
         # Go back to start directory
