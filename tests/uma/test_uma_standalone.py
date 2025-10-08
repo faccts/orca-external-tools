@@ -11,7 +11,7 @@ from oet.core.test_utilities import (
     write_xyz_file,
 )
 
-uma_script_path = Path(__file__).parent / "../../scripts/otool_uma"
+uma_script_path = Path(__file__).parent / "../../scripts/oet_uma"
 output_file = "wrapper.out"
 
 

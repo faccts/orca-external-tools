@@ -138,7 +138,7 @@ def run_wrapper(
     inputfile: str | Path
         Inputfile
     script_path: str | Path
-        Path to the otool script
+        Path to the oet script
     outfile: str | Path
         File to write the output to
     args: list[str] | None, default = None

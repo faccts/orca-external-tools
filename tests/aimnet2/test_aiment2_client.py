@@ -15,8 +15,8 @@ from oet.core.test_utilities import (
     write_xyz_file,
 )
 
-aimnet2_script_path = Path(__file__).parent / "../../scripts/otool_client"
-aimnet2_server_path = Path(__file__).parent / "../../scripts/otool_server"
+aimnet2_script_path = Path(__file__).parent / "../../scripts/oet_client"
+aimnet2_server_path = Path(__file__).parent / "../../scripts/oet_server"
 output_file = "wrapper.out"
 # Default ID and port of server. Change if needed
 id_port = "127.0.0.1:9000"

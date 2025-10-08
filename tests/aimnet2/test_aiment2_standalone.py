@@ -11,7 +11,7 @@ from oet.core.test_utilities import (
     write_xyz_file,
 )
 
-aimnet2_script_path = Path(__file__).parent / "../../scripts/otool_aimnet2"
+aimnet2_script_path = Path(__file__).parent / "../../scripts/oet_aimnet2"
 output_file = "wrapper.out"
 
 

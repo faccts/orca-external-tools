@@ -61,8 +61,8 @@ def send_to_server(
 def client() -> None:
     """Entry point for CLI execution"""
     parser = ArgumentParser(
-        prog="ORCA otool client",
-        description="ORCA external tools wrapper for clients. Calls a sever.",
+        prog="oet_client",
+        description="ORCA external tools wrapper for clients. Calls a server.",
     )
     # parser.add_argument("inputfile", help="ORCA-generated input file.")
     parser.add_argument(

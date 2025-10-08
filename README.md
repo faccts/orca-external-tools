@@ -56,10 +56,10 @@ end
 For MLIPs like AIMNet2 and UMA, we recommend to use a server/client combination, 
 as the calculations will otherwise take significantly longer,
 due to heavy imports of dependencies like `torch`. 
-Therefore, start a calculation server with the `otool_server` script, e.g., `otool_server aimnet2`. 
+Therefore, start a calculation server with the `oet_server` script, e.g., `oet_server aimnet2`. 
 It will handle the single-point and gradient calculations and can remain active for multiple ORCA runs. 
 The number of cores it is allowed to use can be specified with `-n <integer>`. 
-In your ORCA input, you then have to specify the `otool_client` as `ProgExt`. 
+In your ORCA input, you then have to specify the `oet_client` as `ProgExt`. 
 It will forward all the calculation requests to the server. 
 If you want to keep multiple servers running for different types of calculations, 
 you have to specify different ports for the server and clients with the `-b <hostname>:<port>` keyword. 

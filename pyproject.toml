@@ -41,15 +41,15 @@ build-backend = "setuptools.build_meta"
 packages = ["src/oet"]
 
 [project.scripts]
-otool_aenet = "oet.calculator.aenet:main"
-otool_aimnet2 = "oet.calculator.aimnet2:main"
-otool_gxtb = "oet.calculator.gxtb:main"
-otool_mlatom = "oet.calculator.mlatom:main"
-otool_mopac = "oet.calculator.mopac:main"
-otool_uma = "oet.calculator.uma:main"
-otool_xtb = "oet.calculator.xtb:main"
-otool_client = "oet.server_client.client:client"
-otool_server = "oet.server_client.server:main"
+oet_aenet = "oet.calculator.aenet:main"
+oet_aimnet2 = "oet.calculator.aimnet2:main"
+oet_gxtb = "oet.calculator.gxtb:main"
+oet_mlatom = "oet.calculator.mlatom:main"
+oet_mopac = "oet.calculator.mopac:main"
+oet_uma = "oet.calculator.uma:main"
+oet_xtb = "oet.calculator.xtb:main"
+oet_client = "oet.server_client.client:client"
+oet_server = "oet.server_client.server:main"
 
 # $$$$$$$$$$$$$$$$$$$$$$$$$$$$
 #    DEPENDENCY GROUPS

@@ -30,7 +30,7 @@ from oet.core.misc import (
 )
 
 # Full list of all available calculator types.
-# Used, e.g., by otool and server.py
+# Used, e.g., by oet executable and server.py
 CALCULATOR_CLASSES = {
     "aenet": ("oet.calculator.aenet", "AenetCalc"),
     "aimnet2": ("oet.calculator.aimnet2", "Aimnet2Calc"),
@@ -300,7 +300,7 @@ class BaseCalc(ABC):
         """
         # Setup new parser
         parser = ArgumentParser(
-            prog="ORCA otool",
+            prog="oet",
             description="ORCA external tools wrapper.",
         )
         parser.add_argument("inputfile")

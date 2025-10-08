@@ -8,9 +8,9 @@ import importlib
 from oet.core.base_calc import CALCULATOR_CLASSES
 
 
-def parse_otool() -> tuple[str, str, list[str]]:
+def parse_oet() -> tuple[str, str, list[str]]:
     """
-    Function for parsing otool keywords
+    Function for parsing oet keywords
 
     Returns:
     str: Argument for calculator type
@@ -18,9 +18,9 @@ def parse_otool() -> tuple[str, str, list[str]]:
     list[str]: Remaining arguments parsed by the subclasses
     """
     parser = ArgumentParser(
-        prog="otool",
+        prog="oet",
         description="ORCA external tools wrapper.",
-        epilog="Commands for individual programs can be obtained by calling <otool method --help>",
+        epilog="Commands for individual programs can be obtained by calling <oet method --help>",
     )
     parser.add_argument("inputfile")
     parser.add_argument(
@@ -35,10 +35,10 @@ def parse_otool() -> tuple[str, str, list[str]]:
 
 def main():
     """
-    Main routine of otools
+    Main routine of oet
     """
     # First parse calculator type and cmd arguments
-    calc_type, inputfile, args = parse_otool()
+    calc_type, inputfile, args = parse_oet()
     # Get module to be imported and name of class
     import_module, calculator_name = CALCULATOR_CLASSES[calc_type]
     # Import everything

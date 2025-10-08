@@ -250,7 +250,7 @@ class OtoolServer:
         """
         # First server-related settings
         parser = ArgumentParser(
-            prog="otool_server",
+            prog="oet_server",
             description="Client arguments parser.",
         )
         parser.add_argument("inputfile")
@@ -332,11 +332,11 @@ def create_app(server: OtoolServer) -> Flask:
 
 def main() -> None:
     """
-    Main routine of otool_server
+    Main routine of oet_server
     """
     # First parse arguments
     parser = ArgumentParser(
-        prog="otool_server",
+        prog="oet_server",
         description="ORCA external tools wrapper.",
         epilog="Specific keywords of the calculators should also set here.",
     )

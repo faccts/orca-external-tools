@@ -82,9 +82,9 @@ def install_extra_requirements(venv_dir: Path, extras: list[str]) -> None:
         subprocess.check_call([str(pip_path), "install", "-r", str(req_path)])
 
 
-def copy_otool_scripts(venv_dir: Path, dest_dir: Path) -> None:
+def copy_oet_scripts(venv_dir: Path, dest_dir: Path) -> None:
     """
-    Copy all scripts starting with 'otool_' from venv/bin to the destination directory.
+    Copy all scripts starting with 'oet_' from venv/bin to the destination directory.
 
     Parameters
     ----------
@@ -100,7 +100,7 @@ def copy_otool_scripts(venv_dir: Path, dest_dir: Path) -> None:
     dest_dir.mkdir(parents=True, exist_ok=True)
 
     count = 0
-    for script in bin_dir.glob("otool_*"):
+    for script in bin_dir.glob("oet_*"):
         if script.is_file():
             target = dest_dir / script.name
             shutil.copy2(script, target)  # copy with metadata (executable bit)
@@ -108,7 +108,7 @@ def copy_otool_scripts(venv_dir: Path, dest_dir: Path) -> None:
             count += 1
 
     if count == 0:
-        print("No otool_ scripts found.")
+        print("No oet_ scripts found.")
 
 
 def parse_args():
@@ -160,7 +160,7 @@ def main():
     pip_install_target(args.venv_dir, args.script_dir)
 
     # Copy scripts for easier usability
-    copy_otool_scripts(venv_dir=args.venv_dir ,dest_dir=args.script_dir)
+    copy_oet_scripts(venv_dir=args.venv_dir ,dest_dir=args.script_dir)
 
 if __name__ == "__main__":
     main()

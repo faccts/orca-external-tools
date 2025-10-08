@@ -11,7 +11,7 @@ from oet.core.test_utilities import (
     write_xyz_file,
 )
 
-gxtb_script_path = Path(__file__).parent / "../../scripts/otool_gxtb"
+gxtb_script_path = Path(__file__).parent / "../../scripts/oet_gxtb"
 # Leave uma_executable_path empty, if gxtb from system path should be called
 gxtb_executable_path = ""
 output_file = "wrapper.out"
