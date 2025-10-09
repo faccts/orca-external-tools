@@ -124,11 +124,11 @@ def write_xyz_file(filename: str | Path, atoms: list[tuple[str, float, float, fl
 
 
 def run_wrapper(
-        inputfile: str | Path,
-        script_path: str | Path,
-        outfile: str | Path,
-        args: list[str] | None = None,
-        timeout: float | None = 10.
+    inputfile: str | Path,
+    script_path: str | Path,
+    outfile: str | Path,
+    args: list[str] | None = None,
+    timeout: float | None = 10.0,
 ) -> None:
     """
     Run the wrapper

@@ -84,7 +84,9 @@ class Aimnet2Tests(unittest.TestCase):
         try:
             num_atoms, energy, gradients = read_result_file(engrad_out)
         except Exception as e:
-            raise FileNotFoundError(f"Error wrapper outputfile not found. Check {output_file} for details") from e
+            raise FileNotFoundError(
+                f"Error wrapper outputfile not found. Check {output_file} for details"
+            ) from e
 
         self.assertEqual(num_atoms, expected_num_atoms)
         self.assertAlmostEqual(energy, expected_energy, places=9)
@@ -117,7 +119,9 @@ class Aimnet2Tests(unittest.TestCase):
         try:
             num_atoms, energy, gradients = read_result_file(engrad_out)
         except Exception as e:
-            raise FileNotFoundError(f"Error wrapper outputfile not found. Check {output_file} for details") from e
+            raise FileNotFoundError(
+                f"Error wrapper outputfile not found. Check {output_file} for details"
+            ) from e
 
         self.assertEqual(num_atoms, expected_num_atoms)
         self.assertAlmostEqual(energy, expected_energy, places=9)
@@ -150,7 +154,9 @@ class Aimnet2Tests(unittest.TestCase):
         try:
             num_atoms, energy, gradients = read_result_file(engrad_out)
         except Exception as e:
-            raise FileNotFoundError(f"Error wrapper outputfile not found. Check {output_file} for details") from e
+            raise FileNotFoundError(
+                f"Error wrapper outputfile not found. Check {output_file} for details"
+            ) from e
 
         self.assertEqual(num_atoms, expected_num_atoms)
         self.assertAlmostEqual(energy, expected_energy, places=7)

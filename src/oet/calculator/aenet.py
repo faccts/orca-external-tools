@@ -22,7 +22,6 @@ from oet.core.misc import (
     LENGTH_CONVERSION,
     check_path,
     get_nns,
-    print_filecontent,
     run_command,
     xyz2xsf,
 )

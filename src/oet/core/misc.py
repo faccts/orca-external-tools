@@ -6,7 +6,7 @@ import os
 import shutil
 import subprocess
 import sys
-from collections.abc import Sequence, Iterable
+from collections.abc import Iterable, Sequence
 from pathlib import Path
 from shutil import which
 

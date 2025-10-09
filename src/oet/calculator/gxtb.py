@@ -25,7 +25,6 @@ from oet.core.misc import (
     check_path,
     mult_to_nue,
     nat_from_xyzfile,
-    print_filecontent,
     run_command,
     write_to_file,
 )

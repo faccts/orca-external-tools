@@ -16,7 +16,7 @@ import sys
 import warnings
 from argparse import ArgumentParser
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any
 
 from oet.core.base_calc import BaseCalc, CalculationData
 from oet.core.misc import ENERGY_CONVERSION, LENGTH_CONVERSION, xyzfile_to_at_coord
@@ -61,6 +61,9 @@ class Aimnet2Calc(BaseCalc):
         "I": 53,
     }
 
+    # Supported devices
+    supported_devices = ("cpu", "cuda", "auto")
+
     # AIMNet2 calculator used to compute energy and grad
     _calc: AIMNet2Calculator | None = None
 
@@ -74,7 +77,7 @@ class Aimnet2Calc(BaseCalc):
         """
         return self._calc
 
-    def set_calculator(self, model: str, device: Literal["cpu", "cuda", "auto"]) -> None:
+    def set_calculator(self, model: str, device: str) -> None:
         """
         Set the calculator
 
@@ -82,19 +85,19 @@ class Aimnet2Calc(BaseCalc):
         ----------
         model: str
             Model of the calculator
-        device: Literal["cpu", "cuda", "auto"]
+        device: str
             device to use
         """
         if device == "cpu":
             # Monkey-patch torch.cuda.is_available() to return False
             # Another way to do it would be to set CUDA_VISIBLE_DEVICES="" *before* the initial import of torch
             # Ideally, AIMNet2Calculator would just have an extra argument for this.
-            torch.cuda.is_available = lambda : False
+            torch.cuda.is_available = lambda: False
         elif device == "cuda" and not torch.cuda.is_available():
             raise RuntimeError("CUDA requested but not available")
         self._calc = AIMNet2Calculator(model=model)
 
-    def setup(self, model: str, model_dir: str, device: Literal["cpu", "cuda", "auto"]) -> None:
+    def setup(self, model: str, model_dir: str, device: str) -> None:
         """
         Sets the calculator. Does nothing, if it is already set.
 
@@ -104,7 +107,7 @@ class Aimnet2Calc(BaseCalc):
             Model that the calculator should have
         model_dir: str
             Path to the model files
-        device: Literal["cpu", "cuda", "auto"]
+        device: str
             device to use
 
         Returns
@@ -156,8 +159,8 @@ class Aimnet2Calc(BaseCalc):
             choices=["cpu", "cuda", "auto"],
             default="cpu",
             help="Device to perform the calculation on. "
-                 "Options: cpu, cuda, or auto (i.e. use cuda if available, otherwise cpu). "
-                 f"Default: cpu. ",
+            "Options: cpu, cuda, or auto (i.e. use cuda if available, otherwise cpu). "
+            "Default: cpu. ",
         )
 
     def atomic_symbol_to_number(self, symbol: str) -> int:
@@ -299,7 +302,13 @@ class Aimnet2Calc(BaseCalc):
         # Get the arguments parsed as defined in extend_parser
         model = args_parsed.get("model")
         model_dir = args_parsed.get("model_dir")
-        device = args_parsed.get("device")
+        device = str(args_parsed.get("device"))
+        # Check if device is allowed
+        if device not in tuple(self.supported_devices):
+            raise RuntimeError(
+                f"Device {device} not applicable for AIMNet2 calculation."
+                "Please use `--device` to choose between {supported_devices}."
+            )
         if not isinstance(model, str) or not isinstance(model_dir, str):
             raise RuntimeError("Problems detecting model parameters.")
         # setup calculator if not already set

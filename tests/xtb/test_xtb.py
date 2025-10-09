@@ -22,7 +22,10 @@ def run_xtb(inputfile: str, output_file: str) -> None:
     else:
         arguments = None
     run_wrapper(
-        inputfile=inputfile, script_path=xtb_script_path, outfile=output_file, args=arguments,
+        inputfile=inputfile,
+        script_path=xtb_script_path,
+        outfile=output_file,
+        args=arguments,
     )
 
 
@@ -57,7 +60,9 @@ class XtbTests(unittest.TestCase):
         try:
             num_atoms, energy, gradients = read_result_file(engrad_out)
         except Exception as e:
-            raise FileNotFoundError(f"Error wrapper outputfile not found. Check {output_file} for details") from e
+            raise FileNotFoundError(
+                f"Error wrapper outputfile not found. Check {output_file} for details"
+            ) from e
 
         self.assertEqual(num_atoms, expected_num_atoms)
         self.assertAlmostEqual(energy, expected_energy, places=9)
@@ -90,7 +95,9 @@ class XtbTests(unittest.TestCase):
         try:
             num_atoms, energy, gradients = read_result_file(engrad_out)
         except Exception as e:
-            raise FileNotFoundError(f"Error wrapper outputfile not found. Check {output_file} for details") from e
+            raise FileNotFoundError(
+                f"Error wrapper outputfile not found. Check {output_file} for details"
+            ) from e
 
         self.assertEqual(num_atoms, expected_num_atoms)
         self.assertAlmostEqual(energy, expected_energy, places=9)
@@ -123,7 +130,9 @@ class XtbTests(unittest.TestCase):
         try:
             num_atoms, energy, gradients = read_result_file(engrad_out)
         except Exception as e:
-            raise FileNotFoundError(f"Error wrapper outputfile not found. Check {output_file} for details") from e
+            raise FileNotFoundError(
+                f"Error wrapper outputfile not found. Check {output_file} for details"
+            ) from e
 
         self.assertEqual(num_atoms, expected_num_atoms)
         self.assertAlmostEqual(energy, expected_energy, places=9)

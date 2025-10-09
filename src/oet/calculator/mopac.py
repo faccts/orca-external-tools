@@ -25,7 +25,6 @@ from oet.core.misc import (
     LENGTH_CONVERSION,
     check_path,
     nat_from_xyzfile,
-    print_filecontent,
     run_command,
 )
 

@@ -122,8 +122,8 @@ class UmaCalc(BaseCalc):
             metavar="TASK",
             dest="param",
             help="The UMA task/parameter set name. "
-                 "Options: " + ", ".join(UMATask) + ". "
-                 f"Default: {default_task}. ",
+            "Options: " + ", ".join(UMATask) + ". "
+            f"Default: {default_task}. ",
         )
         parser.add_argument(
             "-m",
@@ -134,8 +134,8 @@ class UmaCalc(BaseCalc):
             dest="basemodel",
             choices=available_models,
             help="The UMA base model. "
-                 "Options: " + ", ".join(available_models) + ". "
-                 f"Default: {default_model}. ",
+            "Options: " + ", ".join(available_models) + ". "
+            f"Default: {default_model}. ",
         )
         parser.add_argument(
             "-d",
@@ -146,8 +146,8 @@ class UmaCalc(BaseCalc):
             dest="device",
             choices=(device_choices := ["cpu", "cuda"]),
             help="Device to perform the calculation on. "
-                 "Options: " + ", ".join(device_choices) + ". "
-                 f"Default: cpu. ",
+            "Options: " + ", ".join(device_choices) + ". "
+            "Default: cpu. ",
         )
 
     def run_uma(
