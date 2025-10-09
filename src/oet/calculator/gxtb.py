@@ -269,9 +269,9 @@ class GxtbCalc(BaseCalc):
         # the gxtb binary later on as relative paths.
         # This is necessary as the gxtb binary does not
         # allow for paths longer than 80 character.
-        shutil.copy2(gxtb_param, Path.cwd())
-        shutil.copy2(eeq_param, Path.cwd())
-        shutil.copy2(basis_param, Path.cwd())
+        shutil.copy2(gxtb_param, Path.cwd() / ".gxtb")
+        shutil.copy2(eeq_param, Path.cwd() / ".eeq")
+        shutil.copy2(basis_param, Path.cwd() / ".basisq")
 
         # write .CHRG and .UHF file
         write_to_file(content=calc_data.charge, file=".CHRG")

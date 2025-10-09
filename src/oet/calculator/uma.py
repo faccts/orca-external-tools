@@ -57,7 +57,7 @@ class UmaCalc(BaseCalc):
 
     def set_calculator(self, param: str, basemodel: str, device: str) -> None:
         """
-        Set the UMA calculator used by the UmaCalc object to compute energy and grad
+        Set the UMA calculator used by the UmaCalc object to compute energy and gradient
 
         Parameters
         ----------

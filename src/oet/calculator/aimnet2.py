@@ -117,6 +117,7 @@ class Aimnet2Calc(BaseCalc):
         if not self._calc:
             # Check whether models are present
             model_path = str(Path(model_dir) / Path(model))
+            print("model_path", model_path)
             if os.path.isfile(model_path):
                 self.set_calculator(model=model_path, device=device)
             # If not, aimnet will download them automatically
@@ -148,7 +149,7 @@ class Aimnet2Calc(BaseCalc):
             dest="model_dir",
             type=str,
             default=str(default_model_path),
-            help=f'The directory to look for AIMNet2 model files. Default: "{default_model_path}".',
+            help=f'The directory to look for AIMNet2 model files. Default: "{default_model_path}". Will look for a file with exactly the model name defined with `-m`',
         )
         parser.add_argument(
             "-d",
@@ -270,7 +271,7 @@ class Aimnet2Calc(BaseCalc):
             raise RuntimeError("Calculator could not be initialized.")
         results = self._calc(**aimnet2_input)
 
-        energy = float(results["energy"]) / ENERGY_CONVERSION["eV"]
+        energy = float(results["energy"].detach()) / ENERGY_CONVERSION["eV"]
         gradient = []
         if (forces := results.get("forces", None)) is not None:
             # unit conversion & factor of -1 to convert from forces to gradient

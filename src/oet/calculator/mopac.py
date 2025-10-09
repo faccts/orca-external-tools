@@ -134,10 +134,60 @@ class MopacCalc(BaseCalc):
         gradient : The gradient in Eh/Bohr (if computed), as a flat list of floats.
         """
         energy = None
-        gradient = []
-        mopac_out = check_path(calc_data.basename + ".out")
-        print("Checking:", mopac_out)
-        with mopac_out.open() as f:
+        gradient: list[float] = []
+
+        # First try typical result file name of MOPAC
+        mopac_result_file = check_path(calc_data.basename + ".out")
+        print("Checking:", mopac_result_file)
+        energy, gradient = self.read_mopac_file(
+            calc_data=calc_data, natoms=natoms, filename=mopac_result_file
+        )
+        # If energy not found, try standard output
+        if energy is None:
+            std_out = check_path(calc_data.basename + "std.out")
+            print("Checking:", std_out)
+            energy, gradient = self.read_mopac_file(
+                calc_data=calc_data, natoms=natoms, filename=std_out
+            )
+
+        if energy is None:
+            print("Could not find energy in MOPAC output.")
+            sys.exit(1)
+
+        return energy, gradient
+
+    def read_mopac_file(
+        self, calc_data: CalculationData, natoms: int, filename: Path
+    ) -> tuple[float | None, list[float]]:
+        """
+        Read the output from MOPAC.
+
+        It extracts the energy (by finding the "FINAL HEAT OF FORMATION" line)
+        and, if requested, reads the gradient from the corresponding output block.
+
+        The energy is originally in kcal/mol and the gradient components in kcal/Å.
+        They are converted to atomic units as follows:
+          - Energy: 1 kcal/mol = 1/627.5095 Eh
+          - Gradient: 1 (kcal/Å) = (1/627.5095) / 1.889725988 Eh/Bohr
+
+        Parameters
+        ----------
+        calc_data: CalculationData
+            Object with calculation data for the run
+        natoms : int
+            Number of atoms in the system.
+        filename: str
+            File to read from.
+
+        Returns
+        -------
+        None : If energy was not found on file.
+        energy : The computed energy in Eh or None if not found
+        gradient : The gradient in Eh/Bohr (if computed and found on file), as a flat list of floats. Otherwise empty.
+        """
+        energy = None
+        gradient: list[float] = []
+        with filename.open() as f:
             for line in f:
                 if "FINAL HEAT OF FORMATION" in line:
                     # Expect a line like: "FINAL HEAT OF FORMATION =   -123.456 ..."
@@ -151,13 +201,14 @@ class MopacCalc(BaseCalc):
                             pass
                         break
 
+        # If no energy was found on file, return None and empty list here
         if energy is None:
-            print("Could not find energy in MOPAC output.")
-            sys.exit(1)
+            return energy, gradient
 
+        # Read the gradient if requested and energy was found on file
         if calc_data.dograd:
             # Read the entire output file into memory.
-            with mopac_out.open() as f:
+            with filename.open() as f:
                 lines = f.readlines()
 
             # Locate the header of the gradient table.
@@ -224,7 +275,9 @@ class MopacCalc(BaseCalc):
         args.insert(0, mopac_inp)
         if not calc_data.prog_path:
             raise RuntimeError("Path to program is None.")
-        run_command(calc_data.prog_path, calc_data.output_file, args)
+        # Modify output path as the result file from mopac might be overridden otherwise
+        out_path = calc_data.output_file.with_name(calc_data.output_file.stem + ".std.out")
+        run_command(calc_data.prog_path, out_path, args)
 
     def calc(
         self, calc_data: CalculationData, args_parsed: dict[str, Any], args_not_parsed: list[str]
