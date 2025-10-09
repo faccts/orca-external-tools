@@ -68,8 +68,11 @@ class UmaCalc(BaseCalc):
         device: str, default: "cpu"
             Device that should be used, e.g., cpu or cuda
         """
-        predictor = pretrained_mlip.get_predict_unit(basemodel, device=device)
-        self._calc = FAIRChemCalculator(predictor, task_name=param)
+        # Suppress fairchemcore internal warnings
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            predictor = pretrained_mlip.get_predict_unit(basemodel, device=device)
+            self._calc = FAIRChemCalculator(predictor, task_name=param)
 
     def get_calculator(self) -> FAIRChemCalculator:
         """
@@ -184,7 +187,10 @@ class UmaCalc(BaseCalc):
         atoms.info = {"charge": calc_data.charge, "spin": calc_data.mult}
         atoms.calc = self._calc
 
-        energy = atoms.get_potential_energy() / ENERGY_CONVERSION["eV"]
+        # Suppress fairchemcore internal warnings
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            energy = atoms.get_potential_energy() / ENERGY_CONVERSION["eV"]
         gradient = []
         try:
             forces = atoms.get_forces()
