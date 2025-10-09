@@ -38,14 +38,14 @@ from argparse import ArgumentParser
 from typing import Any
 
 from oet.core.base_calc import BaseCalc, CalculationData
-from oet.core.misc import LENGTH_CONVERSION, check_path, print_filecontent, run_command
+from oet.core.misc import LENGTH_CONVERSION, check_path, run_command
 
 
 class MlatomCalc(BaseCalc):
     @property
     def PROGRAM_NAMES(self) -> list[str]:
         """Program names to search for in PATH"""
-        return ["mlatom", "$mlatom"]
+        return ["mlatom"]
 
     @classmethod
     def extend_parser(cls, parser: ArgumentParser) -> None:

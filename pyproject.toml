@@ -50,6 +50,7 @@ oet_uma = "oet.calculator.uma:main"
 oet_xtb = "oet.calculator.xtb:main"
 oet_client = "oet.server_client.client:client"
 oet_server = "oet.server_client.server:main"
+oet = "oet.scripts.oet:main"
 
 # $$$$$$$$$$$$$$$$$$$$$$$$$$$$
 #    DEPENDENCY GROUPS

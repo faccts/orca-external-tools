@@ -62,7 +62,7 @@ def client() -> None:
     """Entry point for CLI execution"""
     parser = ArgumentParser(
         prog="oet_client",
-        description="ORCA external tools wrapper for clients. Calls a server.",
+        description="Sends the calculation info to a server that must previously be started with the oet_server script.",
     )
     # parser.add_argument("inputfile", help="ORCA-generated input file.")
     parser.add_argument(

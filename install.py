@@ -89,7 +89,7 @@ def install_extra_requirements(venv_dir: Path, extras: list[str]) -> None:
 
 def copy_oet_scripts(venv_dir: Path, dest_dir: Path, extras: Sequence[str]) -> None:
     """
-    Copy all scripts starting with 'oet_' from venv/bin to the destination directory.
+    Copy all scripts starting with 'oet' from venv/bin to the destination directory.
     Scripts which are "extras" are only copied if actually installed.
 
     Parameters
@@ -108,7 +108,7 @@ def copy_oet_scripts(venv_dir: Path, dest_dir: Path, extras: Sequence[str]) -> N
     dest_dir.mkdir(parents=True, exist_ok=True)
 
     count = 0
-    for script in bin_dir.glob("oet_*"):
+    for script in bin_dir.glob("oet*"):
         if script.is_file():
             # skip not installed extras
             if (module := script.name.removeprefix("oet_")) in EXTRAS and module not in extras:

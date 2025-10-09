@@ -199,7 +199,7 @@ class OtoolServer:
         working_dir = Path(content["directory"]).resolve()
 
         # Parse client args
-        inputfile, args, clear_args = self.parse_client_input(arguments)
+        inputfile, args, args_not_parsed = self.parse_client_input(arguments)
 
         # Make inputfile absolute (per-request, thread-safe)
         inputfile_path = (working_dir / inputfile).resolve()
@@ -214,7 +214,7 @@ class OtoolServer:
             run_kwargs = {
                 "inputfile": str(inputfile_path),
                 "args_parsed": args,
-                "args_not_parsed": clear_args,
+                "args_not_parsed": args_not_parsed,
                 "directory": str(working_dir),
             }
             fut = self.executor.submit(
@@ -337,7 +337,7 @@ def main() -> None:
     # First parse arguments
     parser = ArgumentParser(
         prog="oet_server",
-        description="ORCA external tools wrapper.",
+        description="Starts a server with the selected method that performs the energy/gradient calculation.",
         epilog="Specific keywords of the calculators should also set here.",
     )
     parser.add_argument(
