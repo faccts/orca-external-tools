@@ -6,6 +6,7 @@ import argparse
 from collections.abc import Sequence
 from pathlib import Path
 import shutil
+from xmlrpc.client import Boolean
 
 
 # Available extras
@@ -87,6 +88,25 @@ def install_extra_requirements(venv_dir: Path, extras: list[str]) -> None:
         subprocess.check_call([str(pip_path), "install", "-r", str(req_path)])
 
 
+def install_dev_tools(venv_dir: Path) -> None:
+    """
+    Installs the developer tools like nox.
+
+    Parameters
+    ----------
+    venv_dir: Path
+        Path to the virtual environment that should be installed to.
+    """
+    pip_path = (
+        venv_dir
+        / ("Scripts" if os.name == "nt" else "bin")
+        / ("pip.exe" if os.name == "nt" else "pip")
+    )
+
+    print("Installing developer tools.")
+    subprocess.check_call([str(pip_path), "install", ".[dev]"])
+
+
 def copy_oet_scripts(venv_dir: Path, dest_dir: Path, extras: Sequence[str]) -> None:
     """
     Copy all scripts starting with 'oet' from venv/bin to the destination directory.
@@ -146,7 +166,13 @@ def parse_args():
         nargs="+",
         choices=EXTRAS,
         default=[],
-        help="Optional extra package sets to install from requirements/<name>.txt",
+        help="Install optional extra package sets from requirements/<name>.txt",
+    )
+    parser.add_argument(
+        "--dev",
+        "-d",
+        action="store_true",
+        help="Install optional developer tools.",
     )
     return parser.parse_args()
 
@@ -162,6 +188,9 @@ def main():
             f"Virtual environment already exists in '{args.venv_dir}'.\n"
             "Installing oet to this venv."
         )
+    # Install dev tools (nox)
+    if args.dev:
+        install_dev_tools(args.venv_dir)
 
     # Install extra dependencies in requirements.txt
     if args.extra:

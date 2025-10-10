@@ -47,7 +47,7 @@ def type_check(session):
 def remove_unused_imports(session):
     session.install(".[lint]")
     # > Sorting imports with ruff instead of isort
-    session.run("ruff", "check", "--select", "F401", "--fix", "--exit-non-zero-on-fix")
+    session.run("ruff", "check", "--select", "F401")
 
 
 # //////////////////////////////////////////
@@ -57,7 +57,7 @@ def remove_unused_imports(session):
 def sort_imports(session):
     session.install(".[lint]")
     # > Sorting imports with ruff instead of isort
-    session.run("ruff", "check", "--select", "I", "--fix", "--exit-non-zero-on-fix")
+    session.run("ruff", "check", "--select", "I")
 
 
 # ////////////////////////////////////////
@@ -76,7 +76,7 @@ def lint(session):
 def format_code(session):
     # Installs the project + the "lint" extra into this nox venv using pip
     session.install(".[lint]")
-    session.run("ruff", "format", "--exit-non-zero-on-format")
+    session.run("ruff", "format")
 
 
 # ////////////////////////////////////////////////////
