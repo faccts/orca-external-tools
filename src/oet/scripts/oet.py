@@ -5,6 +5,9 @@ Single script for redirecting to wrapper
 
 from argparse import ArgumentParser
 import importlib
+import sys
+
+from oet import __version__ as version
 from oet.core.base_calc import CALCULATOR_CLASSES
 
 
@@ -21,14 +24,22 @@ def parse_oet() -> tuple[str, str, list[str]]:
         prog="oet",
         description="ORCA external tools wrapper.",
         epilog="Provide the arguments for the individual wrapper scripts in addition when calling this oet script.",
+        add_help=len(sys.argv) < 3,  # show help if there are insufficient arguments
     )
     parser.add_argument("inputfile")
     parser.add_argument(
         "method",
         choices=CALCULATOR_CLASSES.keys(),
-        help="Type of calculation to execute",
+        help="Type of calculation to execute. Call 'oet inputfile method --help' to see method-specific arguments.",
     )
+    parser.add_argument("--version", action="version", version=version)
     args, remaining_args = parser.parse_known_args()
+
+    # show help only if requested without a chosen method,
+    # otherwise the method-specific parser will do it.
+    if not args.method and ('--help' in remaining_args or '-h' in remaining_args):
+        parser.print_help()
+        exit(0)
 
     return args.method, args.inputfile, remaining_args
 

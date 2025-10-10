@@ -20,6 +20,7 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
+from oet import __version__ as version
 from oet.core.misc import (
     check_multi_progs,
     check_path,
@@ -311,6 +312,7 @@ class BaseCalc(ABC):
             description="ORCA external tools wrapper.",
         )
         parser.add_argument("inputfile")
+        parser.add_argument("--version", action="version", version=version)
         # Extend parser with in subclass defined arguments
         self.extend_parser(parser)
 
