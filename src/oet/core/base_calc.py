@@ -38,7 +38,6 @@ from oet.core.misc import (
 CALCULATOR_CLASSES = {
     "aenet": ("oet.calculator.aenet", "AenetCalc"),
     "aimnet2": ("oet.calculator.aimnet2", "Aimnet2Calc"),
-    "client": ("oet.server_client.client", "client"),
     "gxtb": ("oet.calculator.gxtb", "GxtbCalc"),
     "mlatom": ("oet.calculator.mlatom", "MlatomCalc"),
     "mopac": ("oet.calculator.mopac", "MopacCalc"),

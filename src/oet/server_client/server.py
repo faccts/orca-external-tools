@@ -12,12 +12,15 @@ function: main
 
 from __future__ import annotations
 
+import contextlib
 import importlib
 import io
 import logging
+import os
 import threading
 import traceback
-from argparse import ArgumentParser
+import typing
+from argparse import ArgumentParser, Action
 from collections.abc import Mapping, Sequence
 from concurrent.futures import ProcessPoolExecutor
 from contextlib import redirect_stdout
@@ -29,6 +32,10 @@ from waitress import serve
 
 from oet.core.base_calc import CALCULATOR_CLASSES, BaseCalc
 from oet.core.misc import get_ncores_from_input
+
+if typing.TYPE_CHECKING:
+    from argparse import Namespace
+
 
 # Cache of initialized calculators: each worker process populates its own copy of the cache
 # This guarantees that for calculators which are inadvertently not thread-safe
@@ -330,6 +337,37 @@ def create_app(server: OtoolServer) -> Flask:
     return app
 
 
+def get_available_methods() -> list[str]:
+    """
+    Attempt to initialize all calculators in `CALCULATOR_CLASSES`
+    and return the keys for those that don't throw an error.
+    Note that this function takes a few seconds due to heavy imports.
+    """
+    available = []
+    # discard stdour and stderr
+    with open(os.devnull, 'w') as devnull, contextlib.redirect_stdout(devnull), contextlib.redirect_stderr(devnull):
+        for method in CALCULATOR_CLASSES:
+            try:
+                # TODO: should also make sure any external programs are installed
+                CalculatorClass(method)
+            except BaseException:
+                pass
+            else:
+                available.append(method)
+    return available
+
+
+class PrintAvailableMethods(Action):
+    """Custom parser action to print all available methods and exit"""
+    def __call__(self,
+                 parser: ArgumentParser,
+                 namespace: "Namespace",
+                 values: str | Sequence[Any] | None,
+                 option_string: str | None = None
+                 ) -> None:
+        parser.exit(0, '\n'.join(get_available_methods()) + '\n')
+
+
 def main() -> None:
     """
     Main routine of oet_server
@@ -362,6 +400,14 @@ def main() -> None:
         default=1,
         dest="nthreads",
         help="Number of threads to use. Default: 1",
+    )
+
+    parser.add_argument(
+        "-l",
+        "--list-methods",
+        nargs=0,
+        action=PrintAvailableMethods,
+        help="List available calculators and exit. Note that this takes a few seconds.",
     )
 
     # Logging for printout of infos
