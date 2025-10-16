@@ -17,7 +17,6 @@ import importlib
 import io
 import logging
 import os
-import signal
 import threading
 import traceback
 import typing
@@ -436,15 +435,6 @@ def main() -> None:
     workers = args.nthreads
     # Initialize the ProcessPool
     executor = ProcessPoolExecutor(max_workers=workers)
-
-    # Make sure to stop child processes on SIGINT and SIGTERM
-    def _handle_signal(signum, _frame):
-        print(f"Received signal {signum}, shutting down...")
-        executor.shutdown(wait=False, cancel_futures=True)
-        parser.exit(0)
-
-    signal.signal(signal.SIGINT, _handle_signal)
-    signal.signal(signal.SIGTERM, _handle_signal)
 
     # Then initialize a server instance that uses the calc_class
     server = OtoolServer(
