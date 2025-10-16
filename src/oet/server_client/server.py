@@ -15,8 +15,10 @@ from __future__ import annotations
 import contextlib
 import importlib
 import io
+import gc
 import logging
 import os
+import signal
 import threading
 import traceback
 import typing
@@ -27,9 +29,8 @@ from contextlib import redirect_stdout
 from pathlib import Path
 from typing import Any
 from collections import OrderedDict
-import psutil
-import gc
 
+import psutil
 from flask import Flask, Response, jsonify, request
 from waitress import serve
 
@@ -520,6 +521,16 @@ def main() -> None:
     workers = args.nthreads
     # Initialize the ProcessPool
     executor = ProcessPoolExecutor(max_workers=workers)
+
+    # Make sure to stop child processes on SIGTERM
+    # (SIGINT is already handled OK and adding it here causes hanging)
+    def cleanup_and_exit(signum, _frame):
+        """Stop the ProcessPoolExecutor when receiving a signal, then re-send the signal."""
+        print(f"Received signal {signum}, shutting down...")
+        executor.shutdown(wait=True, cancel_futures=True)
+        parser.exit(0)
+
+    signal.signal(signal.SIGTERM, cleanup_and_exit)
 
     # Then initialize a server instance that uses the calc_class
     server = OtoolServer(
