@@ -26,6 +26,9 @@ from concurrent.futures import ProcessPoolExecutor
 from contextlib import redirect_stdout
 from pathlib import Path
 from typing import Any
+from collections import OrderedDict
+import psutil
+import gc
 
 from flask import Flask, Response, jsonify, request
 from waitress import serve
@@ -42,11 +45,66 @@ if typing.TYPE_CHECKING:
 # (because they temporarily hold calculation data in member variables)
 # we never use the same instance by multiple processes in parallel.
 # key: (module, class, frozenset(setup_items)) -> calc instance
-_WORKER_CALC_CACHE: dict[tuple[str, str, frozenset[tuple[str, Any]]], Any] = {}
+# OrderedDict, where the most currently used entry is moved to the end
+_WORKER_CALC_CACHE: "OrderedDict[tuple[str, str, frozenset[tuple[str, Any]]], Any]" = OrderedDict()
+
+
+def _pop_one_worker(protected_key: tuple[str, str, frozenset[tuple[str, Any]]] | None) -> bool:
+    """
+    Removes left most worker that isn't protected
+    """
+    for k in list(_WORKER_CALC_CACHE.keys()):
+        if protected_key is not None and k == protected_key:
+            # Move protected to MRU end so we don't keep looping on it
+            _WORKER_CALC_CACHE.move_to_end(k)
+            continue
+        _WORKER_CALC_CACHE.pop(k, None)
+        return True
+    return False
+
+
+def _evict_until_within_limits(mem_limit_mib: int, protected_key: tuple[str, str, frozenset[tuple[str, Any]]] | None) -> None:
+    """
+    Evict least-recently-used calculators until we satisfy the memory limit.
+    `protect_key` (if given) will not be evicted (we skip over it).
+
+    Parameters
+    ----------
+    mem_limit_mib: int
+        Maximum memory usable by server in MiB
+    protected_key: tuple[str, str, frozenset[tuple[str, Any]]]
+        The one that should not be deleted from the _WORKER_CALC_CACHE
+    """
+    # RSS-based eviction (only if we can read RSS and a limit is set)
+    # Get memory usage in megabyte
+    rss = psutil.Process(os.getpid()).memory_info().rss / (1024**2)
+    # Return iff memory can't be measured
+    if rss is None:
+        print("No memory use could be detected. Take care, memory usage might stack.")
+        return
+    # Evict until RSS is below budget (best effort; GC happens after pops)
+    # Add a small grace (5%) to avoid thrashing around the threshold.
+    grace = int(mem_limit_mib * 0.05)
+    target = mem_limit_mib - grace
+    # Avoid negative target
+    target = max(target, int(mem_limit_mib * 0.5))
+    # Try evicting a few items and rechecking RSS
+    # (popping, then letting GC run once in a while)
+    attempts = 0
+    while rss > target and _WORKER_CALC_CACHE:
+        attempts += 1
+        print("Memory:", rss)
+        print("Popping one")
+        if not _pop_one_worker(protected_key=protected_key):
+            break
+        # Run garbage collector
+        gc.collect()
+        # Refresh current memory usage
+        rss = psutil.Process(os.getpid()).memory_info().rss / (1024**2)
 
 
 def _run_calc_in_process(
-    calc_module: str, calc_class: str, setup_kwargs: dict[str, Any], run_kwargs: dict[str, Any]
+    calc_module: str, calc_class: str, run_kwargs: dict[str, Any], max_memory_per_thread: int
 ) -> str:
     """
     Worker entrypoint. Runs in a separate process.
@@ -58,10 +116,10 @@ def _run_calc_in_process(
         Module to load for calculator
     calc_class: str
         Calculator type
-    setup_kwargs: dict
-        Keywords of setup
     run_kwargs: dict
         Infos from client about the run
+    max_memory_per_thread: int
+        Maximum memory in MiB
 
     Returns
     -------
@@ -69,16 +127,28 @@ def _run_calc_in_process(
         The STDOUT of the calculator's `run` function
     """
 
-    key = (calc_module, calc_class, frozenset(setup_kwargs.items()))
+    # Make run_kwargs with only method-specific settings
+    # It is assumed that all not parsed arguments are also method specific
+    args_parsed_frozen = tuple(sorted(run_kwargs['args_parsed'].items()))
+    args_not_parsed_frozen = tuple(run_kwargs['args_not_parsed'])
+    method_specific_args = {
+        'args_parsed': args_parsed_frozen,
+        'args_not_parsed': args_not_parsed_frozen,
+    }
+    # Use those to check if a calculator with these settings already exists.
+    # If not, make another one and delete old calculators if it would exceed the current memory limit.
+    key = (calc_module, calc_class, frozenset(method_specific_args.items()))
     calc = _WORKER_CALC_CACHE.get(key)
     if calc is None:
         mod = importlib.import_module(calc_module)
         Cls = getattr(mod, calc_class)
         calc = Cls()
-        # calculators expected setup(dict)
-        # calc.setup(setup_kwargs.copy())
         _WORKER_CALC_CACHE[key] = calc
+    # mark as most recently used (move it to the end of ordered dict)
+    _WORKER_CALC_CACHE.move_to_end(key)
 
+    # Evict old entries if max memory is used, but never evict the one that is used
+    _evict_until_within_limits(max_memory_per_thread, protected_key=key)
     # Run calc.run and return its STDOUT
     buf = io.StringIO()
     with redirect_stdout(buf):
@@ -178,7 +248,7 @@ class OtoolServer:
         calc_class: CalculatorClass,
         total_cores: int,
         executor: ProcessPoolExecutor,
-        setup_kwargs: dict[str, Any],
+        max_memory_per_thread: int,
     ):
         # Calculator class used to build parser
         self.calc_class = calc_class
@@ -186,8 +256,8 @@ class OtoolServer:
         self.core_limiter = CoreLimiter(total_cores)
         # Executor to run the actual calculation
         self.executor = executor
-        # Keywords for setup
-        self.setup_kwargs = setup_kwargs
+        # Maximum memory of the server in MiB
+        self.max_memory_per_thread = max_memory_per_thread
 
     def handle_client(self, content: Mapping[str, Any]) -> dict[str, Any]:
         """
@@ -228,8 +298,8 @@ class OtoolServer:
                 _run_calc_in_process,
                 self.calc_class.import_module,
                 self.calc_class.calculator_name,
-                self.setup_kwargs,
                 run_kwargs,
+                self.max_memory_per_thread
             )
             # Will raise if the worker raised
             output = fut.result()
@@ -410,26 +480,32 @@ def main() -> None:
         help="List available calculators and exit. Note that this takes a few seconds.",
     )
 
+    parser.add_argument(
+        "-mpt",
+        "--memory-per-thread",
+        metavar="memory_per_thread",
+        type=int,
+        default=500,
+        dest="memory_per_thread",
+        help="Maximum memory per thread in mebibyte(MiB). Default 500.",
+    )
+
     # Logging for printout of infos
     logging.basicConfig(level=logging.INFO)
     # Suppress the warnings (e.g. jobs are queued)
     logging.getLogger("waitress.queue").setLevel(logging.ERROR)
 
     # First parse only the known args to get method/nthreads/etc.
-    args, _ = parser.parse_known_args()
+    args, ignored_args = parser.parse_known_args()
+    if ignored_args:
+        print("The following settings will be ignored:")
+        for arg in ignored_args:
+            print(arg)
+        print()
 
     # Make a CalculatorClass getting the hooks on calculators argument parsing
     # Info on calculator type is store in the object for client requests
     calcClass = CalculatorClass(args.method)
-
-    # Let the calculator add any *setup* options to the CLI (if they exist)
-    calcClass.build_full_parser(parser)
-
-    # Re-parse now that setup flags may be registered
-    args, _ = parser.parse_known_args()
-
-    # Prepare the calculator spec & setup kwargs for the worker
-    setup_kwargs = vars(args).copy()
 
     # Create workers
     workers = args.nthreads
@@ -441,7 +517,7 @@ def main() -> None:
         calc_class=calcClass,
         total_cores=args.nthreads,  # or another CLI flag like --total-cores
         executor=executor,
-        setup_kwargs=setup_kwargs,
+        max_memory_per_thread=args.memory_per_thread
     )
 
     # Start the server
