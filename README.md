@@ -18,7 +18,7 @@ If you want to use either AIMNet2 or UMA, you can add `-e aimnet2` or `-e uma` t
 As AIMNet2 and UMA require dependencies that are not compatible with each other, 
 we recommend creating separate installations for each by specifying different virtual environment and script directories.
 
-After installation, you should have a directory called `scripts` (by default)
+After installation, you should have a directory called `bin` (by default)
 which contains all wrapper scripts that are usable out of the box. 
 They may be moved and renamed freely as long as the original virtual environment stays in place. 
 You can also modify the path to these scripts upon installation with the `--script-dir path/to/scripts/` keyword. 

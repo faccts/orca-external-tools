@@ -40,7 +40,7 @@ def pip_install_target(venv_dir: Path, script_dir: Path) -> None:
     """
     pip_path = (
         venv_dir
-        / ("Scripts" if os.name == "nt" else "bin")
+        / ("bin")
         / ("pip.exe" if os.name == "nt" else "pip")
     )
     if not pip_path.exists():
