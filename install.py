@@ -74,7 +74,7 @@ def install_extra_requirements(venv_dir: Path, extras: list[str]) -> None:
     """
     pip_path = (
         venv_dir
-        / ("Scripts" if os.name == "nt" else "bin")
+        / ("bin")
         / ("pip.exe" if os.name == "nt" else "pip")
     )
 
@@ -99,7 +99,7 @@ def install_dev_tools(venv_dir: Path) -> None:
     """
     pip_path = (
         venv_dir
-        / ("Scripts" if os.name == "nt" else "bin")
+        / ("bin")
         / ("pip.exe" if os.name == "nt" else "pip")
     )
 
@@ -121,7 +121,7 @@ def copy_oet_scripts(venv_dir: Path, dest_dir: Path, extras: Sequence[str]) -> N
     extras : Sequence[str]
         Installed extras
     """
-    bin_dir = venv_dir / ("Scripts" if os.name == "nt" else "bin")
+    bin_dir = venv_dir / ("bin")
     if not bin_dir.exists():
         raise FileNotFoundError(f"bin directory not found in venv: {bin_dir}")
 
@@ -157,8 +157,8 @@ def parse_args():
         "--script-dir",
         "-sd",
         type=Path,
-        default=Path("./scripts"),
-        help="Custom directory where scripts/packages should be installed",
+        default=Path("./bin"),
+        help="Custom directory where bin/packages should be installed",
     )
     parser.add_argument(
         "--extra",
