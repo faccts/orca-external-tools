@@ -35,8 +35,11 @@ Repository = "https://github.com/faccts/orca-external-tools"
 Issues = "https://github.com/faccts/orca-external-tools/issues"
 
 [build-system]
-requires = ["setuptools>=61.0", "wheel"]
+requires = ["setuptools>=61.0", "wheel", "setuptools_scm[toml]"]
 build-backend = "setuptools.build_meta"
+
+# dynamic versioning
+[tool.setuptools_scm]
 
 # > Wheel target
 [tool.hatch.build.targets.wheel]

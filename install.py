@@ -27,6 +27,58 @@ def create_venv(venv_dir: Path) -> None:
     print("Virtual environment created.")
 
 
+def get_venv_pip(venv_dir: Path) -> Path:
+    """
+    Get the path to the `pip` binary inside the virtual environment.
+
+    Parameters
+    ----------
+    venv_dir: Path
+        Path to the virtual environment that should be installed to.
+
+    Returns
+    -------
+    pip_path: Path
+        Path to the `pip` binary inside the virtual environment.
+
+    Raises
+    ------
+    FileNotFoundError
+        if the `pip` binary does not exist or is not executable.
+    """
+    pip_path = (
+            venv_dir
+            / ("bin")
+            / ("pip.exe" if os.name == "nt" else "pip")
+    )
+    if not pip_path.exists():
+        raise FileNotFoundError(f"pip not found in venv: {pip_path}")
+    return pip_path
+
+
+def install_build_dependencies(venv_dir: Path) -> None:
+    """
+    Installs setuptools and other build dependencies in the virtual environment.
+
+    Parameters
+    ----------
+    venv_dir: Path
+        Path to the virtual environment that should be installed to.
+    """
+    pip_path = get_venv_pip(venv_dir)
+
+    print(f"Installing build dependencies in venv...")
+    subprocess.check_call(
+        [
+            pip_path,
+            "install",
+            "-U",
+            "setuptools",
+            "setuptools_scm",
+        ]
+    )
+
+
 def pip_install_target(venv_dir: Path, script_dir: Path) -> None:
     """
     Install oet to virtual environment
@@ -38,22 +90,17 @@ def pip_install_target(venv_dir: Path, script_dir: Path) -> None:
     script_dir: Path
         Path to the final scripts
     """
-    pip_path = (
-        venv_dir
-        / ("bin")
-        / ("pip.exe" if os.name == "nt" else "pip")
-    )
-    if not pip_path.exists():
-        raise RuntimeError(f"pip not found in venv: {pip_path}")
+    pip_path = get_venv_pip(venv_dir)
 
     script_dir.mkdir(parents=True, exist_ok=True)
 
     print(f"Installing package to {script_dir} using pip in venv...")
     subprocess.check_call(
         [
-            str(pip_path),
+            pip_path,
             "install",
             "-e" ".",  # install from current directory
+            "--config-settings", "editable_mode=compat",  # use PEP 517 build backend
             #f"--target={script_dir}",
         ]
     )
@@ -72,11 +119,7 @@ def install_extra_requirements(venv_dir: Path, extras: list[str]) -> None:
     extras: list[str]
         Requirements that should be additionally installed
     """
-    pip_path = (
-        venv_dir
-        / ("bin")
-        / ("pip.exe" if os.name == "nt" else "pip")
-    )
+    pip_path = get_venv_pip(venv_dir)
 
     for extra in extras:
         req_path = Path("requirements") / f"{extra}.txt"
@@ -85,7 +128,7 @@ def install_extra_requirements(venv_dir: Path, extras: list[str]) -> None:
             continue
 
         print(f"Installing extra requirements from {req_path}...")
-        subprocess.check_call([str(pip_path), "install", "-r", str(req_path)])
+        subprocess.check_call([pip_path, "install", "-r", req_path])
 
 
 def install_dev_tools(venv_dir: Path) -> None:
@@ -97,14 +140,10 @@ def install_dev_tools(venv_dir: Path) -> None:
     venv_dir: Path
         Path to the virtual environment that should be installed to.
     """
-    pip_path = (
-        venv_dir
-        / ("bin")
-        / ("pip.exe" if os.name == "nt" else "pip")
-    )
+    pip_path = get_venv_pip(venv_dir)
 
     print("Installing developer tools.")
-    subprocess.check_call([str(pip_path), "install", ".[dev]"])
+    subprocess.check_call([pip_path, "install", ".[dev]"])
 
 
 def copy_oet_scripts(venv_dir: Path, dest_dir: Path, extras: Sequence[str]) -> None:
@@ -188,9 +227,9 @@ def main():
             f"Virtual environment already exists in '{args.venv_dir}'.\n"
             "Installing oet to this venv."
         )
-    # Install dev tools (nox)
-    if args.dev:
-        install_dev_tools(args.venv_dir)
+
+    # Install build dependencies
+    install_build_dependencies(args.venv_dir)
 
     # Install extra dependencies in requirements.txt
     if args.extra:
@@ -198,6 +237,10 @@ def main():
 
     # Install oet
     pip_install_target(args.venv_dir, args.script_dir)
+
+    # Install dev tools (nox)
+    if args.dev:
+        install_dev_tools(args.venv_dir)
 
     # Copy scripts for easier usability
     copy_oet_scripts(venv_dir=args.venv_dir, dest_dir=args.script_dir, extras=args.extra)
