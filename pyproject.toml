@@ -6,8 +6,10 @@ authors = [
     {name = "FACCTS GmbH", email = "info@faccts.de"},
 ]
 dependencies = [
-"waitress>=3.0.2",
-"flask>=3.1.2"
+    "waitress>=3.0.2",
+    "flask>=3.1.2",
+    "requests>=2.32.5",
+    "psutil>=7.1.0",
 ]
 requires-python = ">=3.11"
 readme = "README.md"

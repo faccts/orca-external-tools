@@ -10,6 +10,7 @@ from argparse import ArgumentParser
 
 import requests
 
+from oet import __version__ as version
 
 def send_to_server(
     host_port: str,
@@ -64,6 +65,7 @@ def client() -> None:
         prog="oet_client",
         description="Sends the calculation info to a server that must previously be started with the oet_server script.",
     )
+    parser.add_argument("--version", action="version", version=version)
     # parser.add_argument("inputfile", help="ORCA-generated input file.")
     parser.add_argument(
         "-b",

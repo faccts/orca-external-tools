@@ -33,6 +33,7 @@ import gc
 from flask import Flask, Response, jsonify, request
 from waitress import serve
 
+from oet import __version__ as version
 from oet.core.base_calc import CALCULATOR_CLASSES, BaseCalc
 from oet.core.misc import get_ncores_from_input
 
@@ -448,6 +449,7 @@ def main() -> None:
         description="Starts a server with the selected method that performs the energy/gradient calculation.",
         epilog="Specific keywords of the calculators should also set here.",
     )
+    parser.add_argument("--version", action="version", version=version)
     parser.add_argument(
         "method",
         choices=CALCULATOR_CLASSES.keys(),
