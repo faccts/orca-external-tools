@@ -483,7 +483,7 @@ def main() -> None:
     )
 
     parser.add_argument(
-        "-mpt",
+        "-m",
         "--memory-per-thread",
         metavar="memory_per_thread",
         type=int,

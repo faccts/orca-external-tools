@@ -187,14 +187,14 @@ def parse_args():
     )
     parser.add_argument(
         "--venv-dir",
-        "-vd",
+        "-v",
         type=Path,
         default=Path(".venv"),
         help="Path to the virtual environment directory",
     )
     parser.add_argument(
         "--script-dir",
-        "-sd",
+        "-s",
         type=Path,
         default=Path("./bin"),
         help="Custom directory where bin/packages should be installed",
