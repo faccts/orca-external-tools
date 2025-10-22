@@ -110,7 +110,7 @@ class UmaCalc(BaseCalc):
             "-m",
             "--model",
             type=str,
-            default=(default_model := "uma-s-1"),
+            default=(default_model := "uma-s-1p1"),
             metavar="MODEL",
             dest="basemodel",
             choices=available_models,
