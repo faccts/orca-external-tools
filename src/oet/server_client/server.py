@@ -60,6 +60,7 @@ def _pop_one_worker(protected_key: tuple[str, str, frozenset[tuple[str, Any]]] |
             _WORKER_CALC_CACHE.move_to_end(k)
             continue
         _WORKER_CALC_CACHE.pop(k, None)
+        logging.debug(f"PID {os.getpid()}: Destroyed calculator with id: {k}")
         return True
     return False
 
@@ -89,19 +90,19 @@ def _evict_until_within_limits(mem_limit_mib: int, protected_key: tuple[str, str
     target = mem_limit_mib - grace
     # Avoid negative target
     target = max(target, int(mem_limit_mib * 0.5))
+    logging.debug(f"PID {os.getpid()}: Memory use before: {rss} / {target}")
     # Try evicting a few items and rechecking RSS
     # (popping, then letting GC run once in a while)
     attempts = 0
     while rss > target and _WORKER_CALC_CACHE:
         attempts += 1
-        print("Memory:", rss)
-        print("Popping one")
         if not _pop_one_worker(protected_key=protected_key):
             break
         # Run garbage collector
         gc.collect()
         # Refresh current memory usage
         rss = psutil.Process(os.getpid()).memory_info().rss / (1024**2)
+    logging.debug(f"PID {os.getpid()}: Memory use after: {rss} / {target}")
 
 
 def _run_calc_in_process(
@@ -145,6 +146,9 @@ def _run_calc_in_process(
         Cls = getattr(mod, calc_class)
         calc = Cls()
         _WORKER_CALC_CACHE[key] = calc
+        logging.debug(f"PID {os.getpid()}: Initialized new calculator with id: {key}")
+    else:
+        logging.debug(f"PID {os.getpid()}: Using existing calculator with id: {key}")
     # mark as most recently used (move it to the end of ordered dict)
     _WORKER_CALC_CACHE.move_to_end(key)
 
@@ -473,7 +477,6 @@ def main() -> None:
         dest="nthreads",
         help="Number of threads to use. Default: 1",
     )
-
     parser.add_argument(
         "-l",
         "--list-methods",
@@ -481,7 +484,6 @@ def main() -> None:
         action=PrintAvailableMethods,
         help="List available calculators and exit. Note that this takes a few seconds.",
     )
-
     parser.add_argument(
         "-m",
         "--memory-per-thread",
@@ -491,19 +493,24 @@ def main() -> None:
         dest="memory_per_thread",
         help="Maximum memory per thread in mebibyte(MiB). Default 500.",
     )
-
-    # Logging for printout of infos
-    logging.basicConfig(level=logging.INFO)
-    # Suppress the warnings (e.g. jobs are queued)
-    logging.getLogger("waitress.queue").setLevel(logging.ERROR)
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        action="store_true",
+        dest="verbose",
+        help="Print additional output.",
+    )
 
     # First parse only the known args to get method/nthreads/etc.
     args, ignored_args = parser.parse_known_args()
+
+    # Logging for printout of infos
+    logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO)
+    # Suppress the warnings (e.g. jobs are queued)
+    logging.getLogger("waitress.queue").setLevel(logging.ERROR)
+
     if ignored_args:
-        print("The following settings will be ignored:")
-        for arg in ignored_args:
-            print(arg)
-        print()
+        logging.warning("The following arguments will be ignored: " + " ".join(ignored_args))
 
     # Make a CalculatorClass getting the hooks on calculators argument parsing
     # Info on calculator type is store in the object for client requests
@@ -519,7 +526,7 @@ def main() -> None:
         calc_class=calcClass,
         total_cores=args.nthreads,  # or another CLI flag like --total-cores
         executor=executor,
-        max_memory_per_thread=args.memory_per_thread
+        max_memory_per_thread=args.memory_per_thread,
     )
 
     # Start the server
