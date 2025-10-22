@@ -25,11 +25,11 @@ try:
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         from fairchem.core import FAIRChemCalculator, pretrained_mlip
-        from fairchem.core.calculate.pretrained_mlip import available_models
+        from fairchem.core.calculate.pretrained_mlip import available_models, CACHE_DIR
         from fairchem.core.units.mlip_unit.api.inference import UMATask
 except ImportError as e:
     print(
-        f"[MISSING] Required module umacalc not found: {e}.\n"
+        f"[MISSING] Required module fairchem-core not found: {e}.\n"
         "Please install the packages in the virtual environment.\n"
         "Therefore, activate the venv, got to the orca-external-tools "
         "main directory and use pip install -r ./requirements/uma.txt\n"
@@ -55,57 +55,35 @@ class UmaCalc(BaseCalc):
     # Fairchem calculator used to compute energy and grad
     _calc: FAIRChemCalculator | None = None
 
-    def set_calculator(self, param: str, basemodel: str, device: str) -> None:
+    def set_calculator(self, param: str, basemodel: str, device: str, cache_dir: str, force: bool = False) -> None:
         """
-        Set the UMA calculator used by the UmaCalc object to compute energy and gradient
+        Prepare the `FAIRChemCalculator` object to compute energy and gradient, if not done already.
 
         Parameters
         ----------
         param: str
-            parameter set to use
+            Parameter set used by fairchem
         basemodel: str
             UMA basemodel
-        device: str, default: "cpu"
+        device: str
             Device that should be used, e.g., cpu or cuda
+        cache_dir: str
+            Cache directory to read/write downloaded model files to
+        force: bool
+            Force re-initialization of the calculator, even if already initialized
         """
-        # Suppress fairchemcore internal warnings
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-            predictor = pretrained_mlip.get_predict_unit(basemodel, device=device)
-            self._calc = FAIRChemCalculator(predictor, task_name=param)
+        if not self._calc or force:
+            # Suppress fairchemcore internal warnings
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                predictor = pretrained_mlip.get_predict_unit(basemodel, device=device, cache_dir=cache_dir)
+                self._calc = FAIRChemCalculator(predictor, task_name=param)
 
     def get_calculator(self) -> FAIRChemCalculator:
         """
         Returns UMA calculator
         """
         return self._calc
-
-    def setup(self, param: str, basemodel: str, device: str) -> None:
-        """
-        Filters the command line arguments for setup arguments
-        Returns the respective dict where the processed arguments are removed
-
-        Parameters
-        ----------
-        args: dict
-            Arguments provided via cmd
-        param: str
-            Parameter set used by fairchem
-        basemode: str
-            Basemodel
-        device:
-            device to run the calculation on
-
-        Returns
-        -------
-        dict: Arguments where all entries are removed that were processed
-        """
-        if not self._calc:
-            self.set_calculator(
-                param=param,
-                basemodel=basemodel,
-                device=device,
-            )
 
     @classmethod
     def extend_parser(cls, parser: ArgumentParser) -> None:
@@ -151,6 +129,17 @@ class UmaCalc(BaseCalc):
             help="Device to perform the calculation on. "
             "Options: " + ", ".join(device_choices) + ". "
             "Default: cpu. ",
+        )
+        parser.add_argument(
+            "-c",
+            "--cachedir",
+            type=str,
+            default=str(CACHE_DIR),
+            metavar="DIR",
+            dest="cache_dir",
+            help="The cache directory to store downloaded model files. "
+                 "Can also be set via the environment variable FAIRCHEM_CACHE_DIR. "
+                 f'Default: "{CACHE_DIR}".',
         )
 
     def run_uma(
@@ -232,16 +221,18 @@ class UmaCalc(BaseCalc):
         param = args_parsed.get("param")
         basemodel = args_parsed.get("basemodel")
         device = args_parsed.get("device")
+        cache_dir = args_parsed.get("cache_dir")
         if (
             not isinstance(param, str)
             or not isinstance(basemodel, str)
             or not isinstance(device, str)
+            or not isinstance(cache_dir, str)
         ):
             raise RuntimeError("Problems handling input parameters.")
         # setup calculator if not already set
         # this is important as usage on a server would otherwise cause
         # initialization with every call so that nothing is gained
-        self.setup(param=param, basemodel=basemodel, device=device)
+        self.set_calculator(param=param, basemodel=basemodel, device=device, cache_dir=cache_dir)
 
         # process the XYZ file
         atom_types, coordinates = xyzfile_to_at_coord(calc_data.xyzfile)
