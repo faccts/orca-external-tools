@@ -1,6 +1,7 @@
 import unittest
 from pathlib import Path
 
+from oet import ROOT_DIR
 from oet.core.test_utilities import (
     OH,
     WATER,
@@ -11,7 +12,7 @@ from oet.core.test_utilities import (
     write_xyz_file,
 )
 
-mopac_script_path = Path(__file__).parent / "../../scripts/oet_mopac"
+mopac_script_path = ROOT_DIR / "bin/oet_mopac"
 # Leave moppac_executable_path empty, if mopac from system path should be called
 mopac_executable_path = ""
 
