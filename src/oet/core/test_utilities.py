@@ -146,7 +146,7 @@ def run_wrapper(
     timeout: float | None, default: 10 s
         Default timeout time (seconds)
     """
-    cmd = ["python3", str(script_path), str(inputfile)]
+    cmd = [script_path, inputfile]
     if args:
         cmd += args
 
