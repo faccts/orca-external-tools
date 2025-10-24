@@ -11,13 +11,16 @@ main: function
     Main function
 """
 
-import os
+import shutil
 import sys
 import warnings
 from argparse import ArgumentParser
 from pathlib import Path
 from typing import Any
 
+from requests.exceptions import HTTPError
+
+from oet import ASSETS_DIR
 from oet.core.base_calc import BaseCalc, CalculationData
 from oet.core.misc import ENERGY_CONVERSION, LENGTH_CONVERSION, xyzfile_to_at_coord
 
@@ -26,6 +29,7 @@ try:
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         from aimnet2calc import AIMNet2Calculator
+        from aimnet2calc.models import get_model_path, model_registry_aliases
 except ImportError:
     print(
         "[MISSING] Required module aimnet2calc not found.\n"
@@ -40,6 +44,9 @@ try:
 except ImportError as e:
     print("[MISSING] torch not found:", e)
     sys.exit(1)
+
+
+DEFAULT_MODEL_PATH = ASSETS_DIR / "aimnet2"
 
 
 class Aimnet2Calc(BaseCalc):
@@ -97,6 +104,79 @@ class Aimnet2Calc(BaseCalc):
             raise RuntimeError("CUDA requested but not available")
         self._calc = AIMNet2Calculator(model=model)
 
+    @staticmethod
+    def get_model_file(model: str, model_dir: str) -> Path:
+        """
+        Make sure model file exists in the correct location.
+        If `model` is an absolute path, it must already exist.
+        Otherwise, let AIMNet2 download it, then move it to `model_dir`.
+
+        Parameters
+        ----------
+        model
+            Model name, e.g. "aimnet2_wb97m", or filename, e.g. "aimnet2_wb97m_0.jpt", or absolute path
+        model_dir
+            directory to look for or store model file
+
+        Returns
+        -------
+        model_path: Path
+            Full path to the model file
+
+        Raises
+        ------
+        FileNotFoundError
+            If the model file is given by absolute path and does not exist
+        FileExistsError
+            If `model_dir` exists but is not a directory or `model_path` exists but is not a file
+        """
+        # Check if `model` is already an absolute path
+        if (model_path := Path(model)).is_absolute():
+            if not model_path.exists():
+                raise FileNotFoundError(f'Model file "{model_path}" not found')
+            return model_path
+        # `model` must be the name of a model
+        else:
+            # check aliases
+            model_file = model_registry_aliases.get(model, model)
+            # add jpt extension if not already present
+            if not model_file.endswith('.jpt'):
+                model_file += '.jpt'
+            # strip any directories
+            model_file = Path(model_file).name
+            # make sure the directory exists
+            model_dir = Path(model_dir)
+            if model_dir.exists() and not model_dir.is_dir():
+                raise FileExistsError(f'Path "{model_dir}" exists but is not a directory')
+            model_dir.mkdir(parents=True, exist_ok=True)
+            # construct the full path
+            model_path = model_dir / model_file
+            # if the file exists, pass the path to `get_model_path`
+            if model_path.exists():
+                if model_path.is_file():
+                    model = str(model_path)
+                else:
+                    raise FileExistsError(f'Path "{model_path}" exists but is not a file')
+            # obtain the file from AIMNet2
+            try:
+                actual_path = Path(get_model_path(model))
+            except HTTPError as e:
+                # If the URL is not found, it's possible the user requested, e.g. "aimnet2_wb97m_1.jpt"
+                # This is actually under "aimnet2/aimnet2_wb97m_1.jpt" and also not in the `model_registry_aliases`
+                if not "/" in model:
+                    # look for "aimnet2_..." under "aimnet2/aimnet2_..."
+                    model_subdir = model.split("_")[0] + "/" + model
+                    print(f'Failed to find model "{model}" at URL: {e.response.url}\n'
+                          f'Trying again with model name "model_subdir"', file=sys.stderr)
+                    actual_path = Path(get_model_path(model_subdir))
+                else:
+                    raise e
+            # move it to the correct destination for subsequent runs
+            if not (model_path.exists() and model_path.samefile(actual_path)):
+                shutil.move(actual_path, model_path)
+            # finally return the path
+            return model_path
+
     def setup(self, model: str, model_dir: str, device: str) -> None:
         """
         Sets the calculator. Does nothing, if it is already set.
@@ -115,14 +195,9 @@ class Aimnet2Calc(BaseCalc):
         dict: Arguments where all entries are removed that were processed
         """
         if not self._calc:
-            # Check whether models are present
-            model_path = str(Path(model_dir) / Path(model))
-            print("model_path", model_path)
-            if os.path.isfile(model_path):
-                self.set_calculator(model=model_path, device=device)
-            # If not, aimnet will download them automatically
-            else:
-                self.set_calculator(model=model, device=device)
+            # Sanitize the model path and fetch the actual file
+            model_path = str(self.get_model_file(model, model_dir))
+            self.set_calculator(model=model_path, device=device)
 
     @classmethod
     def extend_parser(cls, parser: ArgumentParser) -> None:
@@ -133,14 +208,16 @@ class Aimnet2Calc(BaseCalc):
         parser: ArgumentParser
             Parser that should be extended
         """
-        default_model_path = Path(__file__).resolve().parent / "models"
         parser.add_argument(
             "-m",
             "--model",
             type=str,
             dest="model",
             default="aimnet2_wb97m",
-            help='The AIMNet2 model file name (must be in DIR) or absolute path. Default: "aimnet2_wb97m".',
+            help='The AIMNet2 model name or file name or absolute path. '
+                 'If an absolute path is given, the file must exist. '
+                 'Otherwise, it will be downloaded to DIR if necessary. '
+                 'Default: "aimnet2_wb97m".',
         )
         parser.add_argument(
             "-p",
@@ -148,8 +225,8 @@ class Aimnet2Calc(BaseCalc):
             metavar="DIR",
             dest="model_dir",
             type=str,
-            default=str(default_model_path),
-            help=f'The directory to look for AIMNet2 model files. Default: "{default_model_path}". Will look for a file with exactly the model name defined with `-m`',
+            default=str(DEFAULT_MODEL_PATH),
+            help=f'The directory to look for and store AIMNet2 model files. Default: "{DEFAULT_MODEL_PATH}". ',
         )
         parser.add_argument(
             "-d",

@@ -11,12 +11,14 @@ class: UmaCalc(CalcServer)
 main: function
     Main function
 """
-
+import os
 import sys
 import warnings
 from argparse import ArgumentParser
+from pathlib import Path
 from typing import Any
 
+from oet import ASSETS_DIR
 from oet.core.base_calc import BaseCalc, CalculationData
 from oet.core.misc import ENERGY_CONVERSION, LENGTH_CONVERSION, xyzfile_to_at_coord
 
@@ -25,7 +27,7 @@ try:
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         from fairchem.core import FAIRChemCalculator, pretrained_mlip
-        from fairchem.core.calculate.pretrained_mlip import available_models, CACHE_DIR
+        from fairchem.core.calculate.pretrained_mlip import available_models
         from fairchem.core.units.mlip_unit.api.inference import UMATask
 except ImportError as e:
     print(
@@ -51,6 +53,10 @@ except ImportError as e:
     sys.exit(1)
 
 
+# Override the default fairchem `CACHE_DIR`, unless the environment variable is set
+DEFAULT_CACHE_DIR = str(os.environ.get("FAIRCHEM_CACHE_DIR", ASSETS_DIR / "fairchem"))
+
+
 class UmaCalc(BaseCalc):
     # Fairchem calculator used to compute energy and grad
     _calc: FAIRChemCalculator | None = None
@@ -73,6 +79,8 @@ class UmaCalc(BaseCalc):
             Force re-initialization of the calculator, even if already initialized
         """
         if not self._calc or force:
+            # Make sure the cache directory exists
+            Path(cache_dir).mkdir(parents=True, exist_ok=True)
             # Suppress fairchemcore internal warnings
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
@@ -134,12 +142,12 @@ class UmaCalc(BaseCalc):
             "-c",
             "--cachedir",
             type=str,
-            default=str(CACHE_DIR),
+            default=str(DEFAULT_CACHE_DIR),
             metavar="DIR",
             dest="cache_dir",
             help="The cache directory to store downloaded model files. "
                  "Can also be set via the environment variable FAIRCHEM_CACHE_DIR. "
-                 f'Default: "{CACHE_DIR}".',
+                 f'Default: "{DEFAULT_CACHE_DIR}".',
         )
 
     def run_uma(
