@@ -39,7 +39,7 @@ class UmaTests(unittest.TestCase):
         """
         with open("server.out", "a") as f:
             cls.server = subprocess.Popen(
-                ["python3", uma_server_path, "uma", "--bind", id_port, "--nthreads", "2"],
+                [uma_server_path, "uma", "--bind", id_port, "--nthreads", "2"],
                 stdout=f,
                 stderr=subprocess.STDOUT,
                 preexec_fn=os.setsid,
