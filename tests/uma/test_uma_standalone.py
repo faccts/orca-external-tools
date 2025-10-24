@@ -12,7 +12,7 @@ from oet.core.test_utilities import (
     write_xyz_file,
 )
 
-uma_script_path = ROOT_DIR / "bin/oet_uma"
+uma_script_path = ROOT_DIR / "../../bin/oet_uma"
 
 
 def run_uma(inputfile: str, output_file: str) -> None:

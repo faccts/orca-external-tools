@@ -16,8 +16,8 @@ from oet.core.test_utilities import (
     write_xyz_file,
 )
 
-uma_script_path = ROOT_DIR / "bin/oet_client"
-uma_server_path = ROOT_DIR / "bin/oet_server"
+uma_script_path = ROOT_DIR / "../../bin/oet_client"
+uma_server_path = ROOT_DIR / "../../bin/oet_server"
 # Default ID and port of server. Change if needed
 id_port = "127.0.0.1:9000"
 

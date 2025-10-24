@@ -12,7 +12,7 @@ from oet.core.test_utilities import (
     write_xyz_file,
 )
 
-gxtb_script_path = ROOT_DIR / "bin/oet_gxtb"
+gxtb_script_path = ROOT_DIR / "../../bin/oet_gxtb"
 # Leave uma_executable_path empty, if gxtb from system path should be called
 gxtb_executable_path = ""
 

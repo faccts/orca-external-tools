@@ -12,7 +12,7 @@ from oet.core.test_utilities import (
     write_xyz_file,
 )
 
-mlatom_script_path = ROOT_DIR / "bin/oet_mlatom"
+mlatom_script_path = ROOT_DIR / "../../bin/oet_mlatom"
 # Leave mlatom_executable_path empty, if mlatom from system path should be called
 mlatom_executable_path = ""
 

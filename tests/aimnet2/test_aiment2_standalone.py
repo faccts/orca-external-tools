@@ -12,7 +12,7 @@ from oet.core.test_utilities import (
     write_xyz_file,
 )
 
-aimnet2_script_path = ROOT_DIR / "bin/oet_aimnet2"
+aimnet2_script_path = ROOT_DIR / "../../bin/oet_aimnet2"
 
 
 def run_aimnet2(inputfile: str, output_file: str) -> None:
