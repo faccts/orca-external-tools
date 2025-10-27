@@ -70,8 +70,9 @@ class CalculationData:
         # ------------------
         xyzfile, charge, mult, ncores, dograd, pointcharges = read_input(inputfile=self._input_file)
         # Original structure file location
+        # It is relative to the input file directory (or already an absolute path).
         # This should not be touched after copying to tmp dir
-        self._orig_xyzfile: Path = check_path(Path(xyzfile).resolve())
+        self._orig_xyzfile: Path = check_path(Path(self._input_file.parent / xyzfile).resolve())
         # Molecular charge
         self.charge: int = charge
         # Multiplicity
