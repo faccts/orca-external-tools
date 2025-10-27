@@ -259,6 +259,10 @@ class BaseCalc(ABC):
         if directory:
             directory = check_path(directory)
             os.chdir(directory)
+        print(f"BaseCalc.run: "
+              f"Environment\n{os.environ}\n"
+              f"{self.PROGRAM_NAMES=}\n" +
+              "\n".join(f"Path to {name}: {shutil.which(name)}" for name in self.PROGRAM_NAMES))
         # Set filenames and paths according to inputfile name. Also make tmpdir
         calc_data = CalculationData(inputfile=inputfile, program_names=self.PROGRAM_NAMES)
         # Run the routine performing actual calculation
