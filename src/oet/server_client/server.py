@@ -106,6 +106,12 @@ def _evict_until_within_limits(mem_limit_mib: int, protected_key: tuple[str, str
     logging.debug(f"PID {os.getpid()}: Memory use after: {rss} / {target}")
 
 
+class CalculatorRuntimeException(RuntimeError):
+    """Custom exception class to pass STDOUT to the client along with any runtime error."""
+    def __init__(self, stdout: str):
+        self.stdout = stdout
+
+
 def _run_calc_in_process(
     calc_module: str, calc_class: str, run_kwargs: dict[str, Any], max_memory_per_thread: int
 ) -> str:
@@ -157,8 +163,12 @@ def _run_calc_in_process(
     _evict_until_within_limits(max_memory_per_thread, protected_key=key)
     # Run calc.run and return its STDOUT
     buf = io.StringIO()
-    with redirect_stdout(buf):
-        calc.run(**run_kwargs)
+    try:
+        with redirect_stdout(buf):
+            calc.run(**run_kwargs)
+    except Exception as e:
+        # attach STDOUT to the exception
+        raise CalculatorRuntimeException(buf.getvalue()) from e
     return buf.getvalue()
 
 
@@ -401,14 +411,16 @@ def create_app(server: OtoolServer) -> Flask:
             return jsonify(result)
 
         except Exception as e:
-            return jsonify(
-                {
-                    "status": "Error",
-                    "error_message": str(e),
-                    "error_type": type(e).__name__,
-                    "traceback": traceback.format_exc(),
-                }
-            )
+            output = {
+                "status": "Error",
+                "error_message": str(e),
+                "error_type": type(e).__name__,
+                "traceback": traceback.format_exc(),
+            }
+            # attach STDOUT if possible
+            if isinstance(e, CalculatorRuntimeException):
+                output["stdout"] = e.stdout
+            return jsonify(output)
 
     return app
 

@@ -36,13 +36,12 @@ def send_to_server(
         response = requests.post(url, json=payload)
         response.raise_for_status()
         data = response.json()
+        # print the stdout of the calculation, if any
+        print(data.get("stdout", ""), end="")
         if data.get("status") == "Error":
             print(f"Server error {data.get('error_type')}: {data.get('error_message')}.")
             print(f"Exact traceback: {data.get('traceback')}")
             sys.exit(1)
-        else:
-            # print the stdout of the calculation
-            print(data.get("stdout", ""), end="")
     except requests.exceptions.Timeout:
         print("Connection timed out.")
         sys.exit(1)
