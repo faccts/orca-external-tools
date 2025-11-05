@@ -1,16 +1,22 @@
 #!/usr/bin/env python3
+import sys
 import os
 import subprocess
-import sys
 import argparse
 from collections.abc import Sequence
 from pathlib import Path
 import shutil
-from xmlrpc.client import Boolean
 
 
 # Available extras
 EXTRAS = ["uma", "aimnet2", "mlatom"]
+
+# Minimal python interpreter required by the base class (currently 3.10)
+minimal_python_version = (3, 10)
+if sys.version_info < minimal_python_version:
+    raise RuntimeError(
+        f"Python version must be higher than {minimal_python_version[0]}.{minimal_python_version[1]}"
+    )
 
 
 def create_venv(venv_dir: Path) -> None:
