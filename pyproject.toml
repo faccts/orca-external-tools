@@ -73,6 +73,7 @@ type-check = [
     "pydantic>=2.11.5,<3",
     "types-waitress>=3.0.1",
     "types-requests>=2.32.0",
+    "types_psutil>=7.0.0"
 ]
 spell-check = [
     "codespell>=2.4.1",
@@ -96,6 +97,7 @@ module = [
   "torch", "torch.*",
   "fairchem.core", "fairchem.core.*",
   "ase", "ase.*",
+  "huggingface_hub", "huggingface_hub.*",
 ]
 ignore_missing_imports = true
 

@@ -44,7 +44,7 @@ def parse_oet() -> tuple[str, str, list[str]]:
     return args.method, args.inputfile, remaining_args
 
 
-def main():
+def main() -> None:
     """
     Main routine of oet
     """

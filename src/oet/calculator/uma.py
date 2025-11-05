@@ -29,6 +29,7 @@ try:
         from fairchem.core import FAIRChemCalculator, pretrained_mlip
         from fairchem.core.calculate.pretrained_mlip import available_models
         from fairchem.core.units.mlip_unit.api.inference import UMATask
+        from huggingface_hub import hf_hub_download
 except ImportError as e:
     print(
         f"[MISSING] Required module fairchem-core not found: {e}.\n"
@@ -92,6 +93,51 @@ class UmaCalc(BaseCalc):
         Returns UMA calculator
         """
         return self._calc
+    
+    def check_for_model_files(self, basemodel: str, cache_dir: str) -> bool:
+        """
+        Check if model files are available in current cache directory.
+
+        Parameters
+        ----------
+        basemodel: str
+            UMA basemodel
+        cache_dir: str
+            Cache directory
+
+        Returns
+        -------
+        bool: True, if model files were found
+        """
+        try:
+            # First the model parameter
+            hf_hub_download(
+                filename=basemodel+".pt",
+                repo_id="facebook/UMA",
+                subfolder="checkpoints",
+                cache_dir=cache_dir,
+                local_files_only=True
+            )
+            # Then the atomic references
+            hf_hub_download(
+                filename="iso_atom_elem_refs.yaml",
+                repo_id="facebook/UMA",
+                subfolder="references",
+                cache_dir=cache_dir,
+                local_files_only=True
+            )
+        except:
+            return False
+        else:
+            return True
+        
+    def switch_to_offline_mode(self) -> None:
+        """
+        Goes into offline mode to prevent HuggingFace from downloading something from the web
+        """
+        os.environ["HF_HUB_OFFLINE"] = "1"
+        # Older versions require a different keyword:
+        os.environ["HUGGINGFACE_HUB_OFFLINE"] = "1"
 
     @classmethod
     def extend_parser(cls, parser: ArgumentParser) -> None:
@@ -148,6 +194,14 @@ class UmaCalc(BaseCalc):
             help="The cache directory to store downloaded model files. "
                  "Can also be set via the environment variable FAIRCHEM_CACHE_DIR. "
                  f'Default: "{DEFAULT_CACHE_DIR}".',
+        )
+        parser.add_argument(
+            "-o",
+            "--offline",
+            type=bool,
+            default=False,
+            dest="offline_mode",
+            help="Force into offline mode. Please note that there will be an error if the model parameters are not found."
         )
 
     def run_uma(
@@ -230,6 +284,7 @@ class UmaCalc(BaseCalc):
         basemodel = args_parsed.get("basemodel")
         device = args_parsed.get("device")
         cache_dir = args_parsed.get("cache_dir")
+        offline_mode = args_parsed.get("offline_mode")
         if (
             not isinstance(param, str)
             or not isinstance(basemodel, str)
@@ -237,6 +292,17 @@ class UmaCalc(BaseCalc):
             or not isinstance(cache_dir, str)
         ):
             raise RuntimeError("Problems handling input parameters.")
+        # Check if we have the respective models stored locally in cache
+        # If so, switch to offline mode
+        if self.check_for_model_files(basemodel=basemodel, cache_dir=cache_dir):
+            print("Model parameters found in cache. Switching to offline mode.")
+            self.switch_to_offline_mode()
+        # If set by the user, switch also to offline mode.
+        # This is a fallback, if online communication must be prevented.
+        if offline_mode:
+            self.switch_to_offline_mode()
+            if self.check_for_model_files(basemodel=basemodel, cache_dir=cache_dir):
+                print("WARNING: No model files were detected. This might lead to subsequent errors.")
         # setup calculator if not already set
         # this is important as usage on a server would otherwise cause
         # initialization with every call so that nothing is gained

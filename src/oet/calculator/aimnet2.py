@@ -145,12 +145,12 @@ class Aimnet2Calc(BaseCalc):
             # strip any directories
             model_file = Path(model_file).name
             # make sure the directory exists
-            model_dir = Path(model_dir)
-            if model_dir.exists() and not model_dir.is_dir():
+            model_path = Path(model_dir)
+            if model_path.exists() and not model_path.is_dir():
                 raise FileExistsError(f'Path "{model_dir}" exists but is not a directory')
-            model_dir.mkdir(parents=True, exist_ok=True)
+            model_path.mkdir(parents=True, exist_ok=True)
             # construct the full path
-            model_path = model_dir / model_file
+            model_path = model_path / model_file
             # if the file exists, pass the path to `get_model_path`
             if model_path.exists():
                 if model_path.is_file():

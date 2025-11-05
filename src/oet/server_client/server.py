@@ -536,7 +536,7 @@ def main() -> None:
 
     # Make sure to stop child processes on SIGTERM
     # (SIGINT is already handled OK and adding it here causes hanging)
-    def cleanup_and_exit(signum, _frame):
+    def cleanup_and_exit(signum: int, _frame: Any) -> None:
         """Stop the ProcessPoolExecutor when receiving a signal, then re-send the signal."""
         print(f"Received signal {signum}, shutting down...")
         executor.shutdown(wait=True, cancel_futures=True)

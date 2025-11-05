@@ -3,7 +3,6 @@ import signal
 import subprocess
 import time
 import unittest
-from pathlib import Path
 
 from oet import ROOT_DIR
 from oet.core.test_utilities import (
