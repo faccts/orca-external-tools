@@ -2,7 +2,7 @@ from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 
 try:
-    __version__ = version('oet')
+    __version__ = version("oet")
 except PackageNotFoundError:
     __version__ = "unknown"
 finally:

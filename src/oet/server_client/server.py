@@ -13,22 +13,22 @@ function: main
 from __future__ import annotations
 
 import contextlib
+import gc
 import importlib
 import io
-import gc
 import logging
 import os
 import signal
 import threading
 import traceback
 import typing
-from argparse import ArgumentParser, Action
+from argparse import Action, ArgumentParser
+from collections import OrderedDict
 from collections.abc import Mapping, Sequence
 from concurrent.futures import ProcessPoolExecutor
 from contextlib import redirect_stdout
 from pathlib import Path
 from typing import Any
-from collections import OrderedDict
 
 import psutil
 from flask import Flask, Response, jsonify, request
@@ -66,7 +66,9 @@ def _pop_one_worker(protected_key: tuple[str, str, frozenset[tuple[str, Any]]] |
     return False
 
 
-def _evict_until_within_limits(mem_limit_mib: int, protected_key: tuple[str, str, frozenset[tuple[str, Any]]] | None) -> None:
+def _evict_until_within_limits(
+    mem_limit_mib: int, protected_key: tuple[str, str, frozenset[tuple[str, Any]]] | None
+) -> None:
     """
     Evict least-recently-used calculators until we satisfy the memory limit.
     `protect_key` (if given) will not be evicted (we skip over it).
@@ -108,6 +110,7 @@ def _evict_until_within_limits(mem_limit_mib: int, protected_key: tuple[str, str
 
 class CalculatorRuntimeException(RuntimeError):
     """Custom exception class to pass STDOUT to the client along with any runtime error."""
+
     def __init__(self, stdout: str):
         self.stdout = stdout
 
@@ -138,11 +141,11 @@ def _run_calc_in_process(
 
     # Make run_kwargs with only method-specific settings
     # It is assumed that all not parsed arguments are also method specific
-    args_parsed_frozen = tuple(sorted(run_kwargs['args_parsed'].items()))
-    args_not_parsed_frozen = tuple(run_kwargs['args_not_parsed'])
+    args_parsed_frozen = tuple(sorted(run_kwargs["args_parsed"].items()))
+    args_not_parsed_frozen = tuple(run_kwargs["args_not_parsed"])
     method_specific_args = {
-        'args_parsed': args_parsed_frozen,
-        'args_not_parsed': args_not_parsed_frozen,
+        "args_parsed": args_parsed_frozen,
+        "args_not_parsed": args_not_parsed_frozen,
     }
     # Use those to check if a calculator with these settings already exists.
     # If not, make another one and delete old calculators if it would exceed the current memory limit.
@@ -315,7 +318,7 @@ class OtoolServer:
                 self.calc_class.import_module,
                 self.calc_class.calculator_name,
                 run_kwargs,
-                self.max_memory_per_thread
+                self.max_memory_per_thread,
             )
             # Will raise if the worker raised
             output = fut.result()
@@ -433,7 +436,11 @@ def get_available_methods() -> list[str]:
     """
     available = []
     # discard stdour and stderr
-    with open(os.devnull, 'w') as devnull, contextlib.redirect_stdout(devnull), contextlib.redirect_stderr(devnull):
+    with (
+        open(os.devnull, "w") as devnull,
+        contextlib.redirect_stdout(devnull),
+        contextlib.redirect_stderr(devnull),
+    ):
         for method in CALCULATOR_CLASSES:
             try:
                 # TODO: should also make sure any external programs are installed
@@ -447,13 +454,15 @@ def get_available_methods() -> list[str]:
 
 class PrintAvailableMethods(Action):
     """Custom parser action to print all available methods and exit"""
-    def __call__(self,
-                 parser: ArgumentParser,
-                 namespace: "Namespace",
-                 values: str | Sequence[Any] | None,
-                 option_string: str | None = None
-                 ) -> None:
-        parser.exit(0, '\n'.join(get_available_methods()) + '\n')
+
+    def __call__(
+        self,
+        parser: ArgumentParser,
+        namespace: "Namespace",
+        values: str | Sequence[Any] | None,
+        option_string: str | None = None,
+    ) -> None:
+        parser.exit(0, "\n".join(get_available_methods()) + "\n")
 
 
 def main() -> None:

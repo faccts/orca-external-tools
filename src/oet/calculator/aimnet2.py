@@ -140,8 +140,8 @@ class Aimnet2Calc(BaseCalc):
             # check aliases
             model_file = model_registry_aliases.get(model, model)
             # add jpt extension if not already present
-            if not model_file.endswith('.jpt'):
-                model_file += '.jpt'
+            if not model_file.endswith(".jpt"):
+                model_file += ".jpt"
             # strip any directories
             model_file = Path(model_file).name
             # make sure the directory exists
@@ -163,11 +163,14 @@ class Aimnet2Calc(BaseCalc):
             except HTTPError as e:
                 # If the URL is not found, it's possible the user requested, e.g. "aimnet2_wb97m_1.jpt"
                 # This is actually under "aimnet2/aimnet2_wb97m_1.jpt" and also not in the `model_registry_aliases`
-                if not "/" in model:
+                if "/" not in model:
                     # look for "aimnet2_..." under "aimnet2/aimnet2_..."
                     model_subdir = model.split("_")[0] + "/" + model
-                    print(f'Failed to find model "{model}" at URL: {e.response.url}\n'
-                          f'Trying again with model name "model_subdir"', file=sys.stderr)
+                    print(
+                        f'Failed to find model "{model}" at URL: {e.response.url}\n'
+                        f'Trying again with model name "model_subdir"',
+                        file=sys.stderr,
+                    )
                     actual_path = Path(get_model_path(model_subdir))
                 else:
                     raise e
@@ -214,10 +217,10 @@ class Aimnet2Calc(BaseCalc):
             type=str,
             dest="model",
             default="aimnet2_wb97m",
-            help='The AIMNet2 model name or file name or absolute path. '
-                 'If an absolute path is given, the file must exist. '
-                 'Otherwise, it will be downloaded to DIR if necessary. '
-                 'Default: "aimnet2_wb97m".',
+            help="The AIMNet2 model name or file name or absolute path. "
+            "If an absolute path is given, the file must exist. "
+            "Otherwise, it will be downloaded to DIR if necessary. "
+            'Default: "aimnet2_wb97m".',
         )
         parser.add_argument(
             "-p",

@@ -47,7 +47,7 @@ def type_check(session):
 def remove_unused_imports(session):
     session.install(".[lint]")
     # > Sorting imports with ruff instead of isort
-    session.run("ruff", "check", "--select", "F401")
+    session.run("ruff", "check", "--fix", "--select", "F401")
 
 
 # //////////////////////////////////////////
@@ -57,7 +57,7 @@ def remove_unused_imports(session):
 def sort_imports(session):
     session.install(".[lint]")
     # > Sorting imports with ruff instead of isort
-    session.run("ruff", "check", "--select", "I")
+    session.run("ruff", "check", "--fix", "--select", "I")
 
 
 # ////////////////////////////////////////
@@ -66,7 +66,7 @@ def sort_imports(session):
 @nox.session(tags=["style", "static_check"])
 def lint(session):
     session.install(".[lint]")
-    session.run("ruff", "check")
+    session.run("ruff", "check", "--fix")
 
 
 # //////////////////////////////////////////

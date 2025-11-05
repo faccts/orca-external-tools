@@ -3,9 +3,9 @@
 Single script for redirecting to wrapper
 """
 
-from argparse import ArgumentParser
 import importlib
 import sys
+from argparse import ArgumentParser
 
 from oet import __version__ as version
 from oet.core.base_calc import CALCULATOR_CLASSES
@@ -37,7 +37,7 @@ def parse_oet() -> tuple[str, str, list[str]]:
 
     # show help only if requested without a chosen method,
     # otherwise the method-specific parser will do it.
-    if not args.method and ('--help' in remaining_args or '-h' in remaining_args):
+    if not args.method and ("--help" in remaining_args or "-h" in remaining_args):
         parser.print_help()
         exit(0)
 

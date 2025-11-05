@@ -12,6 +12,7 @@ import requests
 
 from oet import __version__ as version
 
+
 def send_to_server(
     host_port: str,
     arguments: list[str],

@@ -11,6 +11,7 @@ class: UmaCalc(CalcServer)
 main: function
     Main function
 """
+
 import os
 import sys
 import warnings
@@ -62,7 +63,9 @@ class UmaCalc(BaseCalc):
     # Fairchem calculator used to compute energy and grad
     _calc: FAIRChemCalculator | None = None
 
-    def set_calculator(self, param: str, basemodel: str, device: str, cache_dir: str, force: bool = False) -> None:
+    def set_calculator(
+        self, param: str, basemodel: str, device: str, cache_dir: str, force: bool = False
+    ) -> None:
         """
         Prepare the `FAIRChemCalculator` object to compute energy and gradient, if not done already.
 
@@ -85,7 +88,9 @@ class UmaCalc(BaseCalc):
             # Suppress fairchemcore internal warnings
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
-                predictor = pretrained_mlip.get_predict_unit(basemodel, device=device, cache_dir=cache_dir)
+                predictor = pretrained_mlip.get_predict_unit(
+                    basemodel, device=device, cache_dir=cache_dir
+                )
                 self._calc = FAIRChemCalculator(predictor, task_name=param)
 
     def get_calculator(self) -> FAIRChemCalculator:
@@ -93,7 +98,7 @@ class UmaCalc(BaseCalc):
         Returns UMA calculator
         """
         return self._calc
-    
+
     def check_for_model_files(self, basemodel: str, cache_dir: str) -> bool:
         """
         Check if model files are available in current cache directory.
@@ -112,11 +117,11 @@ class UmaCalc(BaseCalc):
         try:
             # First the model parameter
             hf_hub_download(
-                filename=basemodel+".pt",
+                filename=basemodel + ".pt",
                 repo_id="facebook/UMA",
                 subfolder="checkpoints",
                 cache_dir=cache_dir,
-                local_files_only=True
+                local_files_only=True,
             )
             # Then the atomic references
             hf_hub_download(
@@ -124,13 +129,13 @@ class UmaCalc(BaseCalc):
                 repo_id="facebook/UMA",
                 subfolder="references",
                 cache_dir=cache_dir,
-                local_files_only=True
+                local_files_only=True,
             )
-        except:
+        except Exception:
             return False
         else:
             return True
-        
+
     def switch_to_offline_mode(self) -> None:
         """
         Goes into offline mode to prevent HuggingFace from downloading something from the web
@@ -192,8 +197,8 @@ class UmaCalc(BaseCalc):
             metavar="DIR",
             dest="cache_dir",
             help="The cache directory to store downloaded model files. "
-                 "Can also be set via the environment variable FAIRCHEM_CACHE_DIR. "
-                 f'Default: "{DEFAULT_CACHE_DIR}".',
+            "Can also be set via the environment variable FAIRCHEM_CACHE_DIR. "
+            f'Default: "{DEFAULT_CACHE_DIR}".',
         )
         parser.add_argument(
             "-o",
@@ -201,7 +206,7 @@ class UmaCalc(BaseCalc):
             type=bool,
             default=False,
             dest="offline_mode",
-            help="Force into offline mode. Please note that there will be an error if the model parameters are not found."
+            help="Force into offline mode. Please note that there will be an error if the model parameters are not found.",
         )
 
     def run_uma(
@@ -302,7 +307,9 @@ class UmaCalc(BaseCalc):
         if offline_mode:
             self.switch_to_offline_mode()
             if self.check_for_model_files(basemodel=basemodel, cache_dir=cache_dir):
-                print("WARNING: No model files were detected. This might lead to subsequent errors.")
+                print(
+                    "WARNING: No model files were detected. This might lead to subsequent errors."
+                )
         # setup calculator if not already set
         # this is important as usage on a server would otherwise cause
         # initialization with every call so that nothing is gained
