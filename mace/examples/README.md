@@ -13,7 +13,7 @@ Replace `/abs/path/to/your/MACE-omol-custom.model` with your actual model file p
 1) Start the MACE server in another terminal with your custom model:
 
 ```
-../maceserver.sh \
+../../maceserver.sh \
   -s omol \
   -m /abs/path/to/your/MACE-omol-custom.model \
   --default-dtype float64 \
@@ -28,7 +28,7 @@ Replace `/abs/path/to/your/MACE-omol-custom.model` with your actual model file p
 orca goat_water_mace_omol_server.inp > goat_water_mace_omol_server.out
 ```
 
-- The input references `../maceclient.sh` and points it to the server via `Ext_Params "-b 127.0.0.1:8888"`.
+- The input references `../../maceclient.sh` and points it to the server via `Ext_Params "-b 127.0.0.1:8888"`.
 - This example uses `pal1` to avoid requiring MPI. If you have MPI, you can change to `pal4`.
 
 ## Standalone (simple, no server)
@@ -39,7 +39,7 @@ Run ORCA on the standalone input:
 orca goat_water_mace_omol_standalone.inp > goat_water_mace_omol_standalone.out
 ```
 
-- The input references `../mace.sh` and passes the suite and custom model via `Ext_Params`.
+- The input references `../../mace.sh` and passes the suite and custom model via `Ext_Params`.
 - Recommended flags for optimization: `--default-dtype float64` and `--device cpu`.
 
 Notes
