@@ -297,6 +297,9 @@ class UmaCalc(BaseCalc):
             or not isinstance(cache_dir, str)
         ):
             raise RuntimeError("Problems handling input parameters.")
+        # Monkey-patch the Fairchem CACHE_DIR: the provided one is not always respected.
+        # In particular, `pretrained_checkpoint_path_from_name` just uses `CACHE_DIR`
+        pretrained_mlip.CACHE_DIR = cache_dir
         # Check if we have the respective models stored locally in cache
         # If so, switch to offline mode
         if self.check_for_model_files(basemodel=basemodel, cache_dir=cache_dir):
