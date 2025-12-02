@@ -1,5 +1,0 @@
-MACESERVER_PID: 25381
-INFO:waitress:Serving on http://127.0.0.1:64207/Users/Lilyes/Documents/GitHub/orca-external-tools/mace/.venv/lib/python3.12/site-packages/e3nn/o3/_wigner.py:10: UserWarning: Environment variable TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD detected, since the`weights_only` argument was not explicitly passed to `torch.load`, forcing weights_only=False.
-  _Jd, _W3j_flat, _W3j_indices = torch.load(os.path.join(os.path.dirname(__file__), 'constants.pt'))
-/Users/Lilyes/Documents/GitHub/orca-external-tools/mace/.venv/lib/python3.12/site-packages/mace/calculators/mace.py:197: UserWarning: Environment variable TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD detected, since the`weights_only` argument was not explicitly passed to `torch.load`, forcing weights_only=False.
-  torch.load(f=model_path, map_location=device)
