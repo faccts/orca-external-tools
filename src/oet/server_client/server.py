@@ -559,24 +559,32 @@ def main() -> None:
     if ignored_args:
         logging.warning("The following arguments will be ignored: " + " ".join(ignored_args))
 
-    # Make a CalculatorClass getting the hooks on calculators argument parsing
-    # Info on calculator type is store in the object for client requests
-    calcClass = CalculatorClass(args.method)
-
-    # Create workers
-    workers = args.nthreads
-    # Initialize the ProcessPool
-    executor = ProcessPoolExecutor(max_workers=workers)
-
     # Make sure to stop child processes on SIGTERM
-    # (SIGINT is already handled OK and adding it here causes hanging)
     def cleanup_and_exit(signum: int, _frame: Any) -> None:
         """Stop the ProcessPoolExecutor when receiving a signal, then re-send the signal."""
-        print(f"Received signal {signum}, shutting down...")
+        print(f"PID {os.getpid()} received signal {signum}, shutting down...")
         executor.shutdown(wait=False, cancel_futures=True)
         parser.exit(0)
 
     signal.signal(signal.SIGTERM, cleanup_and_exit)
+    signal.signal(signal.SIGINT, cleanup_and_exit)
+    signal.signal(signal.SIGHUP, cleanup_and_exit)
+
+    # `cleanup_and_exit` must NOT run on worker processes, otherwise the server hangs
+    def worker_initializer():
+        """Reset signal handling to default for worker processes."""
+        signal.signal(signal.SIGTERM, signal.SIG_DFL)
+        signal.signal(signal.SIGINT, signal.SIG_DFL)
+        signal.signal(signal.SIGHUP, signal.SIG_DFL)
+
+    # Create workers
+    workers = args.nthreads
+    # Initialize the ProcessPool
+    executor = ProcessPoolExecutor(max_workers=workers, initializer=worker_initializer)
+
+    # Make a CalculatorClass getting the hooks on calculators argument parsing
+    # Info on calculator type is store in the object for client requests
+    calcClass = CalculatorClass(args.method)
 
     # Then initialize a server instance that uses the calc_class
     server = OtoolServer(
