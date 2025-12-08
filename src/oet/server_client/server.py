@@ -276,6 +276,9 @@ class OtoolServer:
         self.core_limiter = CoreLimiter(total_cores)
         # Executor to run the actual calculation
         self.executor = executor
+        # Mechanism to handle a broken executor
+        self._executor_lock = threading.Lock()
+        self._executor_broken = False
         # Maximum memory of the server in MiB
         self.max_memory_per_thread = max_memory_per_thread
 
@@ -292,6 +295,11 @@ class OtoolServer:
         -------
         dict[str, Any]: Message to be sent to client
         """
+        # First, check if the executor was broken when handling another request and if so, bail out directly
+        with self._executor_lock:
+            if self._executor_broken:
+                raise RuntimeError("Server unavailable")
+
         arguments: Sequence[str] = content["arguments"]
         working_dir = Path(content["directory"]).resolve()
 
@@ -326,14 +334,17 @@ class OtoolServer:
         except BrokenExecutor as e:
             # If a worker process gets killed, e.g. by the OS's OOM killer, the process pool gets broken
             # and any subsequent requests will hang. The executor must be stopped and possibly restarted.
-            self.executor.shutdown(wait=True, cancel_futures=True)
-            # Since new requests are also likely to get killed, we just die completely.
-            # We need to do it asynchronously, so as not to leave and client requests hanging.
-            def _shutdown():
-                # Short delay to flush responses
-                time.sleep(0.5)
-                os.kill(os.getpid(), signal.SIGTERM)
-            threading.Thread(target=_shutdown, daemon=True).start()
+            # We mark it as broken to prevent other requests from hanging.
+            with self._executor_lock:
+                if not self._executor_broken:
+                    self._executor_broken = True
+                    # Since new requests are also likely to get killed, we just die completely.
+                    # We need to do it asynchronously, so as not to leave and client requests hanging.
+                    def _shutdown():
+                        # Short delay to flush responses
+                        time.sleep(0.5)
+                        os.kill(os.getpid(), signal.SIGTERM)
+                    threading.Thread(target=_shutdown, daemon=True).start()
             # Pass the exception up and to the client
             raise RuntimeError("A worker process was terminated unexpectedly: server shutting down") from e
         except:
@@ -562,7 +573,7 @@ def main() -> None:
     def cleanup_and_exit(signum: int, _frame: Any) -> None:
         """Stop the ProcessPoolExecutor when receiving a signal, then re-send the signal."""
         print(f"Received signal {signum}, shutting down...")
-        executor.shutdown(wait=True, cancel_futures=True)
+        executor.shutdown(wait=False, cancel_futures=True)
         parser.exit(0)
 
     signal.signal(signal.SIGTERM, cleanup_and_exit)
