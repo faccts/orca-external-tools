@@ -20,12 +20,13 @@ import logging
 import os
 import signal
 import threading
+import time
 import traceback
 import typing
 from argparse import Action, ArgumentParser
 from collections import OrderedDict
 from collections.abc import Mapping, Sequence
-from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures import ProcessPoolExecutor, BrokenExecutor
 from contextlib import redirect_stdout
 from pathlib import Path
 from typing import Any
@@ -322,6 +323,19 @@ class OtoolServer:
             )
             # Will raise if the worker raised
             output = fut.result()
+        except BrokenExecutor as e:
+            # If a worker process gets killed, e.g. by the OS's OOM killer, the process pool gets broken
+            # and any subsequent requests will hang. The executor must be stopped and possibly restarted.
+            self.executor.shutdown(wait=True, cancel_futures=True)
+            # Since new requests are also likely to get killed, we just die completely.
+            # We need to do it asynchronously, so as not to leave and client requests hanging.
+            def _shutdown():
+                # Short delay to flush responses
+                time.sleep(0.5)
+                os.kill(os.getpid(), signal.SIGTERM)
+            threading.Thread(target=_shutdown, daemon=True).start()
+            # Pass the exception up and to the client
+            raise RuntimeError("A worker process was terminated unexpectedly: server shutting down") from e
         except:
             raise
         else:
