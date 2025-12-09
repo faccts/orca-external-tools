@@ -36,6 +36,7 @@ class Aimnet2Tests(unittest.TestCase):
         """
         Test starting the server
         """
+        print("Starting the server. A detailed server log can be found on file server.out")
         with open("server.out", "a") as f:
             cls.server = subprocess.Popen(
                 [aimnet2_server_path, "aimnet2", "--bind", id_port, "--nthreads", "2"],
@@ -51,6 +52,7 @@ class Aimnet2Tests(unittest.TestCase):
         """
         Shut the server at the end
         """
+        print("Killing the server.")
         os.killpg(os.getpgid(cls.server.pid), signal.SIGTERM)
         cls.server.wait(timeout=10)
 

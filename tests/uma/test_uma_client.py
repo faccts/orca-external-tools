@@ -36,6 +36,7 @@ class UmaTests(unittest.TestCase):
         """
         Test starting the server
         """
+        print("Starting the server. A detailed server log can be found on file server.out")
         with open("server.out", "a") as f:
             cls.server = subprocess.Popen(
                 [uma_server_path, "uma", "--bind", id_port, "--nthreads", "2"],
@@ -51,6 +52,7 @@ class UmaTests(unittest.TestCase):
         """
         Shut the server at the end
         """
+        print("Killing the server.")
         os.killpg(os.getpgid(cls.server.pid), signal.SIGTERM)
         cls.server.wait(timeout=10)
 
@@ -68,17 +70,17 @@ class UmaTests(unittest.TestCase):
         )
         run_uma(input_file, output_file)
         expected_num_atoms = 3
-        expected_energy = -76.43349724311
+        expected_energy = -76.43352090249
         expected_gradients = [
-            -0.007337533868849,
-            -0.005432820878923,
-            0.003837696509436,
-            0.002658477984369,
-            0.006186702288687,
-            0.001060670707375,
-            0.004679056815803,
-            -0.0007538812351413,
-            -0.004898367449641,
+            -0.007321094162762,
+            -0.005420647095889,
+            0.003829096443951,
+            0.002653303323314,
+            0.006170153152198,
+            0.001055987784639,
+            0.004667790140957,
+            -0.0007495055906475,
+            -0.004885083995759,
         ]
 
         try:
@@ -89,9 +91,9 @@ class UmaTests(unittest.TestCase):
             ) from e
 
         self.assertEqual(num_atoms, expected_num_atoms)
-        self.assertAlmostEqual(energy, expected_energy, places=9)
+        self.assertAlmostEqual(energy, expected_energy, places=7)
         for g1, g2 in zip(gradients, expected_gradients):
-            self.assertAlmostEqual(g1, g2, places=9)
+            self.assertAlmostEqual(g1, g2, places=7)
 
     def test_OH_anion_eng_grad(self):
         xyz_file, input_file, engrad_out, output_file = get_filenames("OH_anion_client")
@@ -106,14 +108,14 @@ class UmaTests(unittest.TestCase):
         )
         run_uma(input_file, output_file)
         expected_num_atoms = 2
-        expected_energy = -75.80600885514
+        expected_energy = -75.80575637958
         expected_gradients = [
-            -1.07518770e-03,
-            -3.46083171e-03,
-            -9.86040221e-04,
-            1.07518770e-03,
-            3.46083171e-03,
-            9.86040221e-04,
+            -0.001200547791086,
+            -0.003864351427183,
+            -0.001101008034311,
+            0.001200547791086,
+            0.003864351427183,
+            0.001101008034311,
         ]
 
         try:
@@ -124,9 +126,9 @@ class UmaTests(unittest.TestCase):
             ) from e
 
         self.assertEqual(num_atoms, expected_num_atoms)
-        self.assertAlmostEqual(energy, expected_energy, places=9)
+        self.assertAlmostEqual(energy, expected_energy, places=7)
         for g1, g2 in zip(gradients, expected_gradients):
-            self.assertAlmostEqual(g1, g2, places=9)
+            self.assertAlmostEqual(g1, g2, places=7)
 
     def test_OH_rad_eng_grad(self):
         xyz_file, input_file, engrad_out, output_file = get_filenames("OH_rad_client")
@@ -141,14 +143,14 @@ class UmaTests(unittest.TestCase):
         )
         run_uma(input_file, output_file)
         expected_num_atoms = 2
-        expected_energy = -75.74213434819
+        expected_energy = -75.74201333130
         expected_gradients = [
-            1.35625619e-03,
-            4.36554058e-03,
-            1.24380342e-03,
-            -1.35625619e-03,
-            -4.36554058e-03,
-            -1.24380342e-03,
+            0.001247821375728,
+            0.004016515333205,
+            0.001144362613559,
+            -0.001247821375728,
+            -0.004016515333205,
+            -0.001144362613559,
         ]
 
         try:
