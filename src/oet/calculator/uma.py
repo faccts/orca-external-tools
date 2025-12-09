@@ -79,7 +79,7 @@ class UmaCalc(BaseCalc):
             Device that should be used, e.g., cpu or cuda
         cache_dir: str
             Cache directory to read/write downloaded model files to
-        force: bool
+        force: bool, default = False
             Force re-initialization of the calculator, even if already initialized
         """
         if not self._calc or force:
@@ -115,7 +115,8 @@ class UmaCalc(BaseCalc):
 
         Returns
         -------
-        bool: True, if model files were found
+        bool
+            True, if model files were found
         """
         try:
             # First the model parameter
@@ -232,10 +233,10 @@ class UmaCalc(BaseCalc):
 
         Returns
         -------
-        energy : float
+        float
             The computed energy (Eh)
-        gradient : list[float]
-            Flattened gradient vector (Eh/Bohr), if computed, otherwise empty.
+        list[float]
+            Flattened gradient vector (Eh/Bohr), if computed, otherwise empty
         """
 
         # set the number of threads
@@ -284,8 +285,10 @@ class UmaCalc(BaseCalc):
 
         Returns
         -------
-        float: energy
-        list[float]: gradients
+        float
+            The computed energy (Eh)
+        list[float]
+            Flattened gradient vector (Eh/Bohr), if computed, otherwise empty
         """
         # Get the arguments parsed as defined in extend_parser
         param = args_parsed.get("param")

@@ -53,9 +53,9 @@ class XtbCalc(BaseCalc):
 
         Returns
         -------
-        energy: float
+        float
             The computed energy
-        gradient: list[float]
+        list[float]
             The gradient (X,Y,Z) for each atom
         """
         xtbgrad = f"{calc_data.basename}.gradient"
@@ -152,8 +152,10 @@ class XtbCalc(BaseCalc):
 
         Returns
         -------
-        float: energy
-        list[float]: gradients
+        float
+            The computed energy (Eh)
+        list[float]
+            Flattened gradient vector (Eh/Bohr), if computed, otherwise empty
         """
         # Get parsed options
         prog = args_parsed.get("prog")

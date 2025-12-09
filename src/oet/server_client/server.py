@@ -12,6 +12,9 @@ function: main
 
 from __future__ import annotations
 
+import argparse
+import concurrent
+import concurrent.futures
 import contextlib
 import gc
 import importlib
@@ -26,9 +29,10 @@ import typing
 from argparse import Action, ArgumentParser
 from collections import OrderedDict
 from collections.abc import Mapping, Sequence
-from concurrent.futures import ProcessPoolExecutor, BrokenExecutor
+from concurrent.futures import BrokenExecutor, ProcessPoolExecutor
 from contextlib import redirect_stdout
 from pathlib import Path
+from types import FrameType
 from typing import Any
 
 import psutil
@@ -55,6 +59,16 @@ _WORKER_CALC_CACHE: "OrderedDict[tuple[str, str, frozenset[tuple[str, Any]]], An
 def _pop_one_worker(protected_key: tuple[str, str, frozenset[tuple[str, Any]]] | None) -> bool:
     """
     Removes left most worker that isn't protected
+
+    Parameters
+    ----------
+    protected_key: tuple[str, str, frozenset[tuple[str, Any]]] | None
+        Protected keys that should not be deleted.
+
+    Returns
+    -------
+    bool
+        Whether a worker could be deleted or not.
     """
     for k in list(_WORKER_CALC_CACHE.keys()):
         if protected_key is not None and k == protected_key:
@@ -62,7 +76,7 @@ def _pop_one_worker(protected_key: tuple[str, str, frozenset[tuple[str, Any]]] |
             _WORKER_CALC_CACHE.move_to_end(k)
             continue
         _WORKER_CALC_CACHE.pop(k, None)
-        logging.debug(f"PID {os.getpid()}: Destroyed calculator with id: {k}")
+        logging.debug(f"PID {os.getpid()}: Deleted calculator with id: {k}")
         return True
     return False
 
@@ -71,8 +85,8 @@ def _evict_until_within_limits(
     mem_limit_mib: int, protected_key: tuple[str, str, frozenset[tuple[str, Any]]] | None
 ) -> None:
     """
-    Evict least-recently-used calculators until we satisfy the memory limit.
-    `protect_key` (if given) will not be evicted (we skip over it).
+    Evict least-recently-used calculators until the memory limit is satisfied.
+    `protect_key` (if given) will not be evicted (skip over it).
 
     Parameters
     ----------
@@ -84,7 +98,7 @@ def _evict_until_within_limits(
     # RSS-based eviction (only if we can read RSS and a limit is set)
     # Get memory usage in megabyte
     rss = psutil.Process(os.getpid()).memory_info().rss / (1024**2)
-    # Return iff memory can't be measured
+    # Return if memory can't be measured
     if rss is None:
         print("No memory use could be detected. Take care, memory usage might stack.")
         return
@@ -160,7 +174,7 @@ def _run_calc_in_process(
         logging.debug(f"PID {os.getpid()}: Initialized new calculator with id: {key}")
     else:
         logging.debug(f"PID {os.getpid()}: Using existing calculator with id: {key}")
-    # mark as most recently used (move it to the end of ordered dict)
+    # Mark as most recently used (move it to the end of ordered dict)
     _WORKER_CALC_CACHE.move_to_end(key)
 
     # Evict old entries if max memory is used, but never evict the one that is used
@@ -171,7 +185,7 @@ def _run_calc_in_process(
         with redirect_stdout(buf):
             calc.run(**run_kwargs)
     except Exception as e:
-        # attach STDOUT to the exception
+        # Attach STDOUT to the exception
         raise CalculatorRuntimeException(buf.getvalue()) from e
     return buf.getvalue()
 
@@ -293,7 +307,8 @@ class OtoolServer:
 
         Returns
         -------
-        dict[str, Any]: Message to be sent to client
+        dict[str, Any]
+            Message to be sent to client
         """
         # First, check if the executor was broken when handling another request and if so, bail out directly
         with self._executor_lock:
@@ -334,19 +349,23 @@ class OtoolServer:
         except BrokenExecutor as e:
             # If a worker process gets killed, e.g. by the OS's OOM killer, the process pool gets broken
             # and any subsequent requests will hang. The executor must be stopped and possibly restarted.
-            # We mark it as broken to prevent other requests from hanging.
+            # Mark it as broken to prevent other requests from hanging.
             with self._executor_lock:
                 if not self._executor_broken:
                     self._executor_broken = True
-                    # Since new requests are also likely to get killed, we just die completely.
-                    # We need to do it asynchronously, so as not to leave and client requests hanging.
-                    def _shutdown():
+
+                    # Since new requests are also likely to get killed, just kill the server completely.
+                    # No need to do it asynchronously, so as not to leave and client requests hanging.
+                    def _shutdown() -> None:
                         # Short delay to flush responses
                         time.sleep(0.5)
                         os.kill(os.getpid(), signal.SIGTERM)
+
                     threading.Thread(target=_shutdown, daemon=True).start()
             # Pass the exception up and to the client
-            raise RuntimeError("A worker process was terminated unexpectedly: server shutting down") from e
+            raise RuntimeError(
+                "A worker process was terminated unexpectedly: server shutting down"
+            ) from e
         except:
             raise
         else:
@@ -365,9 +384,12 @@ class OtoolServer:
 
         Returns
         -------
-        str: inputfile name
-        dict: parsed settings
-        list[str]: not parsed settings
+        str
+            inputfile name
+        dict
+            parsed settings
+        list[str]
+            not parsed settings
         """
         # First server-related settings
         parser = ArgumentParser(
@@ -468,7 +490,6 @@ def get_available_methods() -> list[str]:
     ):
         for method in CALCULATOR_CLASSES:
             try:
-                # TODO: should also make sure any external programs are installed
                 CalculatorClass(method)
             except BaseException:
                 pass
@@ -483,11 +504,45 @@ class PrintAvailableMethods(Action):
     def __call__(
         self,
         parser: ArgumentParser,
-        namespace: "Namespace",
-        values: str | Sequence[Any] | None,
-        option_string: str | None = None,
+        _: Namespace,
+        __: str | Sequence[Any] | None,
+        ___: str | None = None,
     ) -> None:
         parser.exit(0, "\n".join(get_available_methods()) + "\n")
+
+
+def cleanup_and_exit(
+    signum: int,
+    _: FrameType | None,
+    executor: concurrent.futures.ProcessPoolExecutor,
+    parser: argparse.ArgumentParser,
+) -> None:
+    """
+    Handle termination signals by shutting down the executor and exiting the process.
+
+    Parameters
+    ----------
+    signum : int
+        The signal number received by the handler (e.g., ``signal.SIGTERM``).
+    frame : FrameType or None
+        The current stack frame at the moment the signal was received, supplied
+        automatically by the Python signal machinery. Typically unused.
+    executor : concurrent.futures.ProcessPoolExecutor
+        The process pool executor whose worker processes should be terminated
+        cleanly before exiting.
+    parser : argparse.ArgumentParser
+        The argument parser whose ``exit()`` method is used to terminate the program.
+    """
+    print(f"PID {os.getpid()} received signal {signum}, shutting down...")
+    executor.shutdown(wait=False, cancel_futures=True)
+    parser.exit(0)
+
+
+def worker_initializer() -> None:
+    """Initialize a worker process by restoring default signal handling."""
+    signal.signal(signal.SIGTERM, signal.SIG_DFL)
+    signal.signal(signal.SIGINT, signal.SIG_DFL)
+    signal.signal(signal.SIGHUP, signal.SIG_DFL)
 
 
 def main() -> None:
@@ -559,23 +614,9 @@ def main() -> None:
     if ignored_args:
         logging.warning("The following arguments will be ignored: " + " ".join(ignored_args))
 
-    # Make sure to stop child processes on SIGTERM
-    def cleanup_and_exit(signum: int, _frame: Any) -> None:
-        """Stop the ProcessPoolExecutor when receiving a signal, then re-send the signal."""
-        print(f"PID {os.getpid()} received signal {signum}, shutting down...")
-        executor.shutdown(wait=False, cancel_futures=True)
-        parser.exit(0)
-
-    signal.signal(signal.SIGTERM, cleanup_and_exit)
-    signal.signal(signal.SIGINT, cleanup_and_exit)
-    signal.signal(signal.SIGHUP, cleanup_and_exit)
-
-    # `cleanup_and_exit` must NOT run on worker processes, otherwise the server hangs
-    def worker_initializer():
-        """Reset signal handling to default for worker processes."""
-        signal.signal(signal.SIGTERM, signal.SIG_DFL)
-        signal.signal(signal.SIGINT, signal.SIG_DFL)
-        signal.signal(signal.SIGHUP, signal.SIG_DFL)
+    signal.signal(signal.SIGTERM, lambda s, f: cleanup_and_exit(s, f, executor, parser))
+    signal.signal(signal.SIGINT, lambda s, f: cleanup_and_exit(s, f, executor, parser))
+    signal.signal(signal.SIGHUP, lambda s, f: cleanup_and_exit(s, f, executor, parser))
 
     # Create workers
     workers = args.nthreads

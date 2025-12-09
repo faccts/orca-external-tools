@@ -133,12 +133,10 @@ class AenetCalc(BaseCalc):
 
         Returns
         -------
-        energy: float
+        float
             The computed energy
-        gradient: list[float]
+        list[float]
             The gradient (X,Y,Z) for each atom
-        prog_out: str
-            Outputfile to read from
         """
         energy = None
         gradient = []
@@ -188,6 +186,13 @@ class AenetCalc(BaseCalc):
             Arguments parsed as defined in extend_parser
         args_not_parsed: list[str]
             Arguments not parsed so far
+
+        Returns
+        -------
+        float
+            The computed energy (Eh)
+        list[float]
+            Flattened gradient vector (Eh/Bohr), if computed, otherwise empty
         """
         # Get the arguments parsed as defined in extend_parser
         prog = args_parsed.get("prog")

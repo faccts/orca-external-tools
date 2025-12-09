@@ -80,7 +80,8 @@ class GxtbCalc(BaseCalc):
 
         Returns
         -------
-        Path: Path to the parameterfile
+        Path
+            Path to the parameterfile
         """
         # First the path given via cmd
         if file_path:
@@ -171,9 +172,9 @@ class GxtbCalc(BaseCalc):
 
         Returns
         -------
-        energy: float
+        float
             The computed energy
-        gradient: list[float]
+        list[float]
             The gradient (X,Y,Z) for each atom
         """
         energy = None
@@ -242,8 +243,10 @@ class GxtbCalc(BaseCalc):
 
         Returns
         -------
-        float: energy
-        list[float]: gradient; empty if not calculated
+        float
+            The computed energy (Eh)
+        list[float]
+            Flattened gradient vector (Eh/Bohr), if computed, otherwise empty.
         """
         # Get the arguments parsed as defined in extend_parser
         prog = args_parsed.get("prog")

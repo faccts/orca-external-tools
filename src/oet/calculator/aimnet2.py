@@ -80,7 +80,8 @@ class Aimnet2Calc(BaseCalc):
 
         Returns
         -------
-        AIMNet2Calculator: AIMNet2 calculator
+        AIMNet2Calculator
+            AIMNet2 calculator
         """
         return self._calc
 
@@ -120,7 +121,7 @@ class Aimnet2Calc(BaseCalc):
 
         Returns
         -------
-        model_path: Path
+        Path
             Full path to the model file
 
         Raises
@@ -192,10 +193,6 @@ class Aimnet2Calc(BaseCalc):
             Path to the model files
         device: str
             device to use
-
-        Returns
-        -------
-        dict: Arguments where all entries are removed that were processed
         """
         if not self._calc:
             # Sanitize the model path and fetch the actual file
@@ -249,7 +246,7 @@ class Aimnet2Calc(BaseCalc):
 
         Parameters
         ----------
-        symbol
+        symbol: str
             Element symbol, e.g. "Cl"
 
         Returns
@@ -328,11 +325,10 @@ class Aimnet2Calc(BaseCalc):
 
         Returns
         -------
-        tuple[float, list[float]]
-            energy : float
-                The computed energy (Eh)
-            gradient : list[float]
-                Flattened gradient vector (Eh/Bohr), if computed, otherwise empty.
+        float
+            The computed energy (Eh)
+        list[float]
+            Flattened gradient vector (Eh/Bohr), if computed, otherwise empty.
         """
 
         # set the number of threads
@@ -379,6 +375,13 @@ class Aimnet2Calc(BaseCalc):
             Arguments parsed as defined in extend_parser
         args_not_parsed: list[str]
             Arguments not parsed so far
+
+        Returns
+        -------
+        float
+            The computed energy (Eh)
+        list[float]
+            Flattened gradient vector (Eh/Bohr), if computed, otherwise empty
         """
         # Get the arguments parsed as defined in extend_parser
         model = args_parsed.get("model")

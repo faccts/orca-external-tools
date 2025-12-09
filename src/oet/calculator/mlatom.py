@@ -3,6 +3,7 @@
 This is a wrapper for MLatom (http://mlatom.com), compatible with ORCA's ExtTool interface.
 Implementation by Pavlo O. Dral (http://dr-dral.com) on 2025.05.04,
 based on the example https://github.com/ORCAQuantumChemistry/orca-external-tools/blob/71565ce53837d4d6bdedff71a1ff353f8a289b77/xtb.py
+and adapted by FACCTs GmbH on 2026.12.09.
 
 Usage instructions
 
@@ -107,9 +108,9 @@ class MlatomCalc(BaseCalc):
 
         Returns
         -------
-        energy: float
+        float
             The computed energy
-        gradient: list[float] | None
+        list[float] | None
             The gradient (X,Y,Z) for each atom
         """
         mlatomenergy = f"{calc_data.basename}.energy"
@@ -155,8 +156,10 @@ class MlatomCalc(BaseCalc):
 
         Returns
         -------
-        float: energy
-        list[float]: gradients
+        float
+            The computed energy (Eh)
+        list[float]
+            Flattened gradient vector (Eh/Bohr), if computed, otherwise empty.
         """
         # Get options that were parsed
         prog = args_parsed.get("prog")

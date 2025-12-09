@@ -130,8 +130,10 @@ class MopacCalc(BaseCalc):
 
         Returns
         -------
-        energy : The computed energy in Eh.
-        gradient : The gradient in Eh/Bohr (if computed), as a flat list of floats.
+        float
+            The computed energy in Eh.
+        list[float]
+            The gradient in Eh/Bohr (if computed), as a flat list of floats.
         """
         energy = None
         gradient: list[float] = []
@@ -181,9 +183,10 @@ class MopacCalc(BaseCalc):
 
         Returns
         -------
-        None : If energy was not found on file.
-        energy : The computed energy in Eh or None if not found
-        gradient : The gradient in Eh/Bohr (if computed and found on file), as a flat list of floats. Otherwise empty.
+        float | None
+            The computed energy in Eh if found on file.
+        list[float]
+            The gradient in Eh/Bohr (if computed and found on file), as a flat list of floats. Otherwise empty list.
         """
         energy = None
         gradient: list[float] = []
@@ -297,8 +300,10 @@ class MopacCalc(BaseCalc):
 
         Returns
         -------
-        float: energy
-        list[float]: gradients
+        float
+            The computed energy (Eh)
+        list[float]
+            Flattened gradient vector (Eh/Bohr), if computed, otherwise empty
         """
         # Get options that were parsed
         prog = args_parsed.get("prog")
