@@ -6,8 +6,33 @@ then pass this information back to ORCA for use in optimization, NEB, GOAT, MD, 
 
 ## Installation
 
-The scripts should be put in some directory and made executable.
-The interpreter required for each script (e.g. `python`) should be available the user environment.
+Use the `install.py` to install the scripts. 
+It will create a virtual environment, whose path should later on not be changed due to scripts linking the absolute path. 
+The installation name and path of the virtual environment can be set upon installation:
+
+```
+python install.py --venv-dir <path/to/venv/dir/>
+```
+
+If you want to use either AIMNet2 or UMA, you can add `-e aimnet2` or `-e uma` to additionally install the required dependencies. 
+As AIMNet2 and UMA require dependencies that are not compatible with each other, 
+we recommend creating separate installations for each by specifying different virtual environment and script directories.
+
+After installation, you should have a directory called `bin` (by default)
+which contains all wrapper scripts that are usable out of the box. 
+They may be moved and renamed freely as long as the original virtual environment stays in place. 
+You can also modify the path to these scripts upon installation with the `--script-dir path/to/scripts/` keyword. 
+If you want to have multiple installations, e.g., to use UMA as well as AIMNet2, 
+be careful to provide different script paths to avoid overwriting.
+
+The minimum Python version is currently 3.11.
+
+### Testing
+To test your installation, you can use the tests provided in the `tests` directory.
+There are different subdirectories depending on which interface you want to test.
+For testing, please activate the respective virtual `oet` environment that was installed with the `install.py` script, e. g., `source .venv/bin/activate`.
+Afterward, execute the `test_<interface>.py` script in the respective `tests` subdirectories.
+If you installed the scripts to a different directory, set the path to the script you want to test at the beginning of the `test_<interface>.py` file.
 
 ## Usage
 
@@ -18,7 +43,7 @@ Optional arguments are not supported, so additional wrappers or hard-coded modif
 
 ### ORCA 6
 In addition to the `otool_external` route which is backwards-compatible,
-it is also possible to set the full path to the chosen scipt via the environment variable `EXTOPTEXE`,
+it is also possible to set the full path to the chosen script via the environment variable `EXTOPTEXE`,
 or via the ORCA input:
 ``` 
 %method
@@ -26,6 +51,19 @@ or via the ORCA input:
   Ext_Params "optional command line arguments"
 end
 ```
+
+### Server
+For MLIPs like AIMNet2 and UMA, we recommend to use a server/client combination, 
+as the calculations will otherwise take significantly longer,
+due to heavy imports of dependencies like `torch`. 
+Therefore, start a calculation server with the `oet_server` script, e.g., `oet_server aimnet2`. 
+It will handle the single-point and gradient calculations and can remain active for multiple ORCA runs. 
+The number of cores it is allowed to use can be specified with `-n <integer>`. 
+In your ORCA input, you then have to specify the `oet_client` as `ProgExt`. 
+It will forward all the calculation requests to the server. 
+If you want to keep multiple servers running for different types of calculations, 
+you have to specify different ports for the server and clients with the `-b <hostname>:<port>` keyword. 
+Provide the keyword to the client via the ORCA input line `Ext_Params "-b <hostname>:<port>"`.
 
 ## Interface
 
@@ -94,17 +132,23 @@ depending on the type of job and ORCA output settings.
 
 # License
 ## Open Source License
-This open source project is released publicly under the following open source license: `GPL-3.0`. This license governs all public releases of the code and allows anyone to use, modify, and distribute the project freely, in accordance with its terms.
+This open source project is released publicly under the following open source license: `GPL-3.0`. 
+This license governs all public releases of the code and allows anyone to use, modify, 
+and distribute the project freely, in accordance with its terms.
 ## Proprietary License
-The program, including all contributions, may also be included in our proprietary software products under a commercial license. This enables us to:
+The program, including all contributions, may also be included in our proprietary software products under a commercial license. 
+This enables us to:
 - Combine open source and closed source components into a single product,
 - Offer the project under alternative licensing terms to customers with specific commercial needs,
 - Ensure open source compliance for all public parts, while simplifying license obligations in private or embedded distributions.
 
 ## Contributor License Agreement (CLA)
-To maintain this licensing model, all contributors must sign our Contributor License Agreement (CLA). This CLA is an adapted industry-standard CLA (Apache CLA) with minor modifications. By signing the CLA, you
+To maintain this licensing model, all contributors must sign our Contributor License Agreement (CLA). 
+This CLA is an adapted industry-standard CLA (Apache CLA) with minor modifications. 
+By signing the CLA, you
 - Retain ownership of your contributions,
-- Grant us a non-exclusive license to use, sublicense, relicense and distribute your contributions under both open source and proprietary terms.
+- Grant us a non-exclusive license to use, sublicense, relicense and distribute your contributions 
+  under both open source and proprietary terms.
 
 ## We use a two-part CLA system:
 - [Individual CLA (ICLA) for personal contributions](CLA.md),
