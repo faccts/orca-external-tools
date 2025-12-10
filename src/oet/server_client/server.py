@@ -22,6 +22,7 @@ import io
 import logging
 import os
 import signal
+import sys
 import threading
 import time
 import traceback
@@ -542,7 +543,8 @@ def worker_initializer() -> None:
     """Initialize a worker process by restoring default signal handling."""
     signal.signal(signal.SIGTERM, signal.SIG_DFL)
     signal.signal(signal.SIGINT, signal.SIG_DFL)
-    signal.signal(signal.SIGHUP, signal.SIG_DFL)
+    if sys.platform != "win32":
+        signal.signal(signal.SIGHUP, signal.SIG_DFL)
 
 
 def main() -> None:
@@ -616,7 +618,8 @@ def main() -> None:
 
     signal.signal(signal.SIGTERM, lambda s, f: cleanup_and_exit(s, f, executor, parser))
     signal.signal(signal.SIGINT, lambda s, f: cleanup_and_exit(s, f, executor, parser))
-    signal.signal(signal.SIGHUP, lambda s, f: cleanup_and_exit(s, f, executor, parser))
+    if sys.platform != "win32":
+        signal.signal(signal.SIGHUP, lambda s, f: cleanup_and_exit(s, f, executor, parser))
 
     # Create workers
     workers = args.nthreads
