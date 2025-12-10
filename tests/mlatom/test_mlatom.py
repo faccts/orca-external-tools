@@ -1,4 +1,5 @@
 import unittest
+
 import torchani
 
 from oet import ROOT_DIR
@@ -33,7 +34,7 @@ class MLatomTests(unittest.TestCase):
     def setUpClass(cls):
         # Force download / initialization of ANI-1ccx once
         torchani.models.ANI1ccx(periodic_table_index=True)
-        
+
     def test_H2O_engrad(self):
         xyz_file, input_file, engrad_out, output_file = get_filenames("H2O")
         write_xyz_file(xyz_file, WATER)
