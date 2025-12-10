@@ -1,0 +1,11 @@
+! extopt goat pal1
+%method
+  progext "../../maceclient.sh"
+  ext_params "-b 127.0.0.1:8888"
+end
+*xyz 0 1
+  O  0.000000  0.000000  0.000000
+  H  0.000000  0.000000  0.960000
+  H  0.000000  0.750000 -0.240000
+*
+
