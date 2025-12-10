@@ -3,6 +3,7 @@ import signal
 import subprocess
 import time
 import unittest
+from fairchem.core import pretrained_mlip
 
 from oet import ROOT_DIR
 from oet.core.test_utilities import (
@@ -19,6 +20,8 @@ uma_script_path = ROOT_DIR / "../../bin/oet_client"
 uma_server_path = ROOT_DIR / "../../bin/oet_server"
 # Default ID and port of server. Change if needed
 id_port = "127.0.0.1:9000"
+# UMA model to use
+uma_model = "uma-s-1p1"
 
 
 def run_uma(inputfile: str, output_file: str) -> None:
@@ -26,7 +29,7 @@ def run_uma(inputfile: str, output_file: str) -> None:
         inputfile=inputfile,
         script_path=uma_script_path,
         outfile=output_file,
-        args=["--bind", id_port],
+        args=["--bind", id_port, "--model", uma_model]
     )
 
 
@@ -36,6 +39,9 @@ class UmaTests(unittest.TestCase):
         """
         Test starting the server
         """
+        # Pre-download UMA model files
+        print("Checking the model files and downloading them if necessary.")
+        pretrained_mlip.get_predict_unit(uma_model, device="cpu")
         print("Starting the server. A detailed server log can be found on file server.out")
         with open("server.out", "a") as f:
             cls.server = subprocess.Popen(
