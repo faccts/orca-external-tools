@@ -4,9 +4,8 @@ import subprocess
 import time
 import unittest
 
-from fairchem.core import pretrained_mlip
-
 from oet import ROOT_DIR
+from oet.calculator.uma import DEFAULT_CACHE_DIR, UmaCalc
 from oet.core.test_utilities import (
     OH,
     WATER,
@@ -30,6 +29,25 @@ id_port = "127.0.0.1:9000"
 uma_model = "uma-s-1p1"
 
 
+def cache_model_files(
+    basemodel: str, param: str = "omol", device: str = "cpu", cache_dir: str = DEFAULT_CACHE_DIR
+) -> None:
+    """
+    Wrapper to set up an UMA calculator that downloads the model files into the same cache-directory used for actual oet calculations.
+
+    basemodel: str
+        Basemodel used to calculate the test cases
+    param: str, default: omol
+        Parameter set.
+    device str, default: cpu
+        Device used for the calculations.
+    cache_dir: str, default: DEFAULT_CACHE_DIR
+        The cache directory used to store the model data.
+    """
+    calculator = UmaCalc()
+    calculator.set_calculator(param=param, basemodel=basemodel, device=device, cache_dir=cache_dir)
+
+
 def run_uma(inputfile: str, output_file: str) -> None:
     run_wrapper(
         inputfile=inputfile,
@@ -48,8 +66,8 @@ class UmaTests(unittest.TestCase):
         # Pre-download UMA model files
         print("Checking the model files and downloading them if necessary.")
         # Make a timeout call to avoid hanging forever
-        get_pretrained_mlip_timeout = TimeoutCall(fn=pretrained_mlip.get_predict_unit)
-        ok, payload = get_pretrained_mlip_timeout(uma_model, timeout=timeout, device="cpu")
+        get_pretrained_mlip_timeout = TimeoutCall(fn=cache_model_files)
+        ok, payload = get_pretrained_mlip_timeout(uma_model, timeout=timeout)
         if not ok:
             if payload == TimeoutCallError.TIMEOUT:
                 print(

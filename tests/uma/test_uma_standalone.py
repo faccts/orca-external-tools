@@ -1,9 +1,12 @@
 import unittest
 
 from oet import ROOT_DIR
+from oet.calculator.uma import DEFAULT_CACHE_DIR, UmaCalc
 from oet.core.test_utilities import (
     OH,
     WATER,
+    TimeoutCall,
+    TimeoutCallError,
     get_filenames,
     read_result_file,
     run_wrapper,
@@ -13,6 +16,29 @@ from oet.core.test_utilities import (
 
 # Path to the script, adjust if needed.
 uma_script_path = ROOT_DIR / "../../bin/oet_uma"
+# Default maximum time (in sec) to download the model files if not present
+timeout = 600
+# UMA model to use
+uma_model = "uma-s-1p1"
+
+
+def cache_model_files(
+    basemodel: str, param: str = "omol", device: str = "cpu", cache_dir: str = DEFAULT_CACHE_DIR
+) -> None:
+    """
+    Wrapper to set up an UMA calculator that downloads the model files into the same cache-directory used for actual oet calculations.
+
+    basemodel: str
+        Basemodel used to calculate the test cases
+    param: str, default: omol
+        Parameter set.
+    device str, default: cpu
+        Device used for the calculations.
+    cache_dir: str, default: DEFAULT_CACHE_DIR
+        The cache directory used to store the model data.
+    """
+    calculator = UmaCalc()
+    calculator.set_calculator(param=param, basemodel=basemodel, device=device, cache_dir=cache_dir)
 
 
 def run_uma(inputfile: str, output_file: str) -> None:
@@ -20,6 +46,30 @@ def run_uma(inputfile: str, output_file: str) -> None:
 
 
 class UmaTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        """
+        Test starting the server
+        """
+        # Pre-download UMA model files
+        print("Checking the model files and downloading them if necessary.")
+        # Make a timeout call to avoid hanging forever
+        get_pretrained_mlip_timeout = TimeoutCall(fn=cache_model_files)
+        ok, payload = get_pretrained_mlip_timeout(uma_model, timeout=timeout)
+        if not ok:
+            if payload == TimeoutCallError.TIMEOUT:
+                print(
+                    "Loading the model files timed out. "
+                    "Please check your internet connection and consider increasing the time before timing out."
+                )
+                raise unittest.SkipTest("Timed out.")
+            if payload == TimeoutCallError.CRASH or payload == TimeoutCallError.ERROR:
+                print(
+                    "Loading the model files failed. Make sure that "
+                    "the virtual environment with UMA installed is active."
+                )
+                raise unittest.SkipTest("Loading failed.")
+
     def test_H2O_engrad(self):
         xyz_file, input_file, engrad_out, output_file = get_filenames("H2O")
 
