@@ -11,6 +11,7 @@ from oet.core.test_utilities import (
     write_xyz_file,
 )
 
+# Path to the scripts, adjust if needed.
 xtb_script_path = ROOT_DIR / "../../bin/oet_xtb"
 # Leave xtb_executable_path empty, if xtb from system path should be called
 xtb_executable_path = ""

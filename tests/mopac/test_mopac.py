@@ -11,6 +11,7 @@ from oet.core.test_utilities import (
     write_xyz_file,
 )
 
+# Path to the script, adjust if needed.
 mopac_script_path = ROOT_DIR / "../../bin/oet_mopac"
 # Leave moppac_executable_path empty, if mopac from system path should be called
 mopac_executable_path = ""

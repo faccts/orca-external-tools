@@ -6,6 +6,8 @@ from oet import ROOT_DIR
 from oet.core.test_utilities import (
     OH,
     WATER,
+    TimeoutCall,
+    TimeoutCallError,
     get_filenames,
     read_result_file,
     run_wrapper,
@@ -13,7 +15,10 @@ from oet.core.test_utilities import (
     write_xyz_file,
 )
 
+# Path to the script, adjust if needed.
 mlatom_script_path = ROOT_DIR / "../../bin/oet_mlatom"
+# Default maximum time (in sec) to download the model files if not present
+timeout = 300
 # Leave mlatom_executable_path empty, if mlatom from system path should be called
 mlatom_executable_path = ""
 
@@ -33,7 +38,23 @@ class MLatomTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         # Force download / initialization of ANI-1ccx once
-        torchani.models.ANI1ccx(periodic_table_index=True)
+        print("Checking the model files and downloading them if necessary.")
+        # Make a timeout call to avoid hanging forever
+        get_ani1ccx_timeout = TimeoutCall(fn=torchani.models.ANI1ccx)
+        ok, payload = get_ani1ccx_timeout(timeout=timeout, periodic_table_index=True)
+        if not ok:
+            if payload == TimeoutCallError.TIMEOUT:
+                print(
+                    "Loading the model files timed out. "
+                    "Please check your internet connection and consider increasing the time before timing out."
+                )
+                raise unittest.SkipTest("Timed out.")
+            if payload == TimeoutCallError.CRASH or payload == TimeoutCallError.ERROR:
+                print(
+                    "Loading the model files failed. Make sure that "
+                    "the virtual environment with MLAtoms installed is active."
+                )
+                raise unittest.SkipTest("Loading failed.")
 
     def test_H2O_engrad(self):
         xyz_file, input_file, engrad_out, output_file = get_filenames("H2O")

@@ -15,6 +15,7 @@ from oet.core.test_utilities import (
     write_xyz_file,
 )
 
+# Path to the scripts, adjust if needed.
 aimnet2_script_path = ROOT_DIR / "../../bin/oet_client"
 aimnet2_server_path = ROOT_DIR / "../../bin/oet_server"
 # Default ID and port of server. Change if needed

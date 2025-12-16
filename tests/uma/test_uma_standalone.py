@@ -11,6 +11,7 @@ from oet.core.test_utilities import (
     write_xyz_file,
 )
 
+# Path to the script, adjust if needed.
 uma_script_path = ROOT_DIR / "../../bin/oet_uma"
 
 
