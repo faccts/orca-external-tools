@@ -3,6 +3,9 @@ import os
 # > External packages
 import nox
 
+# > Ignore certain dirs
+ASSETS_DIR = "src/oet/assets"
+
 # > Making sure Nox session only see their packages and not any globally installed packages.
 os.environ.pop("PYTHONPATH", None)
 # > Hiding any virtual environments from outside.
@@ -37,7 +40,7 @@ nox.options.default_venv_backend = "venv"
 @nox.session(tags=["static_check"])
 def type_check(session):
     session.install(".[type-check]")
-    session.run("mypy")
+    session.run("mypy", "--exclude", f"^{ASSETS_DIR}/")
 
 
 # //////////////////////////////////////////////////
@@ -47,7 +50,7 @@ def type_check(session):
 def remove_unused_imports(session):
     session.install(".[lint]")
     # > Sorting imports with ruff instead of isort
-    session.run("ruff", "check", "--fix", "--select", "F401")
+    session.run("ruff", "check", "--fix", "--select", "F401", "--exclude", ASSETS_DIR)
 
 
 # //////////////////////////////////////////
@@ -57,7 +60,7 @@ def remove_unused_imports(session):
 def sort_imports(session):
     session.install(".[lint]")
     # > Sorting imports with ruff instead of isort
-    session.run("ruff", "check", "--fix", "--select", "I")
+    session.run("ruff", "check", "--fix", "--select", "I", "--exclude", ASSETS_DIR)
 
 
 # ////////////////////////////////////////
@@ -66,7 +69,7 @@ def sort_imports(session):
 @nox.session(tags=["style", "static_check"])
 def lint(session):
     session.install(".[lint]")
-    session.run("ruff", "check", "--fix")
+    session.run("ruff", "check", "--fix", "--exclude", ASSETS_DIR)
 
 
 # //////////////////////////////////////////
@@ -76,7 +79,7 @@ def lint(session):
 def format_code(session):
     # Installs the project + the "lint" extra into this nox venv using pip
     session.install(".[lint]")
-    session.run("ruff", "format")
+    session.run("ruff", "format", "--exclude", ASSETS_DIR)
 
 
 # ////////////////////////////////////////////////////
@@ -85,7 +88,7 @@ def format_code(session):
 @nox.session(tags=["static_check"])
 def spell_check(session):
     session.install(".[spell-check]")
-    session.run("codespell", "src/oet")
+    session.run("codespell", "src/oet", "--skip", ASSETS_DIR)
 
 
 # //////////////////////////////////////////////
@@ -94,4 +97,4 @@ def spell_check(session):
 @nox.session(tags=["static_check"], default=True)
 def dead_code(session):
     session.install(".[dead-code]")
-    session.run("vulture")
+    session.run("vulture", "src", "--exclude", ASSETS_DIR)

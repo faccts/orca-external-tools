@@ -2,8 +2,14 @@
 Utilities used in the test suite
 """
 
+import multiprocessing as mp
 import subprocess
+from enum import StrEnum
 from pathlib import Path
+from typing import TYPE_CHECKING, Any, Callable
+
+if TYPE_CHECKING:
+    from multiprocessing.queues import Queue
 
 WATER = [
     ("O", 0.0000, 0.0000, 0.0000),
@@ -195,3 +201,112 @@ def clear_files(basename: str) -> None:
     for f in dir_path.glob(basename + "*"):
         if f.is_file():
             f.unlink()  # remove file
+
+
+def _worker(
+    fn: Callable[..., Any], args: tuple[Any, ...], kwargs: dict[str, Any], q: "Queue[bool]"
+) -> None:
+    """
+    Helper for executing a function.
+
+    Parameters
+    ----------
+    fn: Callable[..., T]
+        Callable function that is executed.
+    args: tuple[Any]
+        Any positional arguments that are given to the function call.
+    kwargs: dict[str, Any]
+        Any keyword arguments that are given to the function call.
+    q: Queue[bool]
+        Queue used to put the function call.
+    """
+    try:
+        # Call the function
+        _ = fn(*args, **kwargs)
+        # Don't check what it did, just return ok, if the function didn't crash
+        q.put(True)
+    except Exception:
+        q.put(False)
+
+
+class TimeoutCallError(StrEnum):
+    """Possible errors that are returned by TimeoutCall"""
+
+    # Function timed out
+    TIMEOUT = "timeout"
+    # Function crashed
+    CRASH = "crash"
+    # General error
+    ERROR = "error"
+
+
+class TimeoutCall:
+    """
+    Class for calling a function with a certain timeout.
+    Useful for functions that, e.g., download files.
+    Doesn't return the result of the function as it might not be pickled.
+    """
+
+    def __init__(self, fn: Callable[..., Any]) -> None:
+        """
+        Initialization of the class.
+
+        Parameters
+        ----------
+        fn: Callable[..., T]
+            Callable function that is executed.
+        """
+        self.fn = fn
+        self.timed_out = False
+
+    def __call__(
+        self, *args: Any, timeout: float = 10, **kwargs: Any
+    ) -> tuple[bool, TimeoutCallError | None]:
+        """
+        Execute the function set in __init__ with the timeout defined there.
+
+        Parameters
+        ----------
+        args: Any
+            Any positional arguments that are given to the function call.
+        timeout: float, default: 10 sec.
+            Timeout in sec.
+        kwargs: Any
+            Any keyword arguments that are given to the function call.
+
+        Returns
+        -------
+        bool
+            True, if everything was ok. False otherwise.
+        TimeoutCallError | None
+            Either the error type if failed or None.
+        """
+
+        # Start process and wait the timeout
+        q: "Queue[bool]" = mp.Queue()
+        p: mp.Process = mp.Process(target=_worker, args=(self.fn, args, kwargs, q))
+        p.start()
+        p.join(timeout)
+
+        # Check if there was any error
+        if p.exitcode not in (0, None):
+            return False, TimeoutCallError.CRASH
+
+        # Check if the process is still alive. If yes, it has timed out.
+        if p.is_alive():
+            p.terminate()
+            p.join()
+            return False, TimeoutCallError.TIMEOUT
+
+        # Check if the worker provides the correct result
+        try:
+            status_ok = q.get(timeout=1)
+        except Exception:
+            return False, TimeoutCallError.CRASH
+
+        # Check if there was a general error
+        if not status_ok:
+            return False, TimeoutCallError.ERROR
+
+        # If everything went well, return True and no Error.
+        return True, None

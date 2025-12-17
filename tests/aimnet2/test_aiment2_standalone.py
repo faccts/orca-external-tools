@@ -11,6 +11,7 @@ from oet.core.test_utilities import (
     write_xyz_file,
 )
 
+# Path to the script, adjust if needed.
 aimnet2_script_path = ROOT_DIR / "../../bin/oet_aimnet2"
 
 
