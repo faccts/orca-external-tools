@@ -42,18 +42,25 @@ class MLatomTests(unittest.TestCase):
         # Make a timeout call to avoid hanging forever
         get_ani1ccx_timeout = TimeoutCall(fn=torchani.models.ANI1ccx)
         ok, payload = get_ani1ccx_timeout(timeout=timeout, periodic_table_index=True)
+        # Check if the model files could not be loaded
         if not ok:
+            # Timeout
             if payload == TimeoutCallError.TIMEOUT:
                 print(
                     "Loading the model files timed out. "
                     "Please check your internet connection and consider increasing the time before timing out."
                 )
                 raise unittest.SkipTest("Timed out.")
-            if payload == TimeoutCallError.CRASH or payload == TimeoutCallError.ERROR:
+            # General errors and crashes
+            elif payload == TimeoutCallError.CRASH or payload == TimeoutCallError.ERROR:
                 print(
                     "Loading the model files failed. Make sure that "
-                    "the virtual environment with MLAtoms installed is active."
+                    "the virtual environment with MLAtom installed is active."
                 )
+                raise unittest.SkipTest("Loading failed.")
+            # Unresolved error
+            else:
+                print("Could not load the model files.")
                 raise unittest.SkipTest("Loading failed.")
 
     def test_H2O_engrad(self):

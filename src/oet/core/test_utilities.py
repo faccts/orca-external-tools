@@ -308,5 +308,5 @@ class TimeoutCall:
         if not status_ok:
             return False, TimeoutCallError.ERROR
 
-        # If everything went well, return the function result.
+        # If everything went well, return True and no Error.
         return True, None
