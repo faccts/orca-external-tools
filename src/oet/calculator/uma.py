@@ -303,19 +303,23 @@ class UmaCalc(BaseCalc):
             or not isinstance(cache_dir, str)
         ):
             raise RuntimeError("Problems handling input parameters.")
-        # Check if we have the respective models stored locally in cache
-        # If so, switch to offline mode
-        if self.check_for_model_files(basemodel=basemodel, cache_dir=cache_dir):
-            print("Model parameters found in cache. Switching to offline mode.")
+        # Check if the model files are available
+        model_files_available = self.check_for_model_files(basemodel=basemodel, cache_dir=cache_dir)
+        # If they are available, switch to offline mode.
+        if model_files_available:
             self.switch_to_offline_mode()
-        # If set by the user, switch also to offline mode.
-        # This is a fallback, if online communication must be prevented.
-        if offline_mode:
+            print("Model files detected. Switching to offline mode.")
+        # If they are not available, but the user requested the offline mode to prevent online communication,
+        # print a warning as this will likely cause subsequent errors.
+        elif offline_mode:
             self.switch_to_offline_mode()
-            if self.check_for_model_files(basemodel=basemodel, cache_dir=cache_dir):
-                print(
-                    "WARNING: No model files were detected. This might lead to subsequent errors."
+            # Check if the model files are locally available. If not, subsequent errors will occur
+            # as they cannot be downloaded.
+            print(
+                    "WARNING: Offline mode selected, but no model files were detected. "
+                    "This will likely cause subsequent errors."
                 )
+
         # setup calculator if not already set
         # this is important as usage on a server would otherwise cause
         # initialization with every call so that nothing is gained

@@ -31,6 +31,7 @@ from argparse import Action, ArgumentParser
 from collections import OrderedDict
 from collections.abc import Mapping, Sequence
 from concurrent.futures import BrokenExecutor, ProcessPoolExecutor
+import multiprocessing as mp
 from contextlib import redirect_stdout
 from pathlib import Path
 from types import FrameType
@@ -623,8 +624,12 @@ def main() -> None:
 
     # Create workers
     workers = args.nthreads
+    # Use spawn start method so CUDA can be initialized safely in worker processes
+    mp_ctx = mp.get_context("spawn")
     # Initialize the ProcessPool
-    executor = ProcessPoolExecutor(max_workers=workers, initializer=worker_initializer)
+    executor = ProcessPoolExecutor(
+        max_workers=workers, initializer=worker_initializer, mp_context=mp_ctx
+    )
 
     # Make a CalculatorClass getting the hooks on calculators argument parsing
     # Info on calculator type is store in the object for client requests
