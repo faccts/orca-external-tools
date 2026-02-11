@@ -1,1 +1,2 @@
+setuptools<82.0.0
 fairchem-core>=2.2.0
