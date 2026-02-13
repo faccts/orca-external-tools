@@ -1,0 +1,11 @@
+! extopt goat pal1
+%method
+  progext "../../mace.sh"
+  ext_params "-s omol -m /abs/path/to/your/MACE-omol-custom.model --default-dtype float64 --device cpu"
+end
+*xyz 0 1
+  O  0.000000  0.000000  0.000000
+  H  0.000000  0.000000  0.960000
+  H  0.000000  0.750000 -0.240000
+*
+
