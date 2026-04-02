@@ -49,6 +49,7 @@ packages = ["src/oet"]
 oet_aenet = "oet.calculator.aenet:main"
 oet_aimnet2 = "oet.calculator.aimnet2:main"
 oet_gxtb = "oet.calculator.gxtb:main"
+oet_mace = "oet.calculator.mace:main"
 oet_mlatom = "oet.calculator.mlatom:main"
 oet_mopac = "oet.calculator.mopac:main"
 oet_uma = "oet.calculator.uma:main"
@@ -101,6 +102,7 @@ module = [
   "fairchem.core", "fairchem.core.*",
   "ase", "ase.*",
   "huggingface_hub", "huggingface_hub.*",
+  "mace", "mace.*",
 ]
 ignore_missing_imports = true
 
