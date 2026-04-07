@@ -20,6 +20,7 @@ import gc
 import importlib
 import io
 import logging
+import multiprocessing as mp
 import os
 import signal
 import sys
@@ -31,7 +32,6 @@ from argparse import Action, ArgumentParser
 from collections import OrderedDict
 from collections.abc import Mapping, Sequence
 from concurrent.futures import BrokenExecutor, ProcessPoolExecutor
-import multiprocessing as mp
 from contextlib import redirect_stdout
 from pathlib import Path
 from types import FrameType
