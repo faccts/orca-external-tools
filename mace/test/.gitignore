@@ -1,0 +1,16 @@
+# Cache folder for test artifacts
+.cache/
+
+# ORCA + wrapper outputs
+*.out
+*.serverout
+*.lastext
+*.engrad
+*.extinp.tmp
+*.tmp
+pid.txt
+s.out
+
+# Generated XYZ files from ORCA (tracked inputs remain tracked)
+*.xyz
+
