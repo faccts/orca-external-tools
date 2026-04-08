@@ -134,12 +134,14 @@ class Aimnet2Calc(BaseCalc):
             return model_path
         # `model` must be the name of a model
         else:
-            # check aliases
+            # Check aliases
+            # First, check if the model is available in the registry. If not, assume it is a
+            # filename and treat it as is.
             model_registry = load_model_registry()
             if model in model_registry["aliases"]:
                 model_file = model_registry["aliases"][model]
             else:
-                raise ValueError(f"Model {model} not found in the registry.")
+                model_file = model
             # add jpt extension if not already present
             if not model_file.endswith(".jpt"):
                 model_file += ".jpt"
@@ -214,9 +216,12 @@ class Aimnet2Calc(BaseCalc):
             type=str,
             dest="model",
             default="aimnet2",
-            help="The AIMNet2 model name or file name or absolute path. "
+            help="The AIMNet2 model name, file name, or absolute path. "
             "If an absolute path is given, the file must exist. "
             "Otherwise, it will be downloaded to DIR if necessary. "
+            "Please note that there exists different models, e.g., `aimnet2nse` "
+            "designed for open-shell systems. "
+            "that is recommended for open-shell/radical chemistry. "
             'Default: "aimnet2".',
         )
         parser.add_argument(
