@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Calculator for using AIMNet2 (https://github.com/isayevlab/AIMNet2),
+Calculator for using AIMNet2 (https://github.com/isayevlab/aimnetcentral),
 compatible with ORCA's ExtTool interface.
 
 Provides
@@ -13,7 +13,6 @@ main: function
 
 import shutil
 import sys
-import warnings
 from argparse import ArgumentParser
 from pathlib import Path
 from typing import Any
@@ -25,20 +24,16 @@ from oet.core.base_calc import BaseCalc, CalculationData
 from oet.core.misc import ENERGY_CONVERSION, LENGTH_CONVERSION, xyzfile_to_at_coord
 
 try:
-    # Suppress PySisyphus missing warning
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
-        from aimnet2calc import AIMNet2Calculator
-        from aimnet2calc.models import get_model_path, model_registry_aliases
-except ImportError:
+    from aimnet.calculators import AIMNet2Calculator
+    from aimnet.calculators.model_registry import get_model_path, load_model_registry
+except ImportError as err:
     print(
-        "[MISSING] Required module aimnet2calc not found.\n"
+        f"[MISSING] Required module aimnet not found: {err}.\n"
         "Please install the packages in the virtual environment.\n"
         "Therefore, activate the venv, got to the orca-external-tools "
         "main directory and use pip install -r requirements/aimnet2.txt"
     )
     sys.exit(1)
-
 try:
     import torch
 except ImportError as e:
@@ -65,6 +60,7 @@ class Aimnet2Calc(BaseCalc):
         "As": 33,
         "Se": 34,
         "Br": 35,
+        "Pd": 46,
         "I": 53,
     }
 
@@ -138,8 +134,14 @@ class Aimnet2Calc(BaseCalc):
             return model_path
         # `model` must be the name of a model
         else:
-            # check aliases
-            model_file = model_registry_aliases.get(model, model)
+            # Check aliases
+            # First, check if the model is available in the registry. If not, assume it is a
+            # filename and treat it as is.
+            model_registry = load_model_registry()
+            if model in model_registry["aliases"]:
+                model_file = model_registry["aliases"][model]
+            else:
+                model_file = model
             # add jpt extension if not already present
             if not model_file.endswith(".jpt"):
                 model_file += ".jpt"
@@ -213,11 +215,14 @@ class Aimnet2Calc(BaseCalc):
             "--model",
             type=str,
             dest="model",
-            default="aimnet2_wb97m",
-            help="The AIMNet2 model name or file name or absolute path. "
-            "If an absolute path is given, the file must exist. "
-            "Otherwise, it will be downloaded to DIR if necessary. "
-            'Default: "aimnet2_wb97m".',
+            default="aimnet2",
+            help="The AIMNet2 model name, file name, or absolute path. "
+            "If an absolute path is given, the file must exist locally. "
+            "Otherwise, the model will be downloaded to DIR if needed. "
+            "Note that different models are available. For example, `aimnet2nse` "
+            "is designed for open-shell/radical systems, such as those occurring in "
+            "transition states during bond breaking or formation. "
+            'Default: "aimnet2".',
         )
         parser.add_argument(
             "-p",

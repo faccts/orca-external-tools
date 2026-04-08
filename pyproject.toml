@@ -93,7 +93,7 @@ plugins = ['pydantic.mypy']
 
 [[tool.mypy.overrides]]
 module = [
-  "aimnet2calc", "aimnet2calc.*",
+  "aimnet", "aimnet.*",
   "torch", "torch.*",
   "fairchem.core", "fairchem.core.*",
   "ase", "ase.*",

@@ -316,9 +316,9 @@ class UmaCalc(BaseCalc):
             # Check if the model files are locally available. If not, subsequent errors will occur
             # as they cannot be downloaded.
             print(
-                    "WARNING: Offline mode selected, but no model files were detected. "
-                    "This will likely cause subsequent errors."
-                )
+                "WARNING: Offline mode selected, but no model files were detected. "
+                "This will likely cause subsequent errors."
+            )
 
         # setup calculator if not already set
         # this is important as usage on a server would otherwise cause
