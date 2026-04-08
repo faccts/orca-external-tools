@@ -217,11 +217,11 @@ class Aimnet2Calc(BaseCalc):
             dest="model",
             default="aimnet2",
             help="The AIMNet2 model name, file name, or absolute path. "
-            "If an absolute path is given, the file must exist. "
-            "Otherwise, it will be downloaded to DIR if necessary. "
-            "Please note that there exists different models, e.g., `aimnet2nse` "
-            "designed for open-shell systems. "
-            "that is recommended for open-shell/radical chemistry. "
+            "If an absolute path is given, the file must exist locally. "
+            "Otherwise, the model will be downloaded to DIR if needed. "
+            "Note that different models are available. For example, `aimnet2nse` "
+            "is designed for open-shell/radical systems, such as those occurring in "
+            "transition states during bond breaking or formation. "
             'Default: "aimnet2".',
         )
         parser.add_argument(
