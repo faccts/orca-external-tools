@@ -113,7 +113,10 @@ class XtbCalc(BaseCalc):
         calc_data: CalculationData
             Object with calculation data for the run
         """
-        args += [
+        # Set up a list of command-line arguments for the xtb program.
+        # For the xtb package, not all additional command-line arguments (e.g., specifying a solvation model)
+        # can be passed before the structure input, so pass the additional args at the end.
+        args = [
             str(i)
             for i in [
                 calc_data.xyzfile,
@@ -124,7 +127,7 @@ class XtbCalc(BaseCalc):
                 "--namespace",
                 calc_data.basename,
             ]
-        ]
+        ] + args
         nue = mult_to_nue(calc_data.mult)
         if nue:
             args += ["-u", str(nue)]
