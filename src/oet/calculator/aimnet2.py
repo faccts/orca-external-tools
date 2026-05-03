@@ -13,6 +13,7 @@ main: function
 
 import shutil
 import sys
+import warnings
 from argparse import ArgumentParser
 from pathlib import Path
 from typing import Any
@@ -43,32 +44,41 @@ except ImportError as e:
 
 DEFAULT_MODEL_PATH = ASSETS_DIR / "aimnet2"
 
+# Periodic table for symbol→Z conversion.
+# Per-model element rejection is delegated to AIMNet2Calculator.eval()
+# against model.metadata["implemented_species"].
+_PERIODIC_TABLE: tuple[str, ...] = (
+    "H",  "He",
+    "Li", "Be", "B",  "C",  "N",  "O",  "F",  "Ne",
+    "Na", "Mg", "Al", "Si", "P",  "S",  "Cl", "Ar",
+    "K",  "Ca", "Sc", "Ti", "V",  "Cr", "Mn", "Fe", "Co", "Ni",
+                "Cu", "Zn", "Ga", "Ge", "As", "Se", "Br", "Kr",
+    "Rb", "Sr", "Y",  "Zr", "Nb", "Mo", "Tc", "Ru", "Rh", "Pd",
+                "Ag", "Cd", "In", "Sn", "Sb", "Te", "I",  "Xe",
+    "Cs", "Ba",
+    "La", "Ce", "Pr", "Nd", "Pm", "Sm", "Eu", "Gd", "Tb", "Dy", "Ho", "Er", "Tm", "Yb", "Lu",
+    "Hf", "Ta", "W",  "Re", "Os", "Ir", "Pt", "Au", "Hg", "Tl", "Pb", "Bi", "Po", "At", "Rn",
+    "Fr", "Ra",
+    "Ac", "Th", "Pa", "U",  "Np", "Pu", "Am", "Cm", "Bk", "Cf", "Es", "Fm", "Md", "No", "Lr",
+    "Rf", "Db", "Sg", "Bh", "Hs", "Mt", "Ds", "Rg", "Cn", "Nh", "Fl", "Mc", "Lv", "Ts", "Og",
+)
+assert len(_PERIODIC_TABLE) == 118, f"expected 118 elements, got {len(_PERIODIC_TABLE)}"
+_SYMBOL_TO_Z: dict[str, int] = {sym: i + 1 for i, sym in enumerate(_PERIODIC_TABLE)}
+
 
 class Aimnet2Calc(BaseCalc):
-    # Elements covered by AIMNet2
-    ELEMENT_TO_ATOMIC_NUMBER = {
-        "H": 1,
-        "B": 5,
-        "C": 6,
-        "N": 7,
-        "O": 8,
-        "F": 9,
-        "Si": 14,
-        "P": 15,
-        "S": 16,
-        "Cl": 17,
-        "As": 33,
-        "Se": 34,
-        "Br": 35,
-        "Pd": 46,
-        "I": 53,
+    """ORCA ExtTool calculator backed by AIMNet2 (aimnet>=0.2,<0.3)."""
+
+    # Wired into extend_parser's choices=, single source of truth.
+    _SUPPORTED_DEVICES: tuple[str, ...] = ("cpu", "cuda", "auto")
+    _COULOMB_METHODS: tuple[str, ...] = ("simple", "dsf", "ewald")
+    # Single source of truth for tri-state choices AND value translation.
+    _TRISTATE_MAP: dict[str, bool | None] = {
+        "auto": None, "on": True, "off": False,
     }
 
-    # Supported devices
-    supported_devices = ("cpu", "cuda", "auto")
-
-    # AIMNet2 calculator used to compute energy and grad
     _calc: AIMNet2Calculator | None = None
+    _setup_args: frozenset | None = None
 
     def get_calculator(self) -> AIMNet2Calculator:
         """
@@ -81,26 +91,6 @@ class Aimnet2Calc(BaseCalc):
         """
         return self._calc
 
-    def set_calculator(self, model: str, device: str) -> None:
-        """
-        Set the calculator
-
-        Parameters
-        ----------
-        model: str
-            Model of the calculator
-        device: str
-            device to use
-        """
-        if device == "cpu":
-            # Monkey-patch torch.cuda.is_available() to return False
-            # Another way to do it would be to set CUDA_VISIBLE_DEVICES="" *before* the initial import of torch
-            # Ideally, AIMNet2Calculator would just have an extra argument for this.
-            torch.cuda.is_available = lambda: False
-        elif device == "cuda" and not torch.cuda.is_available():
-            raise RuntimeError("CUDA requested but not available")
-        self._calc = AIMNet2Calculator(model=model)
-
     @staticmethod
     def get_model_file(model: str, model_dir: str) -> Path:
         """
@@ -111,7 +101,7 @@ class Aimnet2Calc(BaseCalc):
         Parameters
         ----------
         model
-            Model name, e.g. "aimnet2_wb97m", or filename, e.g. "aimnet2_wb97m_0.jpt", or absolute path
+            Model name, e.g. "aimnet2", or filename, e.g. "aimnet2-wb97m-d3_0.pt", or absolute path
         model_dir
             directory to look for or store model file
 
@@ -125,7 +115,7 @@ class Aimnet2Calc(BaseCalc):
         FileNotFoundError
             If the model file is given by absolute path and does not exist
         FileExistsError
-            If `model_dir` exists but is not a directory or `model_path` exists but is not a file
+            If `model_dir` exists but is not a directory or `cached_path` exists but is not a file
         """
         # Check if `model` is already an absolute path
         if (model_path := Path(model)).is_absolute():
@@ -136,136 +126,371 @@ class Aimnet2Calc(BaseCalc):
         else:
             # Check aliases
             # First, check if the model is available in the registry. If not, assume it is a
-            # filename and treat it as is.
+            # filename and treat it as is. The upstream resolver knows the canonical filename
+            # (including extension), so we do not append one here.
             model_registry = load_model_registry()
             if model in model_registry["aliases"]:
                 model_file = model_registry["aliases"][model]
             else:
                 model_file = model
-            # add jpt extension if not already present
-            if not model_file.endswith(".jpt"):
-                model_file += ".jpt"
-            # strip any directories
-            model_file = Path(model_file).name
+            # strip any directories for the local cache lookup
+            model_basename = Path(model_file).name
             # make sure the directory exists
-            model_path = Path(model_dir)
-            if model_path.exists() and not model_path.is_dir():
+            model_dir_path = Path(model_dir)
+            if model_dir_path.exists() and not model_dir_path.is_dir():
                 raise FileExistsError(f'Path "{model_dir}" exists but is not a directory')
-            model_path.mkdir(parents=True, exist_ok=True)
-            # construct the full path
-            model_path = model_path / model_file
-            # if the file exists, pass the path to `get_model_path`
-            if model_path.exists():
-                if model_path.is_file():
-                    model = str(model_path)
+            model_dir_path.mkdir(parents=True, exist_ok=True)
+            # if a cached file with the same basename already exists, hand it to `get_model_path`
+            cached_path = model_dir_path / model_basename
+            if cached_path.exists():
+                if cached_path.is_file():
+                    model = str(cached_path)
                 else:
-                    raise FileExistsError(f'Path "{model_path}" exists but is not a file')
+                    raise FileExistsError(f'Path "{cached_path}" exists but is not a file')
             # obtain the file from AIMNet2
             try:
                 actual_path = Path(get_model_path(model))
             except HTTPError as e:
-                # If the URL is not found, it's possible the user requested, e.g. "aimnet2_wb97m_1.jpt"
-                # This is actually under "aimnet2/aimnet2_wb97m_1.jpt" and also not in the `model_registry_aliases`
+                # If the URL is not found, it's possible the user requested, e.g. "aimnet2_wb97m_1"
+                # This is actually under "aimnet2/aimnet2_wb97m_1" and also not in the `model_registry_aliases`
                 if "/" not in model:
                     # look for "aimnet2_..." under "aimnet2/aimnet2_..."
                     model_subdir = model.split("_")[0] + "/" + model
                     print(
                         f'Failed to find model "{model}" at URL: {e.response.url}\n'
-                        f'Trying again with model name "model_subdir"',
+                        f'Trying again with model name "{model_subdir}"',
                         file=sys.stderr,
                     )
                     actual_path = Path(get_model_path(model_subdir))
                 else:
                     raise e
-            # move it to the correct destination for subsequent runs
-            if not (model_path.exists() and model_path.samefile(actual_path)):
-                shutil.move(actual_path, model_path)
+            # The resolver returns the canonical filename (including its extension).
+            # Place it under `model_dir` using that filename for subsequent runs.
+            final_path = model_dir_path / actual_path.name
+            if not (final_path.exists() and final_path.samefile(actual_path)):
+                shutil.move(actual_path, final_path)
             # finally return the path
-            return model_path
+            return final_path
 
-    def setup(self, model: str, model_dir: str, device: str) -> None:
-        """
-        Sets the calculator. Does nothing, if it is already set.
+    def setup(
+        self,
+        model: str,
+        model_dir: str,
+        device: str | None,
+        ncores: int,
+        *,
+        compile_model: bool = False,
+        nb_threshold: int = 120,
+        ensemble_member: int = 0,
+        coulomb: str = "auto",
+        dispersion: str = "auto",
+        coulomb_method: str | None = None,
+        coulomb_cutoff: float = 15.0,
+        dftd3_cutoff: float | None = None,
+        dftd3_smoothing_fraction: float | None = None,
+    ) -> None:
+        """Construct the calculator + apply post-ctor configuration.
 
-        Parameters
-        ----------
-        model: str
-            Model that the calculator should have
-        model_dir: str
-            Path to the model files
-        device: str
-            device to use
+        First call wins: subsequent calls with the same args are a no-op;
+        calls with different args raise (server cache is responsible for
+        keying on args, so a single Aimnet2Calc instance only ever sees
+        one configuration). Per-call work belongs in run_aimnet2.
         """
-        if not self._calc:
-            # Sanitize the model path and fetch the actual file
-            model_path = str(self.get_model_file(model, model_dir))
-            self.set_calculator(model=model_path, device=device)
+        # Validate device availability BEFORE the cache short-circuit so
+        # a cached CPU calc does not silently service a --device cuda
+        # request on a no-CUDA box.
+        if device == "cuda" and not torch.cuda.is_available():
+            raise RuntimeError("CUDA requested but not available")
+
+        # Normalize device for storage so "auto" and None compare equal
+        # in the args-match check below (both resolve to None upstream).
+        device_arg = None if device == "auto" else device
+
+        # Args-match short-circuit (uses normalized device).
+        # frozenset of items (not tuple) so adding a new kwarg doesn't
+        # require editing positional indices everywhere.
+        new_args = frozenset({
+            "model": model,
+            "model_dir": model_dir,
+            "device": device_arg,
+            "ncores": ncores,
+            "compile_model": compile_model,
+            "nb_threshold": nb_threshold,
+            "ensemble_member": ensemble_member,
+            "coulomb": coulomb,
+            "dispersion": dispersion,
+            "coulomb_method": coulomb_method,
+            "coulomb_cutoff": coulomb_cutoff,
+            "dftd3_cutoff": dftd3_cutoff,
+            "dftd3_smoothing_fraction": dftd3_smoothing_fraction,
+        }.items())
+        if self._calc is not None:
+            if new_args == self._setup_args:
+                return
+            raise RuntimeError(
+                "Aimnet2Calc.setup() called with different args than the "
+                "cached calculator. Server-mode callers must key the cache "
+                "on setup args."
+            )
+
+        # Validate string-choice args with helpful error messages
+        # (argparse normally enforces this for CLI users, but direct-API
+        # callers benefit from the early check too).
+        for arg_name, arg_val, allowed in (
+            ("coulomb", coulomb, tuple(self._TRISTATE_MAP)),
+            ("dispersion", dispersion, tuple(self._TRISTATE_MAP)),
+        ):
+            if arg_val not in allowed:
+                raise ValueError(
+                    f"setup(): {arg_name}={arg_val!r} not in {allowed}"
+                )
+        if coulomb_method is not None and coulomb_method not in self._COULOMB_METHODS:
+            raise ValueError(
+                f"setup(): coulomb_method={coulomb_method!r} not in "
+                f"{self._COULOMB_METHODS}"
+            )
+
+        # When coulomb_method=='simple', the cutoff is meaningless (simple has
+        # no cutoff in the upstream LR module). Warn loudly so users don't
+        # think a custom value applies.
+        if coulomb_method == "simple" and coulomb_cutoff != 15.0:
+            warnings.warn(
+                f"--coulomb-cutoff={coulomb_cutoff} is ignored when "
+                "--coulomb-method=simple (simple Coulomb has no cutoff; "
+                "cutoff applies only to dsf/ewald methods).",
+                UserWarning,
+                stacklevel=2,
+            )
+
+        model_path = str(self.get_model_file(model, model_dir))
+
+        # Warn if user picked aimnet2-pd: it carries baked-in CPCM/THF
+        # solvation, so energies are NOT gas-phase. Easy to miss from the
+        # README alone.
+        model_path_lower = Path(model_path).stem.lower()
+        if (
+            "aimnet2-pd" in model_path_lower
+            or "aimnet2_pd" in model_path_lower
+        ):
+            warnings.warn(
+                "aimnet2-pd embeds B97-3c with implicit CPCM/THF solvation; "
+                "energies are NOT gas-phase. Do not mix aimnet2-pd energies "
+                "with any other family.",
+                UserWarning,
+                stacklevel=2,
+            )
+
+        # Translate tri-state values for upstream ctor.
+        nc = self._TRISTATE_MAP[coulomb]
+        nd = self._TRISTATE_MAP[dispersion]
+
+        self._calc = AIMNet2Calculator(
+            model_path,
+            nb_threshold=nb_threshold,
+            needs_coulomb=nc,
+            needs_dispersion=nd,
+            device=device_arg,
+            compile_model=compile_model,
+            ensemble_member=ensemble_member,
+        )
+
+        # Post-ctor configuration. If any of these raise, roll back via
+        # release() so device-resident tensors that the ctor moved to CUDA
+        # are walked back to CPU before the reference is dropped (otherwise
+        # a repeat-bad-config server loop accumulates VRAM).
+        try:
+            # Skip cutoff for "simple" mode (no upstream cutoff parameter).
+            if coulomb_method is not None:
+                if coulomb_method == "simple":
+                    self._calc.set_lrcoulomb_method(coulomb_method)
+                else:
+                    self._calc.set_lrcoulomb_method(coulomb_method, cutoff=coulomb_cutoff)
+
+            if dftd3_cutoff is not None or dftd3_smoothing_fraction is not None:
+                self._calc.set_dftd3_cutoff(dftd3_cutoff, dftd3_smoothing_fraction)
+
+            # Process-wide thread setting; one-shot here, never per-call.
+            torch.set_num_threads(ncores)
+        except Exception:
+            self.release()
+            raise
+
+        self._setup_args = new_args
+
+    def release(self) -> None:
+        """Release device-side resources held by the cached calculator.
+
+        Server-mode callers (sibling PR
+        2026-04-26-oet-server-vram-eviction-design.md) invoke this before
+        evicting a cached calculator from the worker cache to reclaim GPU
+        memory. Until that sibling PR lands, this method has no live caller.
+
+        NOTE: torch.cuda.empty_cache() returns memory to PyTorch's caching
+        allocator, not to the OS — nvidia-smi reservation does not drop.
+        Compiled models (compile_model=True) keep Inductor kernel artifacts
+        in process-global state that .to('cpu') + empty_cache() cannot
+        reclaim; only torch._dynamo.reset() can, and that would invalidate
+        every other compiled module in the process.
+        """
+        if self._calc is not None:
+            for component_name in ("model", "external_coulomb", "external_dftd3"):
+                component = getattr(self._calc, component_name, None)
+                if component is None:
+                    continue
+                try:
+                    component.to("cpu")
+                except Exception as e:
+                    # Don't let a partial-cleanup failure cascade into the
+                    # server's eviction logic, but log so silent VRAM leaks
+                    # are debuggable.
+                    print(
+                        f"Aimnet2Calc.release(): failed to move {component_name} to cpu: {e!r}",
+                        file=sys.stderr,
+                    )
+            self._calc = None
+            self._setup_args = None
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
 
     @classmethod
     def extend_parser(cls, parser: ArgumentParser) -> None:
-        """Add AimNet2 parsing options.
+        """Add AIMNet2 v0.2 options to an argument parser.
 
-        Parameters
-        ----------
-        parser: ArgumentParser
-            Parser that should be extended
+        The same parser is used by both the standalone `oet_aimnet2` CLI
+        and by `oet_server aimnet2` (server.py:278 calls extend_parser to
+        build its CLI), so flags propagate to server mode automatically.
         """
+        # --- model selection ---------------------------------------------
         parser.add_argument(
-            "-m",
-            "--model",
+            "-m", "--model",
             type=str,
             dest="model",
             default="aimnet2",
-            help="The AIMNet2 model name, file name, or absolute path. "
-            "If an absolute path is given, the file must exist locally. "
-            "Otherwise, the model will be downloaded to DIR if needed. "
-            "Note that different models are available. For example, `aimnet2nse` "
-            "is designed for open-shell/radical systems, such as those occurring in "
-            "transition states during bond breaking or formation. "
-            'Default: "aimnet2".',
+            help=(
+                "Model name (registry alias e.g. aimnet2, aimnet2-2025, "
+                "aimnet2-nse, aimnet2-rxn, aimnet2-pd), canonical key "
+                "(e.g. aimnet2-wb97m-d3_0), HuggingFace repo id, or "
+                "absolute local path to a .pt file. "
+                "Default: aimnet2 (= aimnet2-wb97m-d3_0). "
+                "For non-covalent / screening: try aimnet2-2025."
+            ),
         )
         parser.add_argument(
-            "-p",
-            "--model-path",
+            "-p", "--model-path",
             metavar="DIR",
             dest="model_dir",
             type=str,
             default=str(DEFAULT_MODEL_PATH),
-            help=f'The directory to look for and store AIMNet2 model files. Default: "{DEFAULT_MODEL_PATH}". ',
+            help=f"Local cache directory for downloaded model files. Default: {DEFAULT_MODEL_PATH}.",
         )
         parser.add_argument(
-            "-d",
-            "--device",
+            "-d", "--device",
             metavar="DEVICE",
             dest="device",
             type=str,
-            choices=["cpu", "cuda", "auto"],
+            choices=cls._SUPPORTED_DEVICES,
             default="cpu",
-            help="Device to perform the calculation on. "
-            "Options: cpu, cuda, or auto (i.e. use cuda if available, otherwise cpu). "
-            "Default: cpu. ",
+            help="Compute device. 'auto' lets upstream auto-detect (None). Default: cpu.",
+        )
+
+        # --- performance -------------------------------------------------
+        parser.add_argument(
+            "--compile",
+            dest="compile",
+            action="store_true",
+            help=(
+                "Enable torch.compile JIT. SERVER MODE ONLY - standalone "
+                "oet_aimnet2 is a fresh process per ORCA call and re-pays "
+                "JIT cost every step. First-call latency 10-60s. Recompiles "
+                "on shape change. Incompatible with Hessian. Do NOT use with "
+                "NEB / OptTS / IRC."
+            ),
+        )
+        parser.add_argument(
+            "--nb-threshold",
+            dest="nb_threshold",
+            type=int,
+            default=120,
+            help="Adaptive neighbor-list batch size. Default: 120.",
+        )
+        parser.add_argument(
+            "--ensemble-member",
+            dest="ensemble_member",
+            type=int,
+            choices=(0, 1, 2, 3),
+            default=0,
+            help="Use a single ensemble member instead of the mean. Default: 0.",
+        )
+
+        # --- long-range Coulomb ------------------------------------------
+        parser.add_argument(
+            "--coulomb",
+            dest="coulomb",
+            type=str,
+            choices=tuple(cls._TRISTATE_MAP),
+            default="auto",
+            help="Force on/off the model's long-range Coulomb module. Default: auto (model decides).",
+        )
+        parser.add_argument(
+            "--coulomb-method",
+            dest="coulomb_method",
+            type=str,
+            choices=cls._COULOMB_METHODS,
+            default=None,
+            help=(
+                "Override the model's long-range Coulomb method. "
+                "If unset, the model default is used (no post-ctor call)."
+            ),
+        )
+        parser.add_argument(
+            "--coulomb-cutoff",
+            dest="coulomb_cutoff",
+            type=float,
+            default=15.0,
+            help=(
+                "Cutoff in Angstrom for dsf/ewald methods. Default: 15.0. "
+                "Requires --coulomb-method (rejected otherwise). "
+                "NOTE: aimnet2-rxn family was trained with cutoff frozen at "
+                "4.6 A; passing other values fires an upstream UserWarning."
+            ),
+        )
+
+        # --- dispersion (DFT-D3) -----------------------------------------
+        parser.add_argument(
+            "--dispersion",
+            dest="dispersion",
+            type=str,
+            choices=tuple(cls._TRISTATE_MAP),
+            default="auto",
+            help="Force on/off the model's D3 dispersion module. Default: auto (model decides).",
+        )
+        parser.add_argument(
+            "--dftd3-cutoff",
+            dest="dftd3_cutoff",
+            type=float,
+            default=None,
+            help="Override D3 dispersion cutoff in Angstrom. Default: model's value.",
+        )
+        parser.add_argument(
+            "--dftd3-smoothing-fraction",
+            dest="dftd3_smoothing_fraction",
+            type=float,
+            default=None,
+            help="Override D3 cutoff smoothing fraction. Default: model's value.",
         )
 
     def atomic_symbol_to_number(self, symbol: str) -> int:
-        """Convert an element symbol to an atomic number.
+        """Convert an element symbol to atomic number.
 
-        Parameters
-        ----------
-        symbol: str
-            Element symbol, e.g. "Cl"
-
-        Returns
-        -------
-        int
-            atomic number of the element
-
-        Raises
-        ------
-        ValueError
-            if the element is not in `ELEMENT_TO_ATOMIC_NUMBER`
+        Per-model element rejection happens upstream in
+        AIMNet2Calculator.eval(validate_species=True). For models that
+        do NOT populate metadata["implemented_species"] (e.g. legacy raw
+        nn.Module .pt files), upstream silently accepts ANY atomic number
+        and may produce undefined output for unsupported elements; OET
+        relies on the upstream check and does not second-guess.
         """
         try:
-            return self.ELEMENT_TO_ATOMIC_NUMBER[symbol.title()]
+            return _SYMBOL_TO_Z[symbol.title()]
         except KeyError:
             raise ValueError(f"Unknown element symbol: {symbol}")
 
@@ -277,7 +502,10 @@ class Aimnet2Calc(BaseCalc):
         mult: int,
         dograd: bool,
     ) -> dict[str, Any]:
-        """Serialize the input data into kwargs for AIMNet2Calculator
+        """Build kwargs for AIMNet2Calculator.eval().
+
+        `mult` is only included for NSE-class models; non-NSE models reject
+        the key in v0.2.
 
         Parameters
         ----------
@@ -298,13 +526,17 @@ class Aimnet2Calc(BaseCalc):
             kwargs for AIMNet2Calculator.eval()
         """
         numbers = [self.atomic_symbol_to_number(sym) for sym in atom_types]
+        data: dict[str, Any] = {
+            "coord": [coordinates],
+            "numbers": [numbers],
+            "charge": [charge],
+        }
+        # run_aimnet2 guarantees _calc is set before this is reached;
+        # the previous defensive `_calc is not None` was unreachable.
+        if self._calc.is_nse:
+            data["mult"] = [mult]
         return {
-            "data": {
-                "coord": [coordinates],
-                "numbers": [numbers],
-                "charge": [charge],
-                "mult": [mult],
-            },
+            "data": data,
             "forces": dograd,
             "stress": False,
             "hessian": False,
@@ -336,9 +568,6 @@ class Aimnet2Calc(BaseCalc):
             Flattened gradient vector (Eh/Bohr), if computed, otherwise empty.
         """
 
-        # set the number of threads
-        torch.set_num_threads(calc_data.ncores)
-
         # make ase atoms object for calculation
         aimnet2_input = self.serialize_input(
             atom_types=atom_types,
@@ -355,6 +584,8 @@ class Aimnet2Calc(BaseCalc):
         energy = float(results["energy"].detach()) / ENERGY_CONVERSION["eV"]
         gradient = []
         if (forces := results.get("forces", None)) is not None:
+            # detach() defends against any future create_graph=True default.
+            forces = forces.detach()
             # unit conversion & factor of -1 to convert from forces to gradient
             fac = -LENGTH_CONVERSION["Ang"] / ENERGY_CONVERSION["eV"]
             gradient = (forces * fac).flatten().tolist()
@@ -367,60 +598,68 @@ class Aimnet2Calc(BaseCalc):
         args_parsed: dict[str, Any],
         args_not_parsed: list[str],
     ) -> tuple[float, list[float]]:
+        """Routine for calculating energy + optional gradient.
+
+        Validates cross-flag constraints, then sets up the calculator and
+        runs run_aimnet2.
         """
-        Routine for calculating energy and optional gradient.
-        Writes ORCA output
-
-
-        Parameters
-        ----------
-        calc_data: CalculationData
-            Object with calculation data for the run
-        args_parsed: dict[str, Any]
-            Arguments parsed as defined in extend_parser
-        args_not_parsed: list[str]
-            Arguments not parsed so far
-
-        Returns
-        -------
-        float
-            The computed energy (Eh)
-        list[float]
-            Flattened gradient vector (Eh/Bohr), if computed, otherwise empty
-        """
-        # Get the arguments parsed as defined in extend_parser
-        model = args_parsed.get("model")
-        model_dir = args_parsed.get("model_dir")
-        device = str(args_parsed.get("device"))
-        # Check if device is allowed
-        if device not in tuple(self.supported_devices):
-            raise RuntimeError(
-                f"Device {device} not applicable for AIMNet2 calculation."
-                "Please use `--device` to choose between {supported_devices}."
+        # --- cross-flag validation ----------------------------------------
+        # --coulomb-cutoff is only meaningful with --coulomb-method.
+        # The 15.0 != check has one corner: a user who passes --coulomb-cutoff 15.0
+        # explicitly without --coulomb-method silently gets a default-cutoff
+        # Coulomb-disabled run rather than a rejection. They should specify
+        # --coulomb-method anyway, so the false-negative is acceptable.
+        #
+        # We raise SystemExit(msg) directly rather than holding a parser ref:
+        # argparse's parser.error() is itself just print + SystemExit(2), and
+        # stashing the parser in args_parsed used to poison server.py's cache
+        # key (frozenset of args_parsed.items()) because ArgumentParser is
+        # hashed by identity. SystemExit's message goes to stderr automatically.
+        user_set_cutoff = args_parsed.get("coulomb_cutoff", 15.0) != 15.0
+        if user_set_cutoff and args_parsed.get("coulomb_method") is None:
+            raise SystemExit(
+                "oet_aimnet2: error: --coulomb-cutoff requires --coulomb-method"
             )
-        if not isinstance(model, str) or not isinstance(model_dir, str):
-            raise RuntimeError("Problems detecting model parameters.")
-        # setup calculator if not already set
-        # this is important as usage on a server would otherwise cause
-        # initialization with every call so that nothing is gained
-        self.setup(model=model, model_dir=model_dir, device=device)
-        # process the XYZ file
-        atom_types, coordinates = xyzfile_to_at_coord(calc_data.xyzfile)
 
-        # run uma
-        energy, gradient = self.run_aimnet2(
-            atom_types=atom_types, coordinates=coordinates, calc_data=calc_data
+        # --- read parsed args (defaults match extend_parser) -------------
+        model = args_parsed.get("model", "aimnet2")
+        model_dir = args_parsed.get("model_dir")
+        device = str(args_parsed.get("device", "cpu"))
+        if device not in self._SUPPORTED_DEVICES:
+            raise RuntimeError(
+                f"Device {device} not supported. Use one of {self._SUPPORTED_DEVICES}."
+            )
+
+        # --- set up calculator (idempotent) ------------------------------
+        self.setup(
+            model=model,
+            model_dir=model_dir,
+            device=device,
+            ncores=calc_data.ncores,
+            compile_model=args_parsed.get("compile", False),
+            nb_threshold=args_parsed.get("nb_threshold", 120),
+            ensemble_member=args_parsed.get("ensemble_member", 0),
+            coulomb=args_parsed.get("coulomb", "auto"),
+            dispersion=args_parsed.get("dispersion", "auto"),
+            coulomb_method=args_parsed.get("coulomb_method"),
+            coulomb_cutoff=args_parsed.get("coulomb_cutoff", 15.0),
+            dftd3_cutoff=args_parsed.get("dftd3_cutoff"),
+            dftd3_smoothing_fraction=args_parsed.get("dftd3_smoothing_fraction"),
         )
 
-        return energy, gradient
+        # --- read XYZ and run --------------------------------------------
+        atom_types, coordinates = xyzfile_to_at_coord(calc_data.xyzfile)
+        return self.run_aimnet2(
+            atom_types=atom_types,
+            coordinates=coordinates,
+            calc_data=calc_data,
+        )
 
 
-def main() -> None:
-    """
-    Main routine for execution
-    """
+def main(argv: list[str] | None = None) -> None:
+    """Main routine for execution."""
     calculator = Aimnet2Calc()
-    inputfile, args, args_not_parsed = calculator.parse_args()
+    inputfile, args, args_not_parsed = calculator.parse_args(argv)
     calculator.run(inputfile=inputfile, args_parsed=args, args_not_parsed=args_not_parsed)
 
 

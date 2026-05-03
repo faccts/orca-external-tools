@@ -115,6 +115,13 @@ line-length = 100
 ignore = ["E203"]
 
 
+# ////  PYTEST  ////
+[tool.pytest.ini_options]
+markers = [
+    "network: tests that download models from the network (run via OET_RUN_NETWORK_TESTS=1)",
+]
+
+
 # ////  CODESPELL  ////
 [tool.codespell]
 skip = '*.pyc,*.densities*,*.gbw,./build/,./_venv'
