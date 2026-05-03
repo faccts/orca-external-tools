@@ -48,19 +48,124 @@ DEFAULT_MODEL_PATH = ASSETS_DIR / "aimnet2"
 # Per-model element rejection is delegated to AIMNet2Calculator.eval()
 # against model.metadata["implemented_species"].
 _PERIODIC_TABLE: tuple[str, ...] = (
-    "H",  "He",
-    "Li", "Be", "B",  "C",  "N",  "O",  "F",  "Ne",
-    "Na", "Mg", "Al", "Si", "P",  "S",  "Cl", "Ar",
-    "K",  "Ca", "Sc", "Ti", "V",  "Cr", "Mn", "Fe", "Co", "Ni",
-                "Cu", "Zn", "Ga", "Ge", "As", "Se", "Br", "Kr",
-    "Rb", "Sr", "Y",  "Zr", "Nb", "Mo", "Tc", "Ru", "Rh", "Pd",
-                "Ag", "Cd", "In", "Sn", "Sb", "Te", "I",  "Xe",
-    "Cs", "Ba",
-    "La", "Ce", "Pr", "Nd", "Pm", "Sm", "Eu", "Gd", "Tb", "Dy", "Ho", "Er", "Tm", "Yb", "Lu",
-    "Hf", "Ta", "W",  "Re", "Os", "Ir", "Pt", "Au", "Hg", "Tl", "Pb", "Bi", "Po", "At", "Rn",
-    "Fr", "Ra",
-    "Ac", "Th", "Pa", "U",  "Np", "Pu", "Am", "Cm", "Bk", "Cf", "Es", "Fm", "Md", "No", "Lr",
-    "Rf", "Db", "Sg", "Bh", "Hs", "Mt", "Ds", "Rg", "Cn", "Nh", "Fl", "Mc", "Lv", "Ts", "Og",
+    "H",
+    "He",
+    "Li",
+    "Be",
+    "B",
+    "C",
+    "N",
+    "O",
+    "F",
+    "Ne",
+    "Na",
+    "Mg",
+    "Al",
+    "Si",
+    "P",
+    "S",
+    "Cl",
+    "Ar",
+    "K",
+    "Ca",
+    "Sc",
+    "Ti",
+    "V",
+    "Cr",
+    "Mn",
+    "Fe",
+    "Co",
+    "Ni",
+    "Cu",
+    "Zn",
+    "Ga",
+    "Ge",
+    "As",
+    "Se",
+    "Br",
+    "Kr",
+    "Rb",
+    "Sr",
+    "Y",
+    "Zr",
+    "Nb",
+    "Mo",
+    "Tc",
+    "Ru",
+    "Rh",
+    "Pd",
+    "Ag",
+    "Cd",
+    "In",
+    "Sn",
+    "Sb",
+    "Te",
+    "I",
+    "Xe",
+    "Cs",
+    "Ba",
+    "La",
+    "Ce",
+    "Pr",
+    "Nd",
+    "Pm",
+    "Sm",
+    "Eu",
+    "Gd",
+    "Tb",
+    "Dy",
+    "Ho",
+    "Er",
+    "Tm",
+    "Yb",
+    "Lu",
+    "Hf",
+    "Ta",
+    "W",
+    "Re",
+    "Os",
+    "Ir",
+    "Pt",
+    "Au",
+    "Hg",
+    "Tl",
+    "Pb",
+    "Bi",
+    "Po",
+    "At",
+    "Rn",
+    "Fr",
+    "Ra",
+    "Ac",
+    "Th",
+    "Pa",
+    "U",
+    "Np",
+    "Pu",
+    "Am",
+    "Cm",
+    "Bk",
+    "Cf",
+    "Es",
+    "Fm",
+    "Md",
+    "No",
+    "Lr",
+    "Rf",
+    "Db",
+    "Sg",
+    "Bh",
+    "Hs",
+    "Mt",
+    "Ds",
+    "Rg",
+    "Cn",
+    "Nh",
+    "Fl",
+    "Mc",
+    "Lv",
+    "Ts",
+    "Og",
 )
 assert len(_PERIODIC_TABLE) == 118, f"expected 118 elements, got {len(_PERIODIC_TABLE)}"
 _SYMBOL_TO_Z: dict[str, int] = {sym: i + 1 for i, sym in enumerate(_PERIODIC_TABLE)}
@@ -74,7 +179,9 @@ class Aimnet2Calc(BaseCalc):
     _COULOMB_METHODS: tuple[str, ...] = ("simple", "dsf", "ewald")
     # Single source of truth for tri-state choices AND value translation.
     _TRISTATE_MAP: dict[str, bool | None] = {
-        "auto": None, "on": True, "off": False,
+        "auto": None,
+        "on": True,
+        "off": False,
     }
 
     _calc: AIMNet2Calculator | None = None
@@ -209,21 +316,23 @@ class Aimnet2Calc(BaseCalc):
         # Args-match short-circuit (uses normalized device).
         # frozenset of items (not tuple) so adding a new kwarg doesn't
         # require editing positional indices everywhere.
-        new_args = frozenset({
-            "model": model,
-            "model_dir": model_dir,
-            "device": device_arg,
-            "ncores": ncores,
-            "compile_model": compile_model,
-            "nb_threshold": nb_threshold,
-            "ensemble_member": ensemble_member,
-            "coulomb": coulomb,
-            "dispersion": dispersion,
-            "coulomb_method": coulomb_method,
-            "coulomb_cutoff": coulomb_cutoff,
-            "dftd3_cutoff": dftd3_cutoff,
-            "dftd3_smoothing_fraction": dftd3_smoothing_fraction,
-        }.items())
+        new_args = frozenset(
+            {
+                "model": model,
+                "model_dir": model_dir,
+                "device": device_arg,
+                "ncores": ncores,
+                "compile_model": compile_model,
+                "nb_threshold": nb_threshold,
+                "ensemble_member": ensemble_member,
+                "coulomb": coulomb,
+                "dispersion": dispersion,
+                "coulomb_method": coulomb_method,
+                "coulomb_cutoff": coulomb_cutoff,
+                "dftd3_cutoff": dftd3_cutoff,
+                "dftd3_smoothing_fraction": dftd3_smoothing_fraction,
+            }.items()
+        )
         if self._calc is not None:
             if new_args == self._setup_args:
                 return
@@ -241,13 +350,10 @@ class Aimnet2Calc(BaseCalc):
             ("dispersion", dispersion, tuple(self._TRISTATE_MAP)),
         ):
             if arg_val not in allowed:
-                raise ValueError(
-                    f"setup(): {arg_name}={arg_val!r} not in {allowed}"
-                )
+                raise ValueError(f"setup(): {arg_name}={arg_val!r} not in {allowed}")
         if coulomb_method is not None and coulomb_method not in self._COULOMB_METHODS:
             raise ValueError(
-                f"setup(): coulomb_method={coulomb_method!r} not in "
-                f"{self._COULOMB_METHODS}"
+                f"setup(): coulomb_method={coulomb_method!r} not in {self._COULOMB_METHODS}"
             )
 
         # When coulomb_method=='simple', the cutoff is meaningless (simple has
@@ -268,10 +374,7 @@ class Aimnet2Calc(BaseCalc):
         # solvation, so energies are NOT gas-phase. Easy to miss from the
         # README alone.
         model_path_lower = Path(model_path).stem.lower()
-        if (
-            "aimnet2-pd" in model_path_lower
-            or "aimnet2_pd" in model_path_lower
-        ):
+        if "aimnet2-pd" in model_path_lower or "aimnet2_pd" in model_path_lower:
             warnings.warn(
                 "aimnet2-pd embeds B97-3c with implicit CPCM/THF solvation; "
                 "energies are NOT gas-phase. Do not mix aimnet2-pd energies "
@@ -280,15 +383,11 @@ class Aimnet2Calc(BaseCalc):
                 stacklevel=2,
             )
 
-        # Translate tri-state values for upstream ctor.
-        nc = self._TRISTATE_MAP[coulomb]
-        nd = self._TRISTATE_MAP[dispersion]
-
         self._calc = AIMNet2Calculator(
             model_path,
             nb_threshold=nb_threshold,
-            needs_coulomb=nc,
-            needs_dispersion=nd,
+            needs_coulomb=self._TRISTATE_MAP[coulomb],
+            needs_dispersion=self._TRISTATE_MAP[dispersion],
             device=device_arg,
             compile_model=compile_model,
             ensemble_member=ensemble_member,
@@ -362,7 +461,8 @@ class Aimnet2Calc(BaseCalc):
         """
         # --- model selection ---------------------------------------------
         parser.add_argument(
-            "-m", "--model",
+            "-m",
+            "--model",
             type=str,
             dest="model",
             default="aimnet2",
@@ -376,7 +476,8 @@ class Aimnet2Calc(BaseCalc):
             ),
         )
         parser.add_argument(
-            "-p", "--model-path",
+            "-p",
+            "--model-path",
             metavar="DIR",
             dest="model_dir",
             type=str,
@@ -384,7 +485,8 @@ class Aimnet2Calc(BaseCalc):
             help=f"Local cache directory for downloaded model files. Default: {DEFAULT_MODEL_PATH}.",
         )
         parser.add_argument(
-            "-d", "--device",
+            "-d",
+            "--device",
             metavar="DEVICE",
             dest="device",
             type=str,
@@ -618,9 +720,7 @@ class Aimnet2Calc(BaseCalc):
         # hashed by identity. SystemExit's message goes to stderr automatically.
         user_set_cutoff = args_parsed.get("coulomb_cutoff", 15.0) != 15.0
         if user_set_cutoff and args_parsed.get("coulomb_method") is None:
-            raise SystemExit(
-                "oet_aimnet2: error: --coulomb-cutoff requires --coulomb-method"
-            )
+            raise SystemExit("oet_aimnet2: error: --coulomb-cutoff requires --coulomb-method")
 
         # --- read parsed args (defaults match extend_parser) -------------
         model = args_parsed.get("model", "aimnet2")

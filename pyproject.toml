@@ -125,6 +125,10 @@ markers = [
 # ////  CODESPELL  ////
 [tool.codespell]
 skip = '*.pyc,*.densities*,*.gbw,./build/,./_venv'
+# Whitelist chemical element symbols that codespell mistakes for typos.
+# Te = tellurium (Z=52), Nd = neodymium (Z=60) — both appear in
+# src/oet/calculator/aimnet2.py's _PERIODIC_TABLE.
+ignore-words-list = "te,nd"
 count = true
 summary = true
 quiet-level = 3

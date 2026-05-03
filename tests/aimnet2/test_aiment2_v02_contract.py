@@ -4,6 +4,7 @@ Lives alongside test_aiment2_standalone.py / test_aiment2_client.py
 (unittest-style; preserved untouched). New behaviors get pytest-style
 tests here.
 """
+
 import argparse
 import os
 from unittest.mock import MagicMock
@@ -124,9 +125,7 @@ class TestSetupSignature:
         monkeypatch.setattr("torch.cuda.is_available", lambda: False)
         calc = Aimnet2Calc()
         with pytest.raises(RuntimeError, match="CUDA requested but not available"):
-            calc.setup(
-                model="aimnet2", model_dir="/tmp", device="cuda", ncores=1
-            )
+            calc.setup(model="aimnet2", model_dir="/tmp", device="cuda", ncores=1)
 
     def test_args_match_short_circuit(self):
         """Second setup() call with same args is a no-op."""
@@ -135,16 +134,29 @@ class TestSetupSignature:
         # here because the args-match branch returns before touching
         # any method on _calc.
         calc._calc = MagicMock()
-        calc._setup_args = frozenset({
-            "model": "aimnet2", "model_dir": "/tmp", "device": "cpu",
-            "ncores": 1, "compile_model": False, "nb_threshold": 120,
-            "ensemble_member": 0, "coulomb": "auto", "dispersion": "auto",
-            "coulomb_method": None, "coulomb_cutoff": 15.0,
-            "dftd3_cutoff": None, "dftd3_smoothing_fraction": None,
-        }.items())
+        calc._setup_args = frozenset(
+            {
+                "model": "aimnet2",
+                "model_dir": "/tmp",
+                "device": "cpu",
+                "ncores": 1,
+                "compile_model": False,
+                "nb_threshold": 120,
+                "ensemble_member": 0,
+                "coulomb": "auto",
+                "dispersion": "auto",
+                "coulomb_method": None,
+                "coulomb_cutoff": 15.0,
+                "dftd3_cutoff": None,
+                "dftd3_smoothing_fraction": None,
+            }.items()
+        )
         # Same args -> no-op (does not raise, does not touch _calc).
         calc.setup(
-            model="aimnet2", model_dir="/tmp", device="cpu", ncores=1,
+            model="aimnet2",
+            model_dir="/tmp",
+            device="cpu",
+            ncores=1,
         )
         assert calc._calc is not None  # still the original mock
 
@@ -154,16 +166,29 @@ class TestSetupSignature:
         # MagicMock() is sufficient here because the args-mismatch branch
         # raises before touching any method on _calc.
         calc._calc = MagicMock()
-        calc._setup_args = frozenset({
-            "model": "aimnet2", "model_dir": "/tmp", "device": "cpu",
-            "ncores": 1, "compile_model": False, "nb_threshold": 120,
-            "ensemble_member": 0, "coulomb": "auto", "dispersion": "auto",
-            "coulomb_method": None, "coulomb_cutoff": 15.0,
-            "dftd3_cutoff": None, "dftd3_smoothing_fraction": None,
-        }.items())
+        calc._setup_args = frozenset(
+            {
+                "model": "aimnet2",
+                "model_dir": "/tmp",
+                "device": "cpu",
+                "ncores": 1,
+                "compile_model": False,
+                "nb_threshold": 120,
+                "ensemble_member": 0,
+                "coulomb": "auto",
+                "dispersion": "auto",
+                "coulomb_method": None,
+                "coulomb_cutoff": 15.0,
+                "dftd3_cutoff": None,
+                "dftd3_smoothing_fraction": None,
+            }.items()
+        )
         with pytest.raises(RuntimeError, match="different args"):
             calc.setup(
-                model="aimnet2-2025", model_dir="/tmp", device="cpu", ncores=1,
+                model="aimnet2-2025",
+                model_dir="/tmp",
+                device="cpu",
+                ncores=1,
             )
 
     def test_auto_and_none_device_compare_equal(self):
@@ -173,16 +198,29 @@ class TestSetupSignature:
         calc = Aimnet2Calc()
         calc._calc = MagicMock()
         # Stash as if first call was device="auto" (normalized to None)
-        calc._setup_args = frozenset({
-            "model": "aimnet2", "model_dir": "/tmp", "device": None,
-            "ncores": 1, "compile_model": False, "nb_threshold": 120,
-            "ensemble_member": 0, "coulomb": "auto", "dispersion": "auto",
-            "coulomb_method": None, "coulomb_cutoff": 15.0,
-            "dftd3_cutoff": None, "dftd3_smoothing_fraction": None,
-        }.items())
+        calc._setup_args = frozenset(
+            {
+                "model": "aimnet2",
+                "model_dir": "/tmp",
+                "device": None,
+                "ncores": 1,
+                "compile_model": False,
+                "nb_threshold": 120,
+                "ensemble_member": 0,
+                "coulomb": "auto",
+                "dispersion": "auto",
+                "coulomb_method": None,
+                "coulomb_cutoff": 15.0,
+                "dftd3_cutoff": None,
+                "dftd3_smoothing_fraction": None,
+            }.items()
+        )
         # Second call with device=None — same after normalization → no-op
         calc.setup(
-            model="aimnet2", model_dir="/tmp", device=None, ncores=1,
+            model="aimnet2",
+            model_dir="/tmp",
+            device=None,
+            ncores=1,
         )
         assert calc._calc is not None
 
@@ -191,7 +229,10 @@ class TestSetupSignature:
         calc = Aimnet2Calc()
         with pytest.raises(ValueError, match="coulomb='yes'"):
             calc.setup(
-                model="aimnet2", model_dir="/tmp", device="cpu", ncores=1,
+                model="aimnet2",
+                model_dir="/tmp",
+                device="cpu",
+                ncores=1,
                 coulomb="yes",
             )
 
@@ -200,7 +241,10 @@ class TestSetupSignature:
         calc = Aimnet2Calc()
         with pytest.raises(ValueError, match="coulomb_method='wolf'"):
             calc.setup(
-                model="aimnet2", model_dir="/tmp", device="cpu", ncores=1,
+                model="aimnet2",
+                model_dir="/tmp",
+                device="cpu",
+                ncores=1,
                 coulomb_method="wolf",
             )
 
@@ -230,6 +274,7 @@ class TestReleaseHook:
         Verifies the lifecycle: setup() -> release() -> setup() -> ...
         """
         from unittest.mock import patch
+
         monkeypatch.setattr("torch.cuda.is_available", lambda: False)
         calc = Aimnet2Calc()
         # Pre-populate with first-setup state
@@ -245,7 +290,10 @@ class TestReleaseHook:
         with patch("oet.calculator.aimnet2.AIMNet2Calculator") as MockCalc:
             MockCalc.return_value = MagicMock()
             calc.setup(
-                model="aimnet2-2025", model_dir="/tmp", device="cpu", ncores=2,
+                model="aimnet2-2025",
+                model_dir="/tmp",
+                device="cpu",
+                ncores=2,
             )
         assert calc._calc is not None
         assert calc._setup_args is not None
@@ -256,6 +304,7 @@ class TestReleaseHook:
         (otherwise a repeat-bad-config server loop accumulates VRAM).
         """
         from unittest.mock import patch
+
         monkeypatch.setattr("torch.cuda.is_available", lambda: False)
         calc = Aimnet2Calc()
 
@@ -268,8 +317,12 @@ class TestReleaseHook:
         with patch("oet.calculator.aimnet2.AIMNet2Calculator", return_value=bad_calc):
             with pytest.raises(RuntimeError, match="bad config"):
                 calc.setup(
-                    model="aimnet2", model_dir="/tmp", device="cpu", ncores=2,
-                    coulomb_method="dsf", coulomb_cutoff=12.0,
+                    model="aimnet2",
+                    model_dir="/tmp",
+                    device="cpu",
+                    ncores=2,
+                    coulomb_method="dsf",
+                    coulomb_cutoff=12.0,
                 )
 
         # Rollback contract: components walked back to cpu BEFORE _calc dropped.
@@ -287,7 +340,6 @@ class TestBaseCalcReleaseDefault:
     """
 
     def test_release_default_is_callable_and_no_op(self):
-        from argparse import ArgumentParser
 
         from oet.core.base_calc import BaseCalc
 
@@ -322,9 +374,12 @@ class TestArgparseContract:
         parser = self._make_parser()
         all_opts = {opt for a in parser._actions for opt in a.option_strings}
         for flag in [
-            "-m", "--model",
-            "-p", "--model-path",
-            "-d", "--device",
+            "-m",
+            "--model",
+            "-p",
+            "--model-path",
+            "-d",
+            "--device",
             "--compile",
             "--nb-threshold",
             "--ensemble-member",
@@ -466,17 +521,12 @@ class TestSmokeDefaultModel:
         # First float is the natoms-line value (3); skip it.
         # Then: energy + 9 gradient components.
         assert floats[0] == 3.0, (
-            f"first non-comment line should be natoms=3, got {floats[0]}\n"
-            f"engrad text:\n{text}"
+            f"first non-comment line should be natoms=3, got {floats[0]}\nengrad text:\n{text}"
         )
         energy = floats[1]
         grad = floats[2:11]
-        assert -100.0 < energy < 0.0, (
-            f"water energy {energy} Eh implausible\nengrad text:\n{text}"
-        )
-        assert len(grad) == 9, (
-            f"expected 9 grad components, got {len(grad)}\nengrad text:\n{text}"
-        )
+        assert -100.0 < energy < 0.0, f"water energy {energy} Eh implausible\nengrad text:\n{text}"
+        assert len(grad) == 9, f"expected 9 grad components, got {len(grad)}\nengrad text:\n{text}"
         # Stretched O-H at 1.06 A gives a non-trivial gradient on the
         # stretched H (~0.03-0.10 Eh/Bohr). Assert at least one component
         # is in the order-of-magnitude band for a real gradient (catches
@@ -487,4 +537,3 @@ class TestSmokeDefaultModel:
             f"max grad component {max_grad} outside expected (0.005, 0.5) Eh/Bohr "
             f"— possible unit/sign bug\nengrad text:\n{text}"
         )
-

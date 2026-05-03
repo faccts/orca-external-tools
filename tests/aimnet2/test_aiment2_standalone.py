@@ -40,7 +40,7 @@ class Aimnet2Tests(unittest.TestCase):
         )
         run_aimnet2(input_file, output_file)
         expected_num_atoms = 3
-        expected_energy = -7.647682538153e+01
+        expected_energy = -7.647682538153e01
         expected_gradients = [
             -1.020942814648e-02,
             -7.558954879642e-03,
@@ -50,7 +50,7 @@ class Aimnet2Tests(unittest.TestCase):
             1.832913840190e-03,
             6.631619296968e-03,
             -1.464935485274e-03,
-            -7.172822486609e-03
+            -7.172822486609e-03,
         ]
 
         try:
@@ -78,14 +78,14 @@ class Aimnet2Tests(unittest.TestCase):
         )
         run_aimnet2(input_file, output_file)
         expected_num_atoms = 2
-        expected_energy = -7.582629635076e+01
+        expected_energy = -7.582629635076e01
         expected_gradients = [
             -4.858376923949e-04,
             -1.563820987940e-03,
             -4.455552552827e-04,
             4.858376923949e-04,
             1.563823316246e-03,
-            4.455552552827e-04
+            4.455552552827e-04,
         ]
 
         try:
@@ -113,14 +113,14 @@ class Aimnet2Tests(unittest.TestCase):
         )
         run_aimnet2(input_file, output_file)
         expected_num_atoms = 2
-        expected_energy = -7.568258700191e+01
+        expected_energy = -7.568258700191e01
         expected_gradients = [
             -3.783945925534e-03,
             -1.217983383685e-02,
             -3.470211755484e-03,
             3.783945692703e-03,
             1.217983569950e-02,
-            3.470211755484e-03
+            3.470211755484e-03,
         ]
 
         try:
