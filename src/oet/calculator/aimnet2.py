@@ -78,7 +78,7 @@ class Aimnet2Calc(BaseCalc):
     }
 
     _calc: AIMNet2Calculator | None = None
-    _setup_args: frozenset | None = None
+    _setup_args: frozenset[tuple[str, Any]] | None = None
 
     def get_calculator(self) -> AIMNet2Calculator:
         """
@@ -533,6 +533,7 @@ class Aimnet2Calc(BaseCalc):
         }
         # run_aimnet2 guarantees _calc is set before this is reached;
         # the previous defensive `_calc is not None` was unreachable.
+        assert self._calc is not None  # for mypy; runtime invariant per caller
         if self._calc.is_nse:
             data["mult"] = [mult]
         return {
@@ -623,7 +624,9 @@ class Aimnet2Calc(BaseCalc):
 
         # --- read parsed args (defaults match extend_parser) -------------
         model = args_parsed.get("model", "aimnet2")
-        model_dir = args_parsed.get("model_dir")
+        # Mirror the argparse default so mypy sees a guaranteed-str (the
+        # parser sets default=str(DEFAULT_MODEL_PATH)).
+        model_dir = args_parsed.get("model_dir", str(DEFAULT_MODEL_PATH))
         device = str(args_parsed.get("device", "cpu"))
         if device not in self._SUPPORTED_DEVICES:
             raise RuntimeError(
