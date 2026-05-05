@@ -7,7 +7,8 @@ tests here.
 
 import argparse
 import os
-from unittest.mock import MagicMock
+import warnings
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -116,6 +117,35 @@ class TestNseMultGating:
         assert out["forces"] is True
         assert out["stress"] is False
         assert out["hessian"] is False
+
+    def test_open_shell_with_non_nse_model_warns(self):
+        """mult != 1 + non-NSE model emits a UserWarning that points to
+        aimnet2-nse (open-shell guidance)."""
+        self.calc._calc = MagicMock()
+        self.calc._calc.is_nse = False
+        with pytest.warns(UserWarning, match="aimnet2-nse"):
+            self.calc.serialize_input(
+                atom_types=["O", "H"],
+                coordinates=[(0.0, 0.0, 0.0), (0.0, 0.0, 0.97)],
+                charge=0,
+                mult=2,
+                dograd=True,
+            )
+
+    def test_open_shell_with_nse_model_no_warn(self):
+        """mult != 1 + NSE model passes mult through and does not warn."""
+        self.calc._calc = MagicMock()
+        self.calc._calc.is_nse = True
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")  # turn warnings into errors
+            out = self.calc.serialize_input(
+                atom_types=["O", "H"],
+                coordinates=[(0.0, 0.0, 0.0), (0.0, 0.0, 0.97)],
+                charge=0,
+                mult=2,
+                dograd=True,
+            )
+        assert out["data"]["mult"] == [2]
 
 
 class TestSetupSignature:
@@ -248,6 +278,75 @@ class TestSetupSignature:
                 coulomb_method="wolf",
             )
 
+    def test_rxn_with_non_trained_cutoff_warns(self, monkeypatch, tmp_path):
+        """aimnet2-rxn family + --coulomb-method set + cutoff != 4.6 must
+        emit a UserWarning pointing the user at the trained cutoff."""
+        monkeypatch.setattr("torch.cuda.is_available", lambda: False)
+        # Stub get_model_file so we don't hit the network; produce a path
+        # whose stem encodes the rxn family.
+        rxn_path = tmp_path / "aimnet2-rxn_0.pt"
+        rxn_path.write_bytes(b"")
+        calc = Aimnet2Calc()
+        with patch.object(Aimnet2Calc, "get_model_file", return_value=rxn_path):
+            with patch("oet.calculator.aimnet2.AIMNet2Calculator") as MockCalc:
+                MockCalc.return_value = MagicMock()
+                with pytest.warns(UserWarning, match="aimnet2-rxn training cutoff"):
+                    calc.setup(
+                        model="aimnet2-rxn",
+                        model_dir=str(tmp_path),
+                        device="cpu",
+                        ncores=1,
+                        coulomb_method="dsf",
+                        coulomb_cutoff=12.0,
+                    )
+
+    def test_rxn_with_trained_cutoff_no_warn(self, monkeypatch, tmp_path):
+        """aimnet2-rxn + cutoff = 4.6 must NOT emit the rxn-cutoff warning."""
+        monkeypatch.setattr("torch.cuda.is_available", lambda: False)
+        rxn_path = tmp_path / "aimnet2-rxn_0.pt"
+        rxn_path.write_bytes(b"")
+        calc = Aimnet2Calc()
+        with patch.object(Aimnet2Calc, "get_model_file", return_value=rxn_path):
+            with patch("oet.calculator.aimnet2.AIMNet2Calculator") as MockCalc:
+                MockCalc.return_value = MagicMock()
+                with warnings.catch_warnings(record=True) as caught:
+                    warnings.simplefilter("always")
+                    calc.setup(
+                        model="aimnet2-rxn",
+                        model_dir=str(tmp_path),
+                        device="cpu",
+                        ncores=1,
+                        coulomb_method="dsf",
+                        coulomb_cutoff=4.6,
+                    )
+                rxn_warnings = [
+                    w for w in caught if "aimnet2-rxn training cutoff" in str(w.message)
+                ]
+                assert rxn_warnings == []
+
+    def test_rxn_without_coulomb_method_no_warn(self, monkeypatch, tmp_path):
+        """aimnet2-rxn without --coulomb-method ignores --coulomb-cutoff
+        entirely; warning should NOT fire on the default 15.0."""
+        monkeypatch.setattr("torch.cuda.is_available", lambda: False)
+        rxn_path = tmp_path / "aimnet2-rxn_0.pt"
+        rxn_path.write_bytes(b"")
+        calc = Aimnet2Calc()
+        with patch.object(Aimnet2Calc, "get_model_file", return_value=rxn_path):
+            with patch("oet.calculator.aimnet2.AIMNet2Calculator") as MockCalc:
+                MockCalc.return_value = MagicMock()
+                with warnings.catch_warnings(record=True) as caught:
+                    warnings.simplefilter("always")
+                    calc.setup(
+                        model="aimnet2-rxn",
+                        model_dir=str(tmp_path),
+                        device="cpu",
+                        ncores=1,
+                    )
+                rxn_warnings = [
+                    w for w in caught if "aimnet2-rxn training cutoff" in str(w.message)
+                ]
+                assert rxn_warnings == []
+
 
 class TestReleaseHook:
     """Server-side eviction calls release(); verify it clears state."""
@@ -273,8 +372,6 @@ class TestReleaseHook:
         (release() clears _setup_args so the args-mismatch check passes).
         Verifies the lifecycle: setup() -> release() -> setup() -> ...
         """
-        from unittest.mock import patch
-
         monkeypatch.setattr("torch.cuda.is_available", lambda: False)
         calc = Aimnet2Calc()
         # Pre-populate with first-setup state
@@ -303,8 +400,6 @@ class TestReleaseHook:
         device, setup() must release device-resident state before re-raising
         (otherwise a repeat-bad-config server loop accumulates VRAM).
         """
-        from unittest.mock import patch
-
         monkeypatch.setattr("torch.cuda.is_available", lambda: False)
         calc = Aimnet2Calc()
 

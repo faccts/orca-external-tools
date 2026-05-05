@@ -81,6 +81,9 @@ spell-check = [
 dead-code = [
     "vulture>=2.14",
 ]
+test = [
+    "pytest>=8.0",
+]
 
 # ////  MYPY  ////
 [tool.mypy]

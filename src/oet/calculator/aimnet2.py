@@ -11,7 +11,6 @@ main: function
     Main function
 """
 
-import shutil
 import sys
 import warnings
 from argparse import ArgumentParser
@@ -22,7 +21,12 @@ from requests.exceptions import HTTPError
 
 from oet import ASSETS_DIR
 from oet.core.base_calc import BaseCalc, CalculationData
-from oet.core.misc import ENERGY_CONVERSION, LENGTH_CONVERSION, xyzfile_to_at_coord
+from oet.core.misc import (
+    ENERGY_CONVERSION,
+    LENGTH_CONVERSION,
+    resolve_model_file,
+    xyzfile_to_at_coord,
+)
 
 try:
     from aimnet.calculators import AIMNet2Calculator
@@ -199,85 +203,66 @@ class Aimnet2Calc(BaseCalc):
         return self._calc
 
     @staticmethod
-    def get_model_file(model: str, model_dir: str) -> Path:
+    def _aimnet_alias_resolver(name: str) -> str | None:
+        """Look up `name` in aimnet's model registry; return canonical
+        name if it is an alias, else None."""
+        canonical = load_model_registry()["aliases"].get(name)
+        return canonical if canonical is None else str(canonical)
+
+    @staticmethod
+    def _aimnet_subdir_fallback(name: str, exc: Exception) -> str | None:
+        """If aimnet's URL fetch 404s on a flat name, retry once under
+        the registry's `<family>/<name>` subdirectory layout (e.g.
+        `aimnet2_wb97m_1` is actually stored at `aimnet2/aimnet2_wb97m_1`)."""
+        if isinstance(exc, HTTPError) and "/" not in name:
+            subdir_name = name.split("_")[0] + "/" + name
+            print(
+                f'Failed to find model "{name}" at URL: {exc.response.url}\n'
+                f'Trying again with model name "{subdir_name}"',
+                file=sys.stderr,
+            )
+            return subdir_name
+        return None
+
+    @classmethod
+    def get_model_file(cls, model: str, model_dir: str) -> Path:
         """
         Make sure model file exists in the correct location.
         If `model` is an absolute path, it must already exist.
         Otherwise, let AIMNet2 download it, then move it to `model_dir`.
 
+        Thin wrapper that supplies aimnet-specific alias / fetch / fallback
+        callables to the calculator-agnostic
+        :func:`oet.core.misc.resolve_model_file`.
+
         Parameters
         ----------
-        model
-            Model name, e.g. "aimnet2", or filename, e.g. "aimnet2-wb97m-d3_0.pt", or absolute path
-        model_dir
-            directory to look for or store model file
+        model : str
+            Model name, e.g. "aimnet2", or filename, e.g.
+            "aimnet2-wb97m-d3_0.pt", or absolute path.
+        model_dir : str
+            Directory to look for or store the model file.
 
         Returns
         -------
         Path
-            Full path to the model file
+            Full path to the model file.
 
         Raises
         ------
         FileNotFoundError
-            If the model file is given by absolute path and does not exist
+            If the model file is given by absolute path and does not exist.
         FileExistsError
-            If `model_dir` exists but is not a directory or `cached_path` exists but is not a file
+            If `model_dir` exists but is not a directory, or `cached_path`
+            exists but is not a file.
         """
-        # Check if `model` is already an absolute path
-        if (model_path := Path(model)).is_absolute():
-            if not model_path.exists():
-                raise FileNotFoundError(f'Model file "{model_path}" not found')
-            return model_path
-        # `model` must be the name of a model
-        else:
-            # Check aliases
-            # First, check if the model is available in the registry. If not, assume it is a
-            # filename and treat it as is. The upstream resolver knows the canonical filename
-            # (including extension), so we do not append one here.
-            model_registry = load_model_registry()
-            if model in model_registry["aliases"]:
-                model_file = model_registry["aliases"][model]
-            else:
-                model_file = model
-            # strip any directories for the local cache lookup
-            model_basename = Path(model_file).name
-            # make sure the directory exists
-            model_dir_path = Path(model_dir)
-            if model_dir_path.exists() and not model_dir_path.is_dir():
-                raise FileExistsError(f'Path "{model_dir}" exists but is not a directory')
-            model_dir_path.mkdir(parents=True, exist_ok=True)
-            # if a cached file with the same basename already exists, hand it to `get_model_path`
-            cached_path = model_dir_path / model_basename
-            if cached_path.exists():
-                if cached_path.is_file():
-                    model = str(cached_path)
-                else:
-                    raise FileExistsError(f'Path "{cached_path}" exists but is not a file')
-            # obtain the file from AIMNet2
-            try:
-                actual_path = Path(get_model_path(model))
-            except HTTPError as e:
-                # If the URL is not found, it's possible the user requested, e.g. "aimnet2_wb97m_1"
-                # This is actually under "aimnet2/aimnet2_wb97m_1" and also not in the `model_registry_aliases`
-                if "/" not in model:
-                    # look for "aimnet2_..." under "aimnet2/aimnet2_..."
-                    model_subdir = model.split("_")[0] + "/" + model
-                    print(
-                        f'Failed to find model "{model}" at URL: {e.response.url}\n'
-                        f'Trying again with model name "{model_subdir}"',
-                        file=sys.stderr,
-                    )
-                    actual_path = Path(get_model_path(model_subdir))
-                else:
-                    raise e
-            # The resolver returns the canonical filename (including its extension).
-            # Place it under `model_dir` using that filename for subsequent runs.
-            final_path = model_dir_path / actual_path.name
-            if not (final_path.exists() and final_path.samefile(actual_path)):
-                shutil.move(actual_path, final_path)
-            # finally return the path
-            return final_path
+        return resolve_model_file(
+            model,
+            model_dir,
+            fetch=get_model_path,
+            alias_resolver=cls._aimnet_alias_resolver,
+            fetch_fallback=cls._aimnet_subdir_fallback,
+        )
 
     def setup(
         self,
@@ -302,6 +287,52 @@ class Aimnet2Calc(BaseCalc):
         calls with different args raise (server cache is responsible for
         keying on args, so a single Aimnet2Calc instance only ever sees
         one configuration). Per-call work belongs in run_aimnet2.
+
+        Parameters
+        ----------
+        model : str
+            Model name (e.g. "aimnet2"), filename, or absolute path. Forwarded
+            to :meth:`get_model_file` for resolution and caching.
+        model_dir : str
+            Local cache directory for downloaded model files.
+        device : str | None
+            Compute device. One of {"cpu", "cuda", "auto"}; "auto" maps to
+            None upstream (auto-detect). When "cuda" is requested, this
+            method raises if torch.cuda.is_available() is False.
+        ncores : int
+            Number of CPU threads. Sets torch.set_num_threads process-wide
+            once per worker; does not change per call.
+        compile_model : bool, default: False
+            If True, wrap the model with torch.compile. Server mode only;
+            see readmes/aimnet2.md.
+        nb_threshold : int, default: 120
+            Adaptive neighbor-list batch size forwarded to the constructor.
+        ensemble_member : int, default: 0
+            Which ensemble member (0..3) to load. OET runs ONE model per call.
+        coulomb : str, default: "auto"
+            Tri-state ("auto" / "on" / "off") forcing the long-range Coulomb
+            module on or off. "auto" defers to the model's default.
+        dispersion : str, default: "auto"
+            Tri-state for the DFT-D3 module, same semantics as `coulomb`.
+        coulomb_method : str | None, default: None
+            One of {"simple", "dsf", "ewald"} or None. If set, applied via
+            `set_lrcoulomb_method` after construction.
+        coulomb_cutoff : float, default: 15.0
+            Coulomb cutoff in Ångström (used by dsf/ewald). For
+            `aimnet2-rxn*` models the training-frozen value is 4.6;
+            other values trigger a UserWarning.
+        dftd3_cutoff : float | None, default: None
+            Override the D3 cutoff via `set_dftd3_cutoff` if non-None.
+        dftd3_smoothing_fraction : float | None, default: None
+            Override the D3 smoothing fraction via `set_dftd3_cutoff` if
+            non-None.
+
+        Raises
+        ------
+        RuntimeError
+            If `device` is "cuda" but no CUDA device is available, or if
+            this method has already been called with a different argument
+            set on this instance.
         """
         # Validate device availability BEFORE the cache short-circuit so
         # a cached CPU calc does not silently service a --device cuda
@@ -383,6 +414,21 @@ class Aimnet2Calc(BaseCalc):
                 stacklevel=2,
             )
 
+        # Warn if user picked an aimnet2-rxn family model with a
+        # non-trained --coulomb-cutoff override. The rxn family was
+        # trained with a 4.6 A long-range cutoff; other values produce
+        # physically-suspect electrostatics. Only relevant when the user
+        # explicitly enabled the long-range method.
+        is_rxn_family = "aimnet2-rxn" in model_path_lower or "aimnet2_rxn" in model_path_lower
+        if is_rxn_family and coulomb_method is not None and coulomb_cutoff != 4.6:
+            warnings.warn(
+                f"--coulomb-cutoff={coulomb_cutoff} with -m {model} disagrees with "
+                "the aimnet2-rxn training cutoff (4.6 A). Pass --coulomb-cutoff 4.6 "
+                "for physically meaningful long-range electrostatics.",
+                UserWarning,
+                stacklevel=2,
+            )
+
         self._calc = AIMNet2Calculator(
             model_path,
             nb_threshold=nb_threshold,
@@ -458,6 +504,11 @@ class Aimnet2Calc(BaseCalc):
         The same parser is used by both the standalone `oet_aimnet2` CLI
         and by `oet_server aimnet2` (server.py:278 calls extend_parser to
         build its CLI), so flags propagate to server mode automatically.
+
+        Parameters
+        ----------
+        parser : ArgumentParser
+            Parser that should be extended.
         """
         # --- model selection ---------------------------------------------
         parser.add_argument(
@@ -472,7 +523,9 @@ class Aimnet2Calc(BaseCalc):
                 "(e.g. aimnet2-wb97m-d3_0), HuggingFace repo id, or "
                 "absolute local path to a .pt file. "
                 "Default: aimnet2 (= aimnet2-wb97m-d3_0). "
-                "For non-covalent / screening: try aimnet2-2025."
+                "For non-covalent / screening: try aimnet2-2025. "
+                "For open-shell or charged systems: use aimnet2-nse "
+                "(other families are closed-shell-trained)."
             ),
         )
         parser.add_argument(
@@ -521,7 +574,11 @@ class Aimnet2Calc(BaseCalc):
             type=int,
             choices=(0, 1, 2, 3),
             default=0,
-            help="Use a single ensemble member instead of the mean. Default: 0.",
+            help=(
+                "Define the member of the method ensemble to use (default 0). "
+                "OET runs ONE model per call; for production-quality accuracy, "
+                "run each member (0,1,2,3) separately and average outside ORCA."
+            ),
         )
 
         # --- long-range Coulomb ------------------------------------------
@@ -612,20 +669,31 @@ class Aimnet2Calc(BaseCalc):
         Parameters
         ----------
         atom_types : list[str]
-            List of element symbols (e.g., ["O", "H", "H"])
+            List of element symbols (e.g. ["O", "H", "H"]).
         coordinates : list[tuple[float, float, float]]
-            List of (x, y, z) coordinates
+            List of (x, y, z) coordinates in Ångström.
         charge : int
-            Molecular charge
+            Molecular charge.
         mult : int
-            Spin multiplicity
+            Spin multiplicity (2S + 1).
         dograd : bool
-            Whether to compute the gradient
+            Whether to compute the gradient.
 
         Returns
         -------
         dict[str, Any]
-            kwargs for AIMNet2Calculator.eval()
+            kwargs ready to splat into ``AIMNet2Calculator.eval(**...)``.
+            Keys:
+
+            - ``data`` : dict with ``coord`` (list of [N, 3] coordinates),
+              ``numbers`` (list of [N] atomic numbers), ``charge``
+              (list of [B] total charges), and — only when the loaded
+              model is NSE — ``mult`` (list of [B] multiplicities).
+            - ``forces`` : bool, mirrors `dograd`.
+            - ``stress`` : bool, always False (unsupported by the
+              ORCA external-tool protocol).
+            - ``hessian`` : bool, always False (Hessian sidecar is
+              deferred per cplett's RFC reply).
         """
         numbers = [self.atomic_symbol_to_number(sym) for sym in atom_types]
         data: dict[str, Any] = {
@@ -638,6 +706,20 @@ class Aimnet2Calc(BaseCalc):
         assert self._calc is not None  # for mypy; runtime invariant per caller
         if self._calc.is_nse:
             data["mult"] = [mult]
+        elif mult != 1:
+            # Non-NSE models are closed-shell-trained; passing mult != 1
+            # silently yields a spin-restricted energy, not a true UKS-
+            # equivalent open-shell value. Warn loudly (once per process
+            # per call site, via the default warnings filter) and direct
+            # the user to aimnet2-nse.
+            warnings.warn(
+                f"mult={mult} requested but the loaded model is closed-shell-"
+                "trained (non-NSE). The returned energy is spin-restricted, NOT "
+                "a UKS-equivalent open-shell value. For genuine open-shell "
+                "energetics use -m aimnet2-nse.",
+                UserWarning,
+                stacklevel=2,
+            )
         return {
             "data": data,
             "forces": dograd,
