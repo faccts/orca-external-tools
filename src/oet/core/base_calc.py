@@ -340,6 +340,18 @@ class BaseCalc(ABC):
         """
         pass
 
+    def release(self) -> None:
+        """
+        Release device-side resources held by this calculator.
+
+        No-op by default. Calculators that hold device-resident state
+        (GPU models, compiled artifacts, etc.) override to move models
+        to CPU, drop references, and call torch.cuda.empty_cache().
+        Server-mode worker cache eviction calls this before evicting
+        a cached calculator. Must be idempotent.
+        """
+        pass
+
     def _check_python_version(self) -> None:
         """
         Checks whether the Python version matches the minimum requirement

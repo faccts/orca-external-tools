@@ -81,6 +81,9 @@ spell-check = [
 dead-code = [
     "vulture>=2.14",
 ]
+test = [
+    "pytest>=8.0",
+]
 
 # ////  MYPY  ////
 [tool.mypy]
@@ -115,9 +118,20 @@ line-length = 100
 ignore = ["E203"]
 
 
+# ////  PYTEST  ////
+[tool.pytest.ini_options]
+markers = [
+    "network: tests that download models from the network (run via OET_RUN_NETWORK_TESTS=1)",
+]
+
+
 # ////  CODESPELL  ////
 [tool.codespell]
 skip = '*.pyc,*.densities*,*.gbw,./build/,./_venv'
+# Whitelist chemical element symbols that codespell mistakes for typos.
+# Te = tellurium (Z=52), Nd = neodymium (Z=60) — both appear in
+# src/oet/calculator/aimnet2.py's _PERIODIC_TABLE.
+ignore-words-list = "te,nd"
 count = true
 summary = true
 quiet-level = 3

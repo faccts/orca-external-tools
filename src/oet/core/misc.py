@@ -6,7 +6,7 @@ import os
 import shutil
 import subprocess
 import sys
-from collections.abc import Iterable, Sequence
+from collections.abc import Callable, Iterable, Sequence
 from pathlib import Path
 from shutil import which
 
@@ -123,6 +123,114 @@ def check_multi_progs(keys: Sequence[str]) -> Path | None:
         except Exception:
             continue
     return None
+
+
+def resolve_model_file(
+    model: str,
+    model_dir: str | Path,
+    *,
+    fetch: Callable[[str], str | Path],
+    alias_resolver: Callable[[str], str | None] | None = None,
+    fetch_fallback: Callable[[str, Exception], str | None] | None = None,
+) -> Path:
+    """
+    Resolve a model name / alias / absolute path to a local model file,
+    downloading via `fetch` when necessary and caching the result under
+    `model_dir`.
+
+    Calculator-agnostic: callers supply the alias lookup and the fetch
+    function so this helper does not depend on any specific MLIP package.
+
+    Parameters
+    ----------
+    model : str
+        Either an absolute path to an existing model file, or a model
+        name / alias / relative filename that the calculator's registry
+        understands.
+    model_dir : str | Path
+        Local directory used as the cache for downloaded model files.
+        Created if missing; must be a directory if it exists.
+    fetch : Callable[[str], str | Path]
+        Function that takes a (possibly canonicalised) model name and
+        returns a local filesystem path to the file (downloading on
+        cache miss). Used for the actual model retrieval.
+    alias_resolver : Callable[[str], str | None] | None
+        Optional alias-to-canonical-name map function. Returns the
+        canonical name for an alias, or None if `model` is not an alias.
+        When None, `model` is passed unchanged to `fetch`.
+    fetch_fallback : Callable[[str, Exception], str | None] | None
+        Optional retry hook. Called with the original name and the
+        exception raised by `fetch`; returns a different name to retry
+        with, or None to re-raise the original exception.
+
+    Returns
+    -------
+    Path
+        Full path to the (possibly newly cached) model file.
+
+    Raises
+    ------
+    FileNotFoundError
+        If `model` is an absolute path that does not exist.
+    FileExistsError
+        If `model_dir` exists but is not a directory, or the cached path
+        exists but is not a file.
+    """
+    # Absolute path: must already exist; return as-is.
+    if (model_path := Path(model)).is_absolute():
+        if not model_path.exists():
+            raise FileNotFoundError(f'Model file "{model_path}" not found')
+        return model_path
+
+    # Resolve alias to a canonical name (if applicable).
+    if alias_resolver is not None:
+        canonical = alias_resolver(model)
+        if canonical is not None:
+            model_file = canonical
+        else:
+            model_file = model
+    else:
+        model_file = model
+
+    # Strip any directories for the local-cache lookup.
+    model_basename = Path(model_file).name
+
+    # Make sure the cache directory exists.
+    model_dir_path = Path(model_dir)
+    if model_dir_path.exists() and not model_dir_path.is_dir():
+        raise FileExistsError(f'Path "{model_dir}" exists but is not a directory')
+    model_dir_path.mkdir(parents=True, exist_ok=True)
+
+    # If a cached file with the same basename already exists, hand its path
+    # to `fetch` so that fetchers which short-circuit on absolute paths
+    # return immediately.
+    cached_path = model_dir_path / model_basename
+    if cached_path.exists():
+        if cached_path.is_file():
+            model = str(cached_path)
+        else:
+            raise FileExistsError(f'Path "{cached_path}" exists but is not a file')
+
+    # Obtain the file from the fetcher; allow caller to retry with a
+    # different name on failure (e.g. registry-subdirectory fallback).
+    try:
+        actual_path = Path(fetch(model))
+    except Exception as e:
+        if fetch_fallback is not None:
+            retry_name = fetch_fallback(model, e)
+            if retry_name is not None:
+                actual_path = Path(fetch(retry_name))
+            else:
+                raise
+        else:
+            raise
+
+    # Move the fetched file into the cache directory under its canonical
+    # filename for subsequent runs.
+    final_path = model_dir_path / actual_path.name
+    if not (final_path.exists() and final_path.samefile(actual_path)):
+        shutil.move(actual_path, final_path)
+    return final_path
 
 
 def print_filecontent(outfile: str | Path) -> None:

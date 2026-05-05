@@ -71,17 +71,17 @@ class Aimnet2Tests(unittest.TestCase):
         )
         run_aimnet2(input_file, output_file)
         expected_num_atoms = 3
-        expected_energy = -7.647682644970e+01
+        expected_energy = -7.647682538153e01
         expected_gradients = [
-            -1.020941790193e-02,
-            -7.558942306787e-03,
-            5.339907016605e-03,
-            3.577796975151e-03,
-            9.023884311318e-03,
-            1.832915237173e-03,
-            6.631625350565e-03,
-            -1.464942586608e-03,
-            -7.172828074545e-03
+            -1.020942814648e-02,
+            -7.558954879642e-03,
+            5.339907482266e-03,
+            3.577803261578e-03,
+            9.023892693222e-03,
+            1.832913840190e-03,
+            6.631619296968e-03,
+            -1.464935485274e-03,
+            -7.172822486609e-03,
         ]
 
         try:
@@ -109,14 +109,14 @@ class Aimnet2Tests(unittest.TestCase):
         )
         run_aimnet2(input_file, output_file)
         expected_num_atoms = 2
-        expected_energy = -7.582629740302e+01
+        expected_energy = -7.582629635076e01
         expected_gradients = [
-            -4.858186002821e-04,
-            -1.563774305396e-03,
-            -4.455401503947e-04,
-            4.858186002821e-04,
-            1.563771977089e-03,
-            4.455401503947e-04
+            -4.858376923949e-04,
+            -1.563820987940e-03,
+            -4.455552552827e-04,
+            4.858376923949e-04,
+            1.563823316246e-03,
+            4.455552552827e-04,
         ]
 
         try:
@@ -144,14 +144,14 @@ class Aimnet2Tests(unittest.TestCase):
         )
         run_aimnet2(input_file, output_file)
         expected_num_atoms = 2
-        expected_energy = -7.568258800204e+01
+        expected_energy = -7.568258700191e01
         expected_gradients = [
-            -3.783911699429e-03,
-            -1.217970903963e-02,
-            -3.470176830888e-03,
-            3.783911699429e-03,
-            1.217970997095e-02,
-            3.470176830888e-03
+            -3.783945925534e-03,
+            -1.217983383685e-02,
+            -3.470211755484e-03,
+            3.783945692703e-03,
+            1.217983569950e-02,
+            3.470211755484e-03,
         ]
 
         try:
@@ -162,9 +162,9 @@ class Aimnet2Tests(unittest.TestCase):
             ) from e
 
         self.assertEqual(num_atoms, expected_num_atoms)
-        self.assertAlmostEqual(energy, expected_energy, places=7)
+        self.assertAlmostEqual(energy, expected_energy, places=9)
         for g1, g2 in zip(gradients, expected_gradients):
-            self.assertAlmostEqual(g1, g2, places=7)
+            self.assertAlmostEqual(g1, g2, places=9)
 
 
 if __name__ == "__main__":

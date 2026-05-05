@@ -65,6 +65,16 @@ If you want to keep multiple servers running for different types of calculations
 you have to specify different ports for the server and clients with the `-b <hostname>:<port>` keyword. 
 Provide the keyword to the client via the ORCA input line `Ext_Params "-b <hostname>:<port>"`.
 
+### AIMNet2 options
+
+`oet_aimnet2` and the `oet_server aimnet2` server expose model-selection
+and performance flags specific to AIMNet2. See
+[`readmes/aimnet2.md`](readmes/aimnet2.md) for the full reference: model
+families and when to use which, open-shell / biradical caveats,
+performance flags (`--compile`, `--nb-threshold`, `--ensemble-member`),
+long-range Coulomb (`--coulomb-method`, `--coulomb-cutoff`), DFT-D3
+flags, GPU server deployment notes, and complete ORCA-input examples.
+
 ## Interface
 
 All scripts must be executable as:
