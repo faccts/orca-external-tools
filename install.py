@@ -9,7 +9,7 @@ import shutil
 
 
 # Available extras
-EXTRAS = ["uma", "aimnet2", "mlatom"]
+EXTRAS = ["aimnet2", "mace", "mlatom", "uma"]
 
 # Minimal python interpreter required by the base class (currently 3.10)
 minimal_python_version = (3, 10)

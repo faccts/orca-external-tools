@@ -11,23 +11,22 @@ from oet.core.test_utilities import (
     write_xyz_file,
 )
 
-# Path to the scripts, adjust if needed.
-gxtb_script_path = ROOT_DIR / "../../bin/oet_gxtb"
-# Leave gxtb_executable_path empty, if gxtb from system path should be called
-gxtb_executable_path = ""
+# Path to the script, adjust if needed.
+mace_script_path = ROOT_DIR / "../../bin_mace/oet_mace"
 
 
-def run_gxtb(inputfile: str, output_file: str) -> None:
-    if gxtb_executable_path:
-        arguments = ["--exe", gxtb_executable_path]
-    else:
-        arguments = None
+def run_mace(inputfile: str, output_file: str, args: list[str] | None = None) -> None:
+    # Run the wrapper with an increased timeout as loading the MACE model files might take a while
     run_wrapper(
-        inputfile=inputfile, script_path=gxtb_script_path, outfile=output_file, args=arguments
+        inputfile=inputfile,
+        script_path=mace_script_path,
+        outfile=output_file,
+        timeout=30,
+        args=args,
     )
 
 
-class GxtbTests(unittest.TestCase):
+class MACETests(unittest.TestCase):
     def test_H2O_engrad(self):
         xyz_file, input_file, engrad_out, output_file = get_filenames("H2O")
 
@@ -40,19 +39,20 @@ class GxtbTests(unittest.TestCase):
             ncores=2,
             do_gradient=1,
         )
-        run_gxtb(input_file, output_file)
+        args = ["-s", "mace-mp", "-m", "medium", "head", "mh0"]
+        run_mace(input_file, output_file, args)
         expected_num_atoms = 3
-        expected_energy = -76.43736490412
+        expected_energy = -5.203530407103e-01
         expected_gradients = [
-            -8.58374584e-03,
-            -6.34732203e-03,
-            4.48788670e-03,
-            3.68390440e-03,
-            5.26218976e-03,
-            -4.49684003e-04,
-            4.89984144e-03,
-            1.08513227e-03,
-            -4.03820270e-03,
+            2.897306550196e-03,
+            2.144325522181e-03,
+            -1.515869870431e-03,
+            -7.767454655073e-04,
+            -3.378720118971e-03,
+            -1.222818329722e-03,
+            -2.120561084688e-03,
+            1.234394596790e-03,
+            2.738688200153e-03,
         ]
 
         try:
@@ -63,9 +63,9 @@ class GxtbTests(unittest.TestCase):
             ) from e
 
         self.assertEqual(num_atoms, expected_num_atoms)
-        self.assertAlmostEqual(energy, expected_energy, places=9)
+        self.assertAlmostEqual(energy, expected_energy, places=7)
         for g1, g2 in zip(gradients, expected_gradients):
-            self.assertAlmostEqual(g1, g2, places=9)
+            self.assertAlmostEqual(g1, g2, places=7)
 
     def test_OH_anion_eng_grad(self):
         xyz_file, input_file, engrad_out, output_file = get_filenames("OH_anion")
@@ -78,16 +78,17 @@ class GxtbTests(unittest.TestCase):
             ncores=2,
             do_gradient=1,
         )
-        run_gxtb(input_file, output_file)
+        args = ["-s", "omol"]
+        run_mace(input_file, output_file, args)
         expected_num_atoms = 2
-        expected_energy = -75.80305584316
+        expected_energy = -7.580657311911e01
         expected_gradients = [
-            2.28916816e-03,
-            7.36155354e-03,
-            2.09936121e-03,
-            -2.28916816e-03,
-            -7.36155354e-03,
-            -2.09936121e-03,
+            -1.082263844645e-03,
+            -3.483610415645e-03,
+            -9.925303607707e-04,
+            1.082263844645e-03,
+            3.483610415645e-03,
+            9.925303607707e-04,
         ]
 
         try:
@@ -98,9 +99,9 @@ class GxtbTests(unittest.TestCase):
             ) from e
 
         self.assertEqual(num_atoms, expected_num_atoms)
-        self.assertAlmostEqual(energy, expected_energy, places=9)
+        self.assertAlmostEqual(energy, expected_energy, places=7)
         for g1, g2 in zip(gradients, expected_gradients):
-            self.assertAlmostEqual(g1, g2, places=9)
+            self.assertAlmostEqual(g1, g2, places=7)
 
     def test_OH_rad_eng_grad(self):
         xyz_file, input_file, engrad_out, output_file = get_filenames("OH_rad")
@@ -113,16 +114,16 @@ class GxtbTests(unittest.TestCase):
             ncores=2,
             do_gradient=1,
         )
-        run_gxtb(input_file, output_file)
+        run_mace(input_file, output_file)
         expected_num_atoms = 2
-        expected_energy = -75.74502880794
+        expected_energy = -7.574239878105e01
         expected_gradients = [
-            -1.02890363e-04,
-            -3.55911885e-04,
-            -1.29478984e-04,
-            1.02890363e-04,
-            3.55911885e-04,
-            1.29478984e-04,
+            1.056554797887e-03,
+            3.400856384066e-03,
+            9.689529220712e-04,
+            -1.056554797887e-03,
+            -3.400856384066e-03,
+            -9.689529220712e-04,
         ]
 
         try:
