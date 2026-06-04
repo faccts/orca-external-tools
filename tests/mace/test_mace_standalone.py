@@ -12,7 +12,7 @@ from oet.core.test_utilities import (
 )
 
 # Path to the script, adjust if needed.
-mace_script_path = ROOT_DIR / "../../bin_mace/oet_mace"
+mace_script_path = ROOT_DIR / "../../bin/oet_mace"
 
 
 def run_mace(inputfile: str, output_file: str, args: list[str] | None = None) -> None:
@@ -39,7 +39,7 @@ class MACETests(unittest.TestCase):
             ncores=2,
             do_gradient=1,
         )
-        args = ["-s", "mace-mp", "-m", "medium", "head", "mh0"]
+        args = ["-s", "mace-mp", "-m", "medium", "--head", "mh0"]
         run_mace(input_file, output_file, args)
         expected_num_atoms = 3
         expected_energy = -5.203530407103e-01

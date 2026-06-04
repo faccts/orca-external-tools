@@ -16,8 +16,8 @@ from oet.core.test_utilities import (
 )
 
 # Path to the script, adjust if needed.
-mace_server_path = ROOT_DIR / "../../bin_mace/oet_server"
-mace_client_path = ROOT_DIR / "../../bin_mace/oet_client"
+mace_server_path = ROOT_DIR / "../../bin/oet_server"
+mace_client_path = ROOT_DIR / "../../bin/oet_client"
 # Default maximum time (in sec) to download the model files if not present
 timeout = 600
 # Default ID and port of server. Change if needed
@@ -74,7 +74,7 @@ class MACETests(unittest.TestCase):
             ncores=2,
             do_gradient=1,
         )
-        args = ["-s", "mace-mp", "-m", "medium", "head", "mh0"]
+        args = ["-s", "mace-mp", "-m", "medium", "--head", "mh0"]
         run_mace(input_file, output_file, args)
         expected_num_atoms = 3
         expected_energy = -5.203530407103e-01

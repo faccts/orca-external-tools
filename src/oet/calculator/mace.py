@@ -1,6 +1,6 @@
-c#!/usr/bin/env python3
+#!/usr/bin/env python3
 """
-Insert correct text here.
+MACE wrapper for ORCA's ExtTool interface.
 """
 
 import sys
@@ -57,6 +57,7 @@ class MaceCalc(BaseCalc):
         device: str,
         default_dtype: str,
         head: str,
+        force: bool = False,
     ) -> None:
         """
         Prepare a MACE calculator object that is compatible with the ASE calculator object to compute energy and gradient, if not done already.
@@ -81,7 +82,11 @@ class MaceCalc(BaseCalc):
             Precision type.
         head: str
             The head of the MACE model.
+        force: bool, default = False
+            Force re-initialization of the calculator, even if already initialized.
         """
+        if self._calc and not force:
+            return
         match suite:
             case "mp":
                 kwargs = dict(
@@ -277,7 +282,7 @@ class MaceCalc(BaseCalc):
         dispersion = bool(args_parsed["dispersion"])
         dispersion_xc = args_parsed["dispersion_xc"]
         dispersion_cutoff = args_parsed["dispersion_cutoff"]
-        if any([dispersion, dispersion_xc, dispersion_cutoff]) and not suite == "mp":
+        if dispersion and suite != "mp":
             print(
                 "WARNING: Dispersion flag recognized, but MP suite not used. Ignoring all options related to dispersion."
             )
@@ -305,7 +310,7 @@ class MaceCalc(BaseCalc):
         # process the XYZ file
         atom_types, coordinates = xyzfile_to_at_coord(calc_data.xyzfile)
 
-        # run uma
+        # run mace
         energy, gradient = self.run_mace(
             atom_types=atom_types, coordinates=coordinates, calc_data=calc_data
         )
