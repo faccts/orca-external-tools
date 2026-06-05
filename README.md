@@ -75,6 +75,12 @@ performance flags (`--compile`, `--nb-threshold`, `--ensemble-member`),
 long-range Coulomb (`--coulomb-method`, `--coulomb-cutoff`), DFT-D3
 flags, GPU server deployment notes, and complete ORCA-input examples.
 
+### MACE options
+
+`oet_mace` and the `oet_server mace` server expose model-selection
+and performance flags specific to MACE. See
+[`readmes/mace.md`](readmes/mace.md) for further details.
+
 ## Interface
 
 All scripts must be executable as:
