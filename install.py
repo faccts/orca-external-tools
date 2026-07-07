@@ -149,7 +149,7 @@ def install_dev_tools(venv_dir: Path) -> None:
     pip_path = get_venv_pip(venv_dir)
 
     print("Installing developer tools.")
-    subprocess.check_call([pip_path, "install", ".[dev]"])
+    subprocess.check_call([pip_path, "install", "-e", ".[dev]"])
 
 
 def copy_oet_scripts(venv_dir: Path, dest_dir: Path, extras: Sequence[str]) -> None:
