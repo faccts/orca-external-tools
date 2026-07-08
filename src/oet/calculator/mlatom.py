@@ -34,8 +34,10 @@ main: function
 
 import os
 import shutil
+import sys
 import tempfile
 from argparse import ArgumentParser
+from pathlib import Path
 from typing import Any
 
 from oet.core.base_calc import BaseCalc, CalculationData
@@ -45,8 +47,35 @@ from oet.core.misc import LENGTH_CONVERSION, check_path, run_command
 class MlatomCalc(BaseCalc):
     @property
     def PROGRAM_NAMES(self) -> list[str]:
-        """Program names to search for in PATH"""
-        return ["mlatom"]
+        """
+        Program names/paths to search for.
+
+        Returns
+        -------
+        list[str]
+            A list of paths or names to be searched for in PATH.
+        """
+        exe_names = ["mlatom"]
+
+        candidates: list[str] = []
+
+        # Program names to be searched in the PATH.
+        candidates.extend(exe_names)
+
+        # Directories in the current python environments to check
+        # Include "Scripts" to catch Windows installations
+        bin_dirs = [
+            Path(sys.prefix) / "bin",
+            Path(sys.prefix) / "Scripts",
+            Path(sys.executable).parent,
+        ]
+
+        # Add possible full Paths of the program
+        for bindir in bin_dirs:
+            for name in exe_names:
+                candidates.append(str(bindir / name))
+
+        return candidates
 
     @classmethod
     def extend_parser(cls, parser: ArgumentParser) -> None:

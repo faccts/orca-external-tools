@@ -170,8 +170,8 @@ class MaceCalc(BaseCalc):
                 "This requires the installation of torch_dftd to the virtual "
                 "environment and that liblzma was installed when setting up "
                 "the environment."
-            )
-            )
+            ),
+        )
         parser.add_argument(
             "--damping",
             type=str,

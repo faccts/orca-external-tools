@@ -435,7 +435,6 @@ class TestBaseCalcReleaseDefault:
     """
 
     def test_release_default_is_callable_and_no_op(self):
-
         from oet.core.base_calc import BaseCalc
 
         class _StubCalc(BaseCalc):
