@@ -12,7 +12,7 @@ import shutil
 EXTRAS = ["aimnet2", "mace", "mlatom", "uma"]
 
 # Minimal python interpreter required by the base class (currently 3.10)
-minimal_python_version = (3, 10)
+minimal_python_version = (3, 11)
 if sys.version_info < minimal_python_version:
     raise RuntimeError(
         f"Python version must be higher than {minimal_python_version[0]}.{minimal_python_version[1]}"
@@ -85,7 +85,11 @@ def install_build_dependencies(venv_dir: Path) -> None:
     )
 
 
-def pip_install_target(venv_dir: Path, script_dir: Path) -> None:
+def pip_install_target(
+    venv_dir: Path,
+    script_dir: Path,
+    extras: Sequence[str],
+) -> None:
     """
     Install oet to virtual environment
 
@@ -97,44 +101,26 @@ def pip_install_target(venv_dir: Path, script_dir: Path) -> None:
         Path to the final scripts
     """
     pip_path = get_venv_pip(venv_dir)
-
     script_dir.mkdir(parents=True, exist_ok=True)
 
+    target = "."
+    if extras:
+        target += f"[{','.join(extras)}]"
+
     print(f"Installing package to {script_dir} using pip in venv...")
+
     subprocess.check_call(
         [
             pip_path,
             "install",
-            "-e" ".",  # install from current directory
-            "--config-settings", "editable_mode=compat",  # use PEP 517 build backend
-            #f"--target={script_dir}",
+            "-e",
+            target,
+            "--config-settings",
+            "editable_mode=compat",
         ]
     )
+
     print("Installation complete.")
-
-
-def install_extra_requirements(venv_dir: Path, extras: list[str]) -> None:
-    """
-    Installs extra requirements located in the requirements directory.
-    Use for, e.g., uma or AIMNet2
-
-    Parameters
-    ----------
-    venv_dir: Path
-        Path to the virtual environment that should be installed to.
-    extras: list[str]
-        Requirements that should be additionally installed
-    """
-    pip_path = get_venv_pip(venv_dir)
-
-    for extra in extras:
-        req_path = Path("requirements") / f"{extra}.txt"
-        if not req_path.exists():
-            print(f"Requirements file not found: {req_path}, skipping.")
-            continue
-
-        print(f"Installing extra requirements from {req_path}...")
-        subprocess.check_call([pip_path, "install", "-r", req_path])
 
 
 def install_dev_tools(venv_dir: Path) -> None:
@@ -211,7 +197,7 @@ def parse_args():
         nargs="+",
         choices=EXTRAS,
         default=[],
-        help="Install optional extra package sets from requirements/<name>.txt",
+        help="Install optional dependency groups defined in pyproject.toml",
     )
     parser.add_argument(
         "--dev",
@@ -237,12 +223,8 @@ def main():
     # Install build dependencies
     install_build_dependencies(args.venv_dir)
 
-    # Install extra dependencies in requirements.txt
-    if args.extra:
-        install_extra_requirements(args.venv_dir, args.extra)
-
     # Install oet
-    pip_install_target(args.venv_dir, args.script_dir)
+    pip_install_target(args.venv_dir, args.script_dir, args.extra)
 
     # Install dev tools (nox)
     if args.dev:
