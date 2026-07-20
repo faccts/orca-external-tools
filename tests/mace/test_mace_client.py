@@ -1,10 +1,11 @@
 import os
+import shutil
 import signal
 import subprocess
 import time
 import unittest
+from pathlib import Path
 
-from oet import ROOT_DIR
 from oet.core.test_utilities import (
     OH,
     WATER,
@@ -15,9 +16,23 @@ from oet.core.test_utilities import (
     write_xyz_file,
 )
 
-# Path to the script, adjust if needed.
-mace_server_path = ROOT_DIR / "../../bin/oet_server"
-mace_client_path = ROOT_DIR / "../../bin/oet_client"
+# Get the path to the script that should be tested
+resolved_mace_script = shutil.which("oet_client")
+if resolved_mace_script is None:
+    raise RuntimeError(
+        "The 'oet_client' script was not found on PATH. "
+        "Run the tests with the project's virtual environment activated."
+    )
+mace_script_path = Path(resolved_mace_script)
+
+resolved_server_script = shutil.which("oet_server")
+if resolved_server_script is None:
+    raise RuntimeError(
+        "The 'oet_server' script was not found on PATH. "
+        "Run the tests with the project's virtual environment activated."
+    )
+mace_server_path = Path(resolved_server_script)
+
 # Default maximum time (in sec) to download the model files if not present
 timeout = 600
 # Default ID and port of server. Change if needed
@@ -29,7 +44,7 @@ def run_mace(inputfile: str, output_file: str, args: list[str]) -> None:
     args.extend(["--bind", id_port])
     run_wrapper(
         inputfile=inputfile,
-        script_path=mace_client_path,
+        script_path=mace_script_path,
         outfile=output_file,
         timeout=30,
         args=args,

@@ -1,10 +1,11 @@
 import os
+import shutil
 import signal
 import subprocess
 import time
 import unittest
+from pathlib import Path
 
-from oet import ROOT_DIR
 from oet.calculator.uma import DEFAULT_CACHE_DIR, UmaCalc
 from oet.core.test_utilities import (
     OH,
@@ -18,9 +19,23 @@ from oet.core.test_utilities import (
     write_xyz_file,
 )
 
-# Path to the scripts, adjust if needed.
-uma_script_path = ROOT_DIR / "../../bin/oet_client"
-uma_server_path = ROOT_DIR / "../../bin/oet_server"
+# Get the path to the script that should be tested
+resolved_uma_script = shutil.which("oet_client")
+if resolved_uma_script is None:
+    raise RuntimeError(
+        "The 'oet_client' script was not found on PATH. "
+        "Run the tests with the project's virtual environment activated."
+    )
+uma_script_path = Path(resolved_uma_script)
+
+resolved_server_script = shutil.which("oet_server")
+if resolved_server_script is None:
+    raise RuntimeError(
+        "The 'oet_server' script was not found on PATH. "
+        "Run the tests with the project's virtual environment activated."
+    )
+uma_server_path = Path(resolved_server_script)
+
 # Default maximum time (in sec) to download the model files if not present
 timeout = 600
 # Default ID and port of server. Change if needed

@@ -1,8 +1,9 @@
+import shutil
 import unittest
+from pathlib import Path
 
 import torchani
 
-from oet import ROOT_DIR
 from oet.core.test_utilities import (
     OH,
     WATER,
@@ -15,8 +16,14 @@ from oet.core.test_utilities import (
     write_xyz_file,
 )
 
-# Path to the script, adjust if needed.
-mlatom_script_path = ROOT_DIR / "../../bin/oet_mlatom"
+# Get the path to the script that should be tested
+resolved_mlatom_script = shutil.which("oet_mlatom")
+if resolved_mlatom_script is None:
+    raise RuntimeError(
+        "The 'goet_xtb' script was not found on PATH. "
+        "Run the tests with the project's virtual environment activated."
+    )
+mlatom_script_path = Path(resolved_mlatom_script)
 # Default maximum time (in sec) to download the model files if not present
 timeout = 300
 # Leave mlatom_executable_path empty, if mlatom from system path should be called
