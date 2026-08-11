@@ -282,7 +282,7 @@ def read_input(
         raise FileNotFoundError(f"Input file not found: {inputfile}")
     # Save information
     try:
-        xyz_filename = lines[0]
+        xyz_filename = Path(lines[0]).name
         charge = int(lines[1])
         multiplicity = int(lines[2])
         ncores = int(lines[3])
