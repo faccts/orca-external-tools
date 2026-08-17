@@ -16,7 +16,7 @@ from oet.core.test_utilities import (
 resolved_xtb_script = shutil.which("oet_xtb")
 if resolved_xtb_script is None:
     raise RuntimeError(
-        "The 'oet_xtb' script was not found on PATH. "
+        "The 'oet_xtb' script was not found in PATH. "
         "Run the tests with the project's virtual environment activated."
     )
 xtb_script_path = Path(resolved_xtb_script)

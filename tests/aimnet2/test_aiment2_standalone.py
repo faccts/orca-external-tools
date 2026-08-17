@@ -22,7 +22,7 @@ from oet.core.test_utilities import (
 resolved_aimnet2_script = shutil.which("oet_aimnet2")
 if resolved_aimnet2_script is None:
     raise RuntimeError(
-        "The 'oet_aimnet2' script was not found on PATH. "
+        "The 'oet_aimnet2' script was not found in PATH. "
         "Run the tests with the project's virtual environment activated."
     )
 aimnet2_script_path = Path(resolved_aimnet2_script)

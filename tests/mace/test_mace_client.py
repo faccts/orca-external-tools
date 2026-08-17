@@ -20,7 +20,7 @@ from oet.core.test_utilities import (
 resolved_mace_script = shutil.which("oet_client")
 if resolved_mace_script is None:
     raise RuntimeError(
-        "The 'oet_client' script was not found on PATH. "
+        "The 'oet_client' script was not found in PATH. "
         "Run the tests with the project's virtual environment activated."
     )
 mace_script_path = Path(resolved_mace_script)
@@ -28,7 +28,7 @@ mace_script_path = Path(resolved_mace_script)
 resolved_server_script = shutil.which("oet_server")
 if resolved_server_script is None:
     raise RuntimeError(
-        "The 'oet_server' script was not found on PATH. "
+        "The 'oet_server' script was not found in PATH. "
         "Run the tests with the project's virtual environment activated."
     )
 mace_server_path = Path(resolved_server_script)

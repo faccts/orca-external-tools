@@ -16,7 +16,7 @@ from oet.core.test_utilities import (
 resolved_mace_script = shutil.which("oet_mace")
 if resolved_mace_script is None:
     raise RuntimeError(
-        "The 'goet_xtb' script was not found on PATH. "
+        "The 'goet_xtb' script was not found in PATH. "
         "Run the tests with the project's virtual environment activated."
     )
 mace_script_path = Path(resolved_mace_script)
