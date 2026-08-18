@@ -1,6 +1,7 @@
+import shutil
 import unittest
+from pathlib import Path
 
-from oet import ROOT_DIR
 from oet.calculator.uma import DEFAULT_CACHE_DIR, UmaCalc
 from oet.core.test_utilities import (
     OH,
@@ -14,8 +15,15 @@ from oet.core.test_utilities import (
     write_xyz_file,
 )
 
-# Path to the script, adjust if needed.
-uma_script_path = ROOT_DIR / "../../bin/oet_uma"
+# Get the path to the script that should be tested
+resolved_uma_script = shutil.which("oet_uma")
+if resolved_uma_script is None:
+    raise RuntimeError(
+        "The 'goet_xtb' script was not found in PATH. "
+        "Run the tests with the project's virtual environment activated."
+    )
+uma_script_path = Path(resolved_uma_script)
+
 # Default maximum time (in sec) to download the model files if not present
 timeout = 600
 # UMA model to use

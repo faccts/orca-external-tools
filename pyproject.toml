@@ -63,6 +63,27 @@ oet = "oet.scripts.oet:main"
 # $$$$$$$$$$$$$$$$$$$$$$$$$$$$
 
 [project.optional-dependencies]
+aimnet2 = [
+    "aimnet>=0.2,<0.3",
+]
+
+mace = [
+    "mace-torch>=0.3.14",
+]
+
+mlatom = [
+    # Torch currently requires setuptools<82.
+    "setuptools<82.0.0",
+    "mlatom>=3.12.0",
+    "torchani==2.2.4",
+    "joblib>=1.5.3",
+]
+
+uma = [
+    "setuptools<82.0.0",
+    "fairchem-core>=2.2.0",
+]
+
 dev = [
     "nox>=2025.5.1",
 ]

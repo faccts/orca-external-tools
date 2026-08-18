@@ -35,8 +35,6 @@ except ImportError as err:
     print(
         f"[MISSING] Required module aimnet not found: {err}.\n"
         "Please install the packages in the virtual environment.\n"
-        "Therefore, activate the venv, got to the orca-external-tools "
-        "main directory and use pip install -r requirements/aimnet2.txt"
     )
     sys.exit(1)
 try:

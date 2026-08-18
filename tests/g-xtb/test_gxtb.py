@@ -1,6 +1,7 @@
+import shutil
 import unittest
+from pathlib import Path
 
-from oet import ROOT_DIR
 from oet.core.test_utilities import (
     OH,
     WATER,
@@ -11,8 +12,15 @@ from oet.core.test_utilities import (
     write_xyz_file,
 )
 
-# Path to the scripts, adjust if needed.
-gxtb_script_path = ROOT_DIR / "../../bin/oet_gxtb"
+# Get the path to the script that should be tested
+resolved_gxtb_script = shutil.which("oet_gxtb")
+if resolved_gxtb_script is None:
+    raise RuntimeError(
+        "The 'goet_xtb' script was not found in PATH. "
+        "Run the tests with the project's virtual environment activated."
+    )
+gxtb_script_path = Path(resolved_gxtb_script)
+
 # Leave gxtb_executable_path empty, if gxtb from system path should be called
 gxtb_executable_path = ""
 

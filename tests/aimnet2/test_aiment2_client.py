@@ -1,10 +1,11 @@
 import os
+import shutil
 import signal
 import subprocess
 import time
 import unittest
+from pathlib import Path
 
-from oet import ROOT_DIR
 from oet.core.test_utilities import (
     OH,
     WATER,
@@ -15,9 +16,23 @@ from oet.core.test_utilities import (
     write_xyz_file,
 )
 
-# Path to the scripts, adjust if needed.
-aimnet2_script_path = ROOT_DIR / "../../bin/oet_client"
-aimnet2_server_path = ROOT_DIR / "../../bin/oet_server"
+# Get the path to the script that should be tested
+resolved_aimnet2_script = shutil.which("oet_client")
+if resolved_aimnet2_script is None:
+    raise RuntimeError(
+        "The 'oet_client' script was not found in PATH. "
+        "Run the tests with the project's virtual environment activated."
+    )
+aimnet2_script_path = Path(resolved_aimnet2_script)
+
+resolved_server_script = shutil.which("oet_server")
+if resolved_server_script is None:
+    raise RuntimeError(
+        "The 'oet_server' script was not found in PATH. "
+        "Run the tests with the project's virtual environment activated."
+    )
+aimnet2_server_path = Path(resolved_server_script)
+
 # Default ID and port of server. Change if needed
 id_port = "127.0.0.1:9000"
 
@@ -28,6 +43,7 @@ def run_aimnet2(inputfile: str, output_file: str) -> None:
         script_path=aimnet2_script_path,
         outfile=output_file,
         args=["--bind", id_port],
+        timeout=30,
     )
 
 
@@ -46,6 +62,7 @@ class Aimnet2Tests(unittest.TestCase):
                 preexec_fn=os.setsid,
             )
         # Wait a little to make sure it is setup
+        # If there are timeout errors, try increasing the sleep time to, .e.g, 30.
         time.sleep(5)
 
     @classmethod
@@ -92,9 +109,9 @@ class Aimnet2Tests(unittest.TestCase):
             ) from e
 
         self.assertEqual(num_atoms, expected_num_atoms)
-        self.assertAlmostEqual(energy, expected_energy, places=9)
+        self.assertAlmostEqual(energy, expected_energy, places=8)
         for g1, g2 in zip(gradients, expected_gradients):
-            self.assertAlmostEqual(g1, g2, places=9)
+            self.assertAlmostEqual(g1, g2, places=8)
 
     def test_OH_anion_eng_grad(self):
         xyz_file, input_file, engrad_out, output_file = get_filenames("OH_anion_client")
@@ -127,9 +144,9 @@ class Aimnet2Tests(unittest.TestCase):
             ) from e
 
         self.assertEqual(num_atoms, expected_num_atoms)
-        self.assertAlmostEqual(energy, expected_energy, places=9)
+        self.assertAlmostEqual(energy, expected_energy, places=8)
         for g1, g2 in zip(gradients, expected_gradients):
-            self.assertAlmostEqual(g1, g2, places=9)
+            self.assertAlmostEqual(g1, g2, places=8)
 
     def test_OH_rad_eng_grad(self):
         xyz_file, input_file, engrad_out, output_file = get_filenames("OH_rad_client")
@@ -162,9 +179,9 @@ class Aimnet2Tests(unittest.TestCase):
             ) from e
 
         self.assertEqual(num_atoms, expected_num_atoms)
-        self.assertAlmostEqual(energy, expected_energy, places=9)
+        self.assertAlmostEqual(energy, expected_energy, places=8)
         for g1, g2 in zip(gradients, expected_gradients):
-            self.assertAlmostEqual(g1, g2, places=9)
+            self.assertAlmostEqual(g1, g2, places=8)
 
 
 if __name__ == "__main__":

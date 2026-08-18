@@ -11,11 +11,11 @@ import shutil
 # Available extras
 EXTRAS = ["aimnet2", "mace", "mlatom", "uma"]
 
-# Minimal python interpreter required by the base class (currently 3.10)
-minimal_python_version = (3, 10)
+# Minimal python interpreter required by the base class
+minimal_python_version = (3, 11)
 if sys.version_info < minimal_python_version:
     raise RuntimeError(
-        f"Python version must be higher than {minimal_python_version[0]}.{minimal_python_version[1]}"
+        f"Python {minimal_python_version[0]}.{minimal_python_version[1]} or newer is required."
     )
 
 
@@ -52,40 +52,31 @@ def get_venv_pip(venv_dir: Path) -> Path:
     FileNotFoundError
         if the `pip` binary does not exist or is not executable.
     """
-    pip_path = (
+    # Windows pip has a different path
+    if os.name == "nt":
+            pip_path = (
+                venv_dir
+                / ("Scripts")
+                / ("pip.exe")
+            )
+    else:
+        pip_path = (
             venv_dir
             / ("bin")
-            / ("pip.exe" if os.name == "nt" else "pip")
-    )
+            / ("pip")
+            )
+
     if not pip_path.exists():
         raise FileNotFoundError(f"pip not found in venv: {pip_path}")
     return pip_path
 
 
-def install_build_dependencies(venv_dir: Path) -> None:
-    """
-    Installs setuptools and other build dependencies in the virtual environment.
-
-    Parameters
-    ----------
-    venv_dir: Path
-        Path to the virtual environment that should be installed to.
-    """
-    pip_path = get_venv_pip(venv_dir)
-
-    print(f"Installing build dependencies in venv...")
-    subprocess.check_call(
-        [
-            pip_path,
-            "install",
-            "-U",
-            "setuptools",
-            "setuptools_scm",
-        ]
-    )
-
-
-def pip_install_target(venv_dir: Path, script_dir: Path) -> None:
+def pip_install_target(
+    venv_dir: Path,
+    script_dir: Path,
+    extras: Sequence[str],
+    editable: bool,
+) -> None:
     """
     Install oet to virtual environment
 
@@ -95,61 +86,37 @@ def pip_install_target(venv_dir: Path, script_dir: Path) -> None:
         Path to the virtual environment
     script_dir: Path
         Path to the final scripts
+    extras: Sequence[str]
+        Additional extras to be installed. Should match optional dependency groups of 
+        the pyproject.toml.
     """
-    pip_path = get_venv_pip(venv_dir)
 
+    # Create the directory for storing the final scripts
     script_dir.mkdir(parents=True, exist_ok=True)
 
+    # Get the pip version of the created virtual environment.
+    pip_path = get_venv_pip(venv_dir)
+
     print(f"Installing package to {script_dir} using pip in venv...")
+
+    # Prepare the call for installing the dependencies to the virtual environment.
+    target = "."
+    if extras:
+        target += f"[{','.join(extras)}]"
+
+    command = [pip_path, "install"]
+
+    if editable:
+        command.append("-e")
+    
+    command.append(target)
+
+    # Install the dependencies.
     subprocess.check_call(
-        [
-            pip_path,
-            "install",
-            "-e" ".",  # install from current directory
-            "--config-settings", "editable_mode=compat",  # use PEP 517 build backend
-            #f"--target={script_dir}",
-        ]
+        command
     )
+
     print("Installation complete.")
-
-
-def install_extra_requirements(venv_dir: Path, extras: list[str]) -> None:
-    """
-    Installs extra requirements located in the requirements directory.
-    Use for, e.g., uma or AIMNet2
-
-    Parameters
-    ----------
-    venv_dir: Path
-        Path to the virtual environment that should be installed to.
-    extras: list[str]
-        Requirements that should be additionally installed
-    """
-    pip_path = get_venv_pip(venv_dir)
-
-    for extra in extras:
-        req_path = Path("requirements") / f"{extra}.txt"
-        if not req_path.exists():
-            print(f"Requirements file not found: {req_path}, skipping.")
-            continue
-
-        print(f"Installing extra requirements from {req_path}...")
-        subprocess.check_call([pip_path, "install", "-r", req_path])
-
-
-def install_dev_tools(venv_dir: Path) -> None:
-    """
-    Installs the developer tools like nox.
-
-    Parameters
-    ----------
-    venv_dir: Path
-        Path to the virtual environment that should be installed to.
-    """
-    pip_path = get_venv_pip(venv_dir)
-
-    print("Installing developer tools.")
-    subprocess.check_call([pip_path, "install", "-e", ".[dev]"])
 
 
 def copy_oet_scripts(venv_dir: Path, dest_dir: Path, extras: Sequence[str]) -> None:
@@ -166,20 +133,26 @@ def copy_oet_scripts(venv_dir: Path, dest_dir: Path, extras: Sequence[str]) -> N
     extras : Sequence[str]
         Installed extras
     """
-    bin_dir = venv_dir / ("bin")
+
+    # Get the directory with the oet scripts.
+    # Exact location depends on the operating system.
+    bin_dir = venv_dir / ("Scripts" if os.name == "nt" else "bin")
     if not bin_dir.exists():
         raise FileNotFoundError(f"bin directory not found in venv: {bin_dir}")
 
+    # Make sure the final directory exists.
     dest_dir.mkdir(parents=True, exist_ok=True)
 
+    # Copy the scripts and count how many were copied.
     count = 0
     for script in bin_dir.glob("oet*"):
         if script.is_file():
-            # skip not installed extras
+            # Skip not installed extras
             if (module := script.name.removeprefix("oet_")) in EXTRAS and module not in extras:
                 continue
             target = dest_dir / script.name
-            shutil.copy2(script, target)  # copy with metadata (executable bit)
+            # Copy with metadata (so that the scripts remain executable).
+            shutil.copy2(script, target)
             print(f"Copied {script.name} → {target}")
             count += 1
 
@@ -211,13 +184,18 @@ def parse_args():
         nargs="+",
         choices=EXTRAS,
         default=[],
-        help="Install optional extra package sets from requirements/<name>.txt",
+        help="Install optional dependency groups defined in pyproject.toml",
     )
     parser.add_argument(
         "--dev",
         "-d",
         action="store_true",
         help="Install optional developer tools.",
+    )
+    parser.add_argument(
+        "--editable",
+        action="store_true",
+        help="Install in editable mode. Recommended for development.",
     )
     return parser.parse_args()
 
@@ -234,22 +212,17 @@ def main():
             "Installing oet to this venv."
         )
 
-    # Install build dependencies
-    install_build_dependencies(args.venv_dir)
-
-    # Install extra dependencies in requirements.txt
-    if args.extra:
-        install_extra_requirements(args.venv_dir, args.extra)
+    # Setup the extras to be installed
+    extras = list(args.extra)
+    if args.dev:
+        extras.append("dev")
 
     # Install oet
-    pip_install_target(args.venv_dir, args.script_dir)
-
-    # Install dev tools (nox)
-    if args.dev:
-        install_dev_tools(args.venv_dir)
+    pip_install_target(args.venv_dir, args.script_dir, extras, args.editable)
 
     # Copy scripts for easier usability
     copy_oet_scripts(venv_dir=args.venv_dir, dest_dir=args.script_dir, extras=args.extra)
+
 
 if __name__ == "__main__":
     main()
