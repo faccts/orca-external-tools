@@ -209,7 +209,7 @@ class AenetCalc(BaseCalc):
             )
         # Check other files
         if not isinstance(nnpath_name, str):
-            raise RuntimeError("Problem detecting nnfiles. Please check your input")
+            raise TypeError("Problem detecting nnfiles. Please check your input")
         nnpath = check_path(nnpath_name)
 
         # set filenames

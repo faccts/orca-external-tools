@@ -8,6 +8,8 @@ import warnings
 from argparse import ArgumentParser
 from typing import Any
 
+from ase.calculators.calculator import PropertyNotImplementedError
+
 from oet.core.base_calc import BaseCalc, CalculationData
 from oet.core.misc import ENERGY_CONVERSION, LENGTH_CONVERSION, xyzfile_to_at_coord
 
@@ -89,15 +91,15 @@ class MaceCalc(BaseCalc):
             return
         match suite:
             case "mp":
-                kwargs = dict(
-                    model=model,
-                    device=device,
-                    default_dtype=default_dtype or "float32",
-                    dispersion=dispersion,
-                    damping=damping,
-                    dispersion_xc=dispersion_xc,
-                    dispersion_cutoff=(dispersion_cutoff * LENGTH_CONVERSION["Ang"]),
-                )
+                kwargs: dict[str, object] = {
+                    "model": model,
+                    "device": device,
+                    "default_dtype": default_dtype or "float32",
+                    "dispersion": dispersion,
+                    "damping": damping,
+                    "dispersion_xc": dispersion_xc,
+                    "dispersion_cutoff": (dispersion_cutoff * LENGTH_CONVERSION["Ang"]),
+                }
                 if head:
                     kwargs["head"] = head
                 calc = mace_mp(**kwargs)
@@ -244,7 +246,7 @@ class MaceCalc(BaseCalc):
             # Convert forces to gradient (-1) and unit conversion
             fac = -LENGTH_CONVERSION["Ang"] / ENERGY_CONVERSION["eV"]
             gradient = (fac * forces).flatten().tolist()
-        except Exception:
+        except PropertyNotImplementedError:
             # forces may not be available
             pass
 

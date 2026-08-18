@@ -88,7 +88,7 @@ dev = [
     "nox>=2025.5.1",
 ]
 lint = [
-    "ruff>=0.11.12",
+    "ruff>=0.16.0",
 ]
 type-check = [
     "mypy>=1.16.0,<2",
@@ -138,7 +138,9 @@ include = [
 line-length = 100
 
 [tool.ruff.lint]
-ignore = ["E203"]
+ignore = [
+    "BLE001" # Allow to catch blind exceptions.
+]
 
 
 # ////  PYTEST  ////

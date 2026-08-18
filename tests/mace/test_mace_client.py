@@ -63,7 +63,7 @@ class MACETests(unittest.TestCase):
                 [mace_server_path, "mace", "--bind", id_port, "--nthreads", "2"],
                 stdout=f,
                 stderr=subprocess.STDOUT,
-                preexec_fn=os.setsid,
+                start_new_session=True,
             )
         # Wait a little to make sure it is setup
         time.sleep(5)

@@ -55,7 +55,10 @@ if typing.TYPE_CHECKING:
 # we never use the same instance by multiple processes in parallel.
 # key: (module, class, frozenset(setup_items)) -> calc instance
 # OrderedDict, where the most currently used entry is moved to the end
-_WORKER_CALC_CACHE: "OrderedDict[tuple[str, str, frozenset[tuple[str, Any]]], Any]" = OrderedDict()
+_WORKER_CALC_CACHE: OrderedDict[tuple[str, str, frozenset[tuple[str, Any]]], Any] = OrderedDict()
+
+# Logger
+logger = logging.getLogger(__name__)
 
 
 def _pop_one_worker(protected_key: tuple[str, str, frozenset[tuple[str, Any]]] | None) -> bool:
@@ -78,7 +81,7 @@ def _pop_one_worker(protected_key: tuple[str, str, frozenset[tuple[str, Any]]] |
             _WORKER_CALC_CACHE.move_to_end(k)
             continue
         _WORKER_CALC_CACHE.pop(k, None)
-        logging.debug(f"PID {os.getpid()}: Deleted calculator with id: {k}")
+        logger.debug(f"PID {os.getpid()}: Deleted calculator with id: {k}")
         return True
     return False
 
@@ -110,7 +113,7 @@ def _evict_until_within_limits(
     target = mem_limit_mib - grace
     # Avoid negative target
     target = max(target, int(mem_limit_mib * 0.5))
-    logging.debug(f"PID {os.getpid()}: Memory use before: {rss} / {target}")
+    logger.debug(f"PID {os.getpid()}: Memory use before: {rss} / {target}")
     # Try evicting a few items and rechecking RSS
     # (popping, then letting GC run once in a while)
     attempts = 0
@@ -122,7 +125,7 @@ def _evict_until_within_limits(
         gc.collect()
         # Refresh current memory usage
         rss = psutil.Process(os.getpid()).memory_info().rss / (1024**2)
-    logging.debug(f"PID {os.getpid()}: Memory use after: {rss} / {target}")
+    logger.debug(f"PID {os.getpid()}: Memory use after: {rss} / {target}")
 
 
 class CalculatorRuntimeException(RuntimeError):
@@ -173,9 +176,9 @@ def _run_calc_in_process(
         Cls = getattr(mod, calc_class)
         calc = Cls()
         _WORKER_CALC_CACHE[key] = calc
-        logging.debug(f"PID {os.getpid()}: Initialized new calculator with id: {key}")
+        logger.debug(f"PID {os.getpid()}: Initialized new calculator with id: {key}")
     else:
-        logging.debug(f"PID {os.getpid()}: Using existing calculator with id: {key}")
+        logger.debug(f"PID {os.getpid()}: Using existing calculator with id: {key}")
     # Mark as most recently used (move it to the end of ordered dict)
     _WORKER_CALC_CACHE.move_to_end(key)
 
@@ -236,8 +239,7 @@ class CoreLimiter:
         n = int(n)
         with self._cv:
             self.available += n
-            if self.available > self.total:
-                self.available = self.total
+            self.available = min(self.available, self.total)
             self._cv.notify_all()
 
 
@@ -491,11 +493,8 @@ def get_available_methods() -> list[str]:
         contextlib.redirect_stderr(devnull),
     ):
         for method in CALCULATOR_CLASSES:
-            try:
+            with contextlib.suppress(Exception):
                 CalculatorClass(method)
-            except BaseException:
-                pass
-            else:
                 available.append(method)
     return available
 
@@ -615,7 +614,7 @@ def main() -> None:
     logging.getLogger("waitress.queue").setLevel(logging.ERROR)
 
     if ignored_args:
-        logging.warning("The following arguments will be ignored: " + " ".join(ignored_args))
+        logger.warning("The following arguments will be ignored: " + " ".join(ignored_args))
 
     signal.signal(signal.SIGTERM, lambda s, f: cleanup_and_exit(s, f, executor, parser))
     signal.signal(signal.SIGINT, lambda s, f: cleanup_and_exit(s, f, executor, parser))

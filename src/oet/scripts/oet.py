@@ -39,7 +39,7 @@ def parse_oet() -> tuple[str, str, list[str]]:
     # otherwise the method-specific parser will do it.
     if not args.method and ("--help" in remaining_args or "-h" in remaining_args):
         parser.print_help()
-        exit(0)
+        sys.exit(0)
 
     return args.method, args.inputfile, remaining_args
 

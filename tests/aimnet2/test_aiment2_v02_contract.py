@@ -287,18 +287,20 @@ class TestSetupSignature:
         rxn_path = tmp_path / "aimnet2-rxn_0.pt"
         rxn_path.write_bytes(b"")
         calc = Aimnet2Calc()
-        with patch.object(Aimnet2Calc, "get_model_file", return_value=rxn_path):
-            with patch("oet.calculator.aimnet2.AIMNet2Calculator") as MockCalc:
-                MockCalc.return_value = MagicMock()
-                with pytest.warns(UserWarning, match="aimnet2-rxn training cutoff"):
-                    calc.setup(
-                        model="aimnet2-rxn",
-                        model_dir=str(tmp_path),
-                        device="cpu",
-                        ncores=1,
-                        coulomb_method="dsf",
-                        coulomb_cutoff=12.0,
-                    )
+        with (
+            patch.object(Aimnet2Calc, "get_model_file", return_value=rxn_path),
+            patch("oet.calculator.aimnet2.AIMNet2Calculator") as MockCalc,
+        ):
+            MockCalc.return_value = MagicMock()
+            with pytest.warns(UserWarning, match="aimnet2-rxn training cutoff"):
+                calc.setup(
+                    model="aimnet2-rxn",
+                    model_dir=str(tmp_path),
+                    device="cpu",
+                    ncores=1,
+                    coulomb_method="dsf",
+                    coulomb_cutoff=12.0,
+                )
 
     def test_rxn_with_trained_cutoff_no_warn(self, monkeypatch, tmp_path):
         """aimnet2-rxn + cutoff = 4.6 must NOT emit the rxn-cutoff warning."""
@@ -306,23 +308,23 @@ class TestSetupSignature:
         rxn_path = tmp_path / "aimnet2-rxn_0.pt"
         rxn_path.write_bytes(b"")
         calc = Aimnet2Calc()
-        with patch.object(Aimnet2Calc, "get_model_file", return_value=rxn_path):
-            with patch("oet.calculator.aimnet2.AIMNet2Calculator") as MockCalc:
-                MockCalc.return_value = MagicMock()
-                with warnings.catch_warnings(record=True) as caught:
-                    warnings.simplefilter("always")
-                    calc.setup(
-                        model="aimnet2-rxn",
-                        model_dir=str(tmp_path),
-                        device="cpu",
-                        ncores=1,
-                        coulomb_method="dsf",
-                        coulomb_cutoff=4.6,
-                    )
-                rxn_warnings = [
-                    w for w in caught if "aimnet2-rxn training cutoff" in str(w.message)
-                ]
-                assert rxn_warnings == []
+        with (
+            patch.object(Aimnet2Calc, "get_model_file", return_value=rxn_path),
+            patch("oet.calculator.aimnet2.AIMNet2Calculator") as MockCalc,
+        ):
+            MockCalc.return_value = MagicMock()
+            with warnings.catch_warnings(record=True) as caught:
+                warnings.simplefilter("always")
+                calc.setup(
+                    model="aimnet2-rxn",
+                    model_dir=str(tmp_path),
+                    device="cpu",
+                    ncores=1,
+                    coulomb_method="dsf",
+                    coulomb_cutoff=4.6,
+                )
+            rxn_warnings = [w for w in caught if "aimnet2-rxn training cutoff" in str(w.message)]
+            assert rxn_warnings == []
 
     def test_rxn_without_coulomb_method_no_warn(self, monkeypatch, tmp_path):
         """aimnet2-rxn without --coulomb-method ignores --coulomb-cutoff
@@ -331,21 +333,21 @@ class TestSetupSignature:
         rxn_path = tmp_path / "aimnet2-rxn_0.pt"
         rxn_path.write_bytes(b"")
         calc = Aimnet2Calc()
-        with patch.object(Aimnet2Calc, "get_model_file", return_value=rxn_path):
-            with patch("oet.calculator.aimnet2.AIMNet2Calculator") as MockCalc:
-                MockCalc.return_value = MagicMock()
-                with warnings.catch_warnings(record=True) as caught:
-                    warnings.simplefilter("always")
-                    calc.setup(
-                        model="aimnet2-rxn",
-                        model_dir=str(tmp_path),
-                        device="cpu",
-                        ncores=1,
-                    )
-                rxn_warnings = [
-                    w for w in caught if "aimnet2-rxn training cutoff" in str(w.message)
-                ]
-                assert rxn_warnings == []
+        with (
+            patch.object(Aimnet2Calc, "get_model_file", return_value=rxn_path),
+            patch("oet.calculator.aimnet2.AIMNet2Calculator") as MockCalc,
+        ):
+            MockCalc.return_value = MagicMock()
+            with warnings.catch_warnings(record=True) as caught:
+                warnings.simplefilter("always")
+                calc.setup(
+                    model="aimnet2-rxn",
+                    model_dir=str(tmp_path),
+                    device="cpu",
+                    ncores=1,
+                )
+            rxn_warnings = [w for w in caught if "aimnet2-rxn training cutoff" in str(w.message)]
+            assert rxn_warnings == []
 
 
 class TestReleaseHook:
@@ -409,16 +411,18 @@ class TestReleaseHook:
         bad_calc.external_coulomb = MagicMock()
         bad_calc.external_dftd3 = None
 
-        with patch("oet.calculator.aimnet2.AIMNet2Calculator", return_value=bad_calc):
-            with pytest.raises(RuntimeError, match="bad config"):
-                calc.setup(
-                    model="aimnet2",
-                    model_dir="/tmp",
-                    device="cpu",
-                    ncores=2,
-                    coulomb_method="dsf",
-                    coulomb_cutoff=12.0,
-                )
+        with (
+            patch("oet.calculator.aimnet2.AIMNet2Calculator", return_value=bad_calc),
+            pytest.raises(RuntimeError, match="bad config"),
+        ):
+            calc.setup(
+                model="aimnet2",
+                model_dir="/tmp",
+                device="cpu",
+                ncores=2,
+                coulomb_method="dsf",
+                coulomb_cutoff=12.0,
+            )
 
         # Rollback contract: components walked back to cpu BEFORE _calc dropped.
         bad_calc.model.to.assert_called_with("cpu")
