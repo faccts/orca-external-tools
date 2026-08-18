@@ -15,7 +15,7 @@ import sys
 import warnings
 from argparse import ArgumentParser
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 
 from requests.exceptions import HTTPError
 
@@ -180,7 +180,7 @@ class Aimnet2Calc(BaseCalc):
     _SUPPORTED_DEVICES: tuple[str, ...] = ("cpu", "cuda", "auto")
     _COULOMB_METHODS: tuple[str, ...] = ("simple", "dsf", "ewald")
     # Single source of truth for tri-state choices AND value translation.
-    _TRISTATE_MAP: dict[str, bool | None] = {
+    _TRISTATE_MAP: ClassVar[dict[str, bool | None]] = {
         "auto": None,
         "on": True,
         "off": False,

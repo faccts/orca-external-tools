@@ -151,8 +151,6 @@ class GxtbCalc(BaseCalc):
             raise RuntimeError("Path to program is None.")
         run_command(calc_data.prog_path, calc_data.output_file, args)
 
-        return
-
     def read_gxtbout(
         self, energy_out: str | Path, grad_out: str | Path, natoms: int, dograd: bool
     ) -> tuple[float, list[float]]:

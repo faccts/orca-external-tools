@@ -11,6 +11,7 @@ main: function
     Main function
 """
 
+import sys
 from argparse import ArgumentParser
 from typing import Any
 
@@ -88,12 +89,12 @@ class XtbCalc(BaseCalc):
                     print(
                         f"Number of atoms read: {natoms_read} does not match the expected: {natoms}"
                     )
-                    exit(1)
+                    sys.exit(1)
                 if len(gradient) != 3 * natoms:
                     print(
                         f"Number of gradient entries: {len(gradient)} does not match 3x number of atoms: {natoms}"
                     )
-                    exit(1)
+                    sys.exit(1)
         if not energy:
             raise ValueError(f"Total energy not found in file {calc_data.output_file}")
         return energy, gradient
