@@ -270,7 +270,6 @@ class Aimnet2Calc(BaseCalc):
         model: str,
         model_dir: str,
         device: str | None,
-        ncores: int,
         *,
         compile_model: bool = False,
         nb_threshold: int = 120,
@@ -300,9 +299,6 @@ class Aimnet2Calc(BaseCalc):
             Compute device. One of {"cpu", "cuda", "auto"}; "auto" maps to
             None upstream (auto-detect). When "cuda" is requested, this
             method raises if torch.cuda.is_available() is False.
-        ncores : int
-            Number of CPU threads. Sets torch.set_num_threads process-wide
-            once per worker; does not change per call.
         compile_model : bool, default: False
             If True, wrap the model with torch.compile. Server mode only;
             see readmes/aimnet2.md.
@@ -353,7 +349,6 @@ class Aimnet2Calc(BaseCalc):
                 "model": model,
                 "model_dir": model_dir,
                 "device": device_arg,
-                "ncores": ncores,
                 "compile_model": compile_model,
                 "nb_threshold": nb_threshold,
                 "ensemble_member": ensemble_member,
@@ -454,9 +449,6 @@ class Aimnet2Calc(BaseCalc):
 
             if dftd3_cutoff is not None or dftd3_smoothing_fraction is not None:
                 self._calc.set_dftd3_cutoff(dftd3_cutoff, dftd3_smoothing_fraction)
-
-            # Process-wide thread setting; one-shot here, never per-call.
-            torch.set_num_threads(ncores)
         except Exception:
             self.release()
             raise
@@ -809,6 +801,11 @@ class Aimnet2Calc(BaseCalc):
 
         if not self._calc:
             raise RuntimeError("Calculator could not be initialized.")
+
+        # Set number of threads per call
+        # ORCA may change ncores in subsequent calls, e.g. in NumFreq or GOAT
+        torch.set_num_threads(calc_data.ncores)
+
         results = self._calc(**aimnet2_input)
 
         energy = float(results["energy"].detach()) / ENERGY_CONVERSION["eV"]
@@ -874,7 +871,6 @@ class Aimnet2Calc(BaseCalc):
             model=model,
             model_dir=model_dir,
             device=device,
-            ncores=calc_data.ncores,
             compile_model=compile_model,
             nb_threshold=nb_threshold,
             ensemble_member=ensemble_member,
