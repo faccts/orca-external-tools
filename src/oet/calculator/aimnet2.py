@@ -366,7 +366,9 @@ class Aimnet2Calc(BaseCalc):
             raise RuntimeError(
                 "Aimnet2Calc.setup() called with different args than the "
                 "cached calculator. Server-mode callers must key the cache "
-                "on setup args."
+                "on setup args.\n"
+                f"Cached args: {self._setup_args}\n"
+                f"New args: {new_args}"
             )
 
         # Validate string-choice args with helpful error messages
