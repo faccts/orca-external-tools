@@ -172,7 +172,7 @@ class AenetCalc(BaseCalc):
         calc_data: CalculationData,
         args_parsed: Namespace,
         args_not_parsed: list[str],
-    ) -> tuple[float, list[float]]:
+    ) -> tuple[float, list[float], list[float]]:
         """
         Routine for calculating energy and optional gradient.
         Writes ORCA output
@@ -192,6 +192,8 @@ class AenetCalc(BaseCalc):
             The computed energy (Eh)
         list[float]
             Flattened gradient vector (Eh/Bohr), if computed, otherwise empty
+        list[float]
+            Hessian, always empty (not supported)
         """
         # Get the arguments parsed as defined in extend_parser
         prog = args_parsed.prog
@@ -233,7 +235,7 @@ class AenetCalc(BaseCalc):
         # parse the output
         energy, gradient = self.read_predict_output(natoms, calc_data.dograd, prog_out)
 
-        return energy, gradient
+        return energy, gradient, []
 
 
 def main() -> None:

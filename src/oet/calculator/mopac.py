@@ -282,7 +282,7 @@ class MopacCalc(BaseCalc):
 
     def calc(
         self, calc_data: CalculationData, args_parsed: Namespace, args_not_parsed: list[str]
-    ) -> tuple[float, list[float]]:
+    ) -> tuple[float, list[float], list[float]]:
         """
         Routine for calculating energy and optional gradient.
         Writes ORCA output
@@ -302,6 +302,8 @@ class MopacCalc(BaseCalc):
             The computed energy (Eh)
         list[float]
             Flattened gradient vector (Eh/Bohr), if computed, otherwise empty
+        list[float]
+            Hessian, always empty (not supported)
         """
         # Get options that were parsed
         prog = args_parsed.prog
@@ -333,7 +335,7 @@ class MopacCalc(BaseCalc):
         # parse the mopac output
         energy, gradient = self.read_mopac_out(calc_data=calc_data, natoms=natoms)
 
-        return energy, gradient
+        return energy, gradient, []
 
 
 def main() -> None:

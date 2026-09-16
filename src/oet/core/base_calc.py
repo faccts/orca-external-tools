@@ -28,6 +28,7 @@ from oet.core.misc import (
     print_filecontent,
     read_input,
     search_path,
+    write_hess_output,
     write_output,
 )
 
@@ -68,7 +69,9 @@ class CalculationData:
 
         # Read the input file
         # ------------------
-        xyzfile, charge, mult, ncores, dograd, pointcharges = read_input(inputfile=self._input_file)
+        xyzfile, charge, mult, ncores, dograd, pointcharges, dohess = read_input(
+            inputfile=self._input_file
+        )
         # Original structure file location
         # It is relative to the input file directory (or already an absolute path).
         # This should not be touched after copying to tmp dir
@@ -81,6 +84,8 @@ class CalculationData:
         self.ncores: int = ncores
         # Do gradient?
         self.dograd: bool = dograd
+        # Do Hessian?
+        self.dohess: bool = dohess
         # Original point charge file location (if any)
         # This should not be touched after copying to tmp dir
         self._orig_pointcharges: Path | None = (
@@ -102,6 +107,8 @@ class CalculationData:
         self.tmp_dir: Path = self.orca_input_dir / self.basename
         # Output file read by ORCA
         self.orca_engrad = self.orca_input_dir / (self.basename + ".engrad")
+        # Hessian output file read by ORCA (only written if self.dohess)
+        self.orca_hess = self.orca_input_dir / (self.basename + ".hess")
         # Temporary output file for the external program
         # At the end of the run. this will be printed to STDOUT and deleted
         self.output_file = self.tmp_dir / (self.basename + ".out")
@@ -177,14 +184,19 @@ class BaseCalc(ABC):
     Things that must be overwritten:
     calc:
         Main routine for calculation. Receives relevant settings
-        and should return an energy in Hartree and a gradient in
-        Hartree/Bohr. Gradient can be empty if dograd = False.
+        and should return an energy in Hartree, a gradient in
+        Hartree/Bohr, and a Hessian in Hartree/Bohr^2. Gradient can be
+        empty if dograd = False, Hessian can be empty if dohess = False.
 
     Things that might be overwritten:
     minimal_python_version:
         Minimal python version required, default: 3.10
     PROGRAM_NAMES:
         Names of executable that is searched for in PATH
+    SUPPORTS_HESSIAN:
+        Whether this calculator supports computing a Hessian, default: False.
+        If a Hessian is requested for a calculator that doesn't support it,
+        run() aborts before calc() is ever called.
     extend_parser:
         Here, the parser can be extended with individual arguments
         They are provided to the calc routine unpacked
@@ -193,6 +205,10 @@ class BaseCalc(ABC):
     # Minimal Python version required;
     # Overwrite in wrapper if you require newer versions
     minimal_python_version: tuple[int, int] = (3, 10)
+
+    # Whether this calculator supports computing a Hessian;
+    # Overwrite in wrapper if it does
+    SUPPORTS_HESSIAN: bool = False
 
     @property
     def PROGRAM_NAMES(self) -> list[str] | None:
@@ -205,11 +221,11 @@ class BaseCalc(ABC):
         calc_data: CalculationData,
         args_parsed: Namespace,
         args_not_parsed: list[str],
-    ) -> tuple[float, list[float]]:
+    ) -> tuple[float, list[float], list[float]]:
         """
-        Main routing for calculating engrad.
+        Main routing for calculating energy, gradient and Hessian.
         Gets information from input file and should return energy
-        and optional gradient.
+        and optional gradient and Hessian.
 
         Parameters
         ----------
@@ -224,6 +240,7 @@ class BaseCalc(ABC):
         -------
         float: electronic energy in Hartree
         list[float]: gradient in Hartree/Bohr, leave empty if dograd=False
+        list[float]: flattened row-major Hessian in Hartree/Bohr^2, leave empty if dohess=False
         """
 
     def run(
@@ -249,7 +266,8 @@ class BaseCalc(ABC):
 
         Raises
         ------
-        RuntimeError: If parsing or energy/gradient calculation failed
+        RuntimeError: If parsing or energy/gradient/Hessian calculation failed,
+            or if a Hessian was requested but this calculator doesn't support it
         """
         # Check if python version matches requirements if redefined by subclass
         self._check_python_version()
@@ -261,12 +279,22 @@ class BaseCalc(ABC):
         try:
             # Set filenames and paths according to inputfile name. Also make tmpdir
             calc_data = CalculationData(inputfile=inputfile, program_names=self.PROGRAM_NAMES)
+            # Abort early if a Hessian was requested but this calculator doesn't support it.
+            # No calculation was attempted, so there is nothing to debug: remove the tmp dir
+            # that CalculationData already created (unlike a genuine runtime failure below,
+            # which leaves it on disk for debugging).
+            if calc_data.dohess and not self.SUPPORTS_HESSIAN:
+                calc_data.remove_tmp()
+                raise RuntimeError(
+                    f"{type(self).__name__} does not support Hessian calculations, "
+                    "but one was requested in the ORCA input file."
+                )
             # Run the routine performing actual calculation
             try:
                 # Go to tmp dir where the calculation should be performed
                 os.chdir(calc_data.tmp_dir)
                 # Perform calculation
-                energy, gradient = self.calc(
+                energy, gradient, hessian = self.calc(
                     calc_data=calc_data,
                     args_parsed=args_parsed,
                     args_not_parsed=list(args_not_parsed),
@@ -275,11 +303,16 @@ class BaseCalc(ABC):
                 os.chdir(calc_data.orca_input_dir)
             except Exception as e:
                 raise RuntimeError("Failed to compute energy and/or gradient") from e
-            # Write output for ORCA. A failure here is left uncaught, so it surfaces as-is;
-            # the starting directory is still restored below via the outer finally.
+            # Write output for ORCA. A failure here (e.g. an unexpectedly-sized Hessian) is
+            # left uncaught, so it surfaces as-is; the starting directory is still restored
+            # below via the outer finally.
             write_output(
                 filename=calc_data.orca_engrad, nat=calc_data.natoms, etot=energy, grad=gradient
             )
+            if calc_data.dohess:
+                write_hess_output(
+                    filename=calc_data.orca_hess, nat=calc_data.natoms, hessian=hessian
+                )
             # Write program output to STDOUT
             if calc_data.output_file.exists():
                 print_filecontent(calc_data.output_file)

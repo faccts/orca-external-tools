@@ -256,7 +256,7 @@ class MaceCalc(BaseCalc):
         calc_data: CalculationData,
         args_parsed: Namespace,
         args_not_parsed: list[str],
-    ) -> tuple[float, list[float]]:
+    ) -> tuple[float, list[float], list[float]]:
         """
         Routine for calculating energy and optional gradient.
 
@@ -275,6 +275,8 @@ class MaceCalc(BaseCalc):
             The computed energy (Eh)
         list[float]
             Flattened gradient vector (Eh/Bohr), if computed, otherwise empty
+        list[float]
+            Hessian, always empty (not supported)
         """
 
         suite = args_parsed.suite
@@ -316,7 +318,7 @@ class MaceCalc(BaseCalc):
             atom_types=atom_types, coordinates=coordinates, calc_data=calc_data
         )
 
-        return energy, gradient
+        return energy, gradient, []
 
 
 def main() -> None:

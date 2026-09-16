@@ -251,9 +251,15 @@ def print_filecontent(outfile: str | Path) -> None:
 
 def read_input(
     inputfile: str | Path,
-) -> tuple[str, int, int, int, bool, str | None]:
+) -> tuple[str, int, int, int, bool, str, bool]:
     """
     Reads an input file written by ORCA and returns the parsed values as a tuple.
+
+    Note: do_gradient's line is treated the same as the (documented-optional)
+    do_hessian line: if the file ends before that line is reached, it defaults
+    to False rather than raising. This is technically more permissive than the
+    documented format (which lists do_gradient as mandatory), but harmless,
+    since a real ORCA-generated input always includes it.
 
     Parameters
     ----------
@@ -266,33 +272,52 @@ def read_input(
     int: total molecular charge
     int: multiplicity
     int: number of cores
-    bool: Do gradient?
-    str | None: filename of pointcharges
+    bool: Do gradient? (defaults to False if the line is absent)
+    str: filename of pointcharges; an empty string means no pointcharges were given,
+         i.e. the line is blank, comment-only, or absent entirely
+    bool: Do Hessian? (defaults to False if the line is absent)
 
     Raises
     ------
     FileNotFoundError: Input file not found
     ValueError: If input contained values in wrong format
     """
-    # Get every first entry of each line of input file
+
+    def parse_do_flag(lines: list[str], name: str) -> bool:
+        """
+        Pop the next positional 'do_X: 0 or 1' flag off the front of lines.
+        An exhausted list means the line is absent (backwards compatible:
+        treated as False).
+        """
+        if not lines:
+            return False
+        raw = lines.pop(0)
+        try:
+            value = int(raw)
+        except ValueError as e:
+            raise ValueError(f"Error reading ORCA input file: {e}")
+        if value not in (0, 1):
+            raise ValueError(
+                f"Error reading ORCA input file: {name} from ORCA input must be 0 or 1."
+            )
+        return bool(value)
+
+    # Get the value of each line of the input file, ignoring comments from '#' onwards.
+    # Every line is positional (no line is skipped, even if it is blank or comment-only),
+    # since the (optional) point charge line may legitimately be empty. Lines are consumed
+    # one at a time from the front, so any trailing optional field (do_gradient,
+    # pointcharges, do_hessian) can simply be missing without index/length bookkeeping.
     try:
         with open(inputfile, "r") as f:
-            lines = [line.split(" ")[0].strip() for line in f if line.strip()]
+            lines = [line.partition("#")[0].strip() for line in f]
     except FileNotFoundError:
         raise FileNotFoundError(f"Input file not found: {inputfile}")
     # Save information
     try:
-        xyz_filename = Path(lines[0]).name
-        charge = int(lines[1])
-        multiplicity = int(lines[2])
-        ncores = int(lines[3])
-        # Check if gradient should be calculated or not
-        if int(lines[4]) == 0:
-            do_gradient = False
-        elif int(lines[4]) == 1:
-            do_gradient = True
-        else:
-            raise ValueError("do_gradient from ORCA input must be 0 or 1.")
+        xyz_filename = Path(lines.pop(0)).name
+        charge = int(lines.pop(0))
+        multiplicity = int(lines.pop(0))
+        ncores = int(lines.pop(0))
     except ValueError as e:
         raise ValueError(f"Error reading ORCA input file: {e}")
     # Some sanity checks
@@ -300,8 +325,11 @@ def read_input(
         raise ValueError("Multiplicity must be a positive integer.")
     if ncores < 1:
         raise ValueError("NCores must be a positive integer.")
-    # Optional pointcharges
-    pointcharge_filename = lines[5] if len(lines) >= 6 else None
+    do_gradient = parse_do_flag(lines, "do_gradient")
+    # Optional pointcharges; "" (not None) means none were given
+    pointcharge_filename = lines.pop(0) if lines else ""
+    # Optional Hessian request (backwards-compatible: absent means no Hessian)
+    do_hessian = parse_do_flag(lines, "do_hessian")
     return (
         xyz_filename,
         charge,
@@ -309,6 +337,7 @@ def read_input(
         ncores,
         do_gradient,
         pointcharge_filename,
+        do_hessian,
     )
 
 
@@ -382,6 +411,49 @@ def write_output(
             f.write(output)
     except OSError as e:
         raise RuntimeError(f"Failed to write ORCA output file {filename}: {e}")
+
+
+def write_hess_output(
+    filename: Path,
+    nat: int,
+    hessian: list[float],
+) -> None:
+    """
+    Writes a minimal ORCA .hess file for a Cartesian Hessian.
+
+    Parameters
+    ----------
+    filename: Path
+        Path to file to write to.
+    nat: int
+        number of atoms
+    hessian: list[float]
+        Flattened, row-major Cartesian Hessian in Eh/Bohr^2, of length (3*nat)**2,
+        with rows/columns ordered as the gradient (Atom1X, Atom1Y, Atom1Z, Atom2X, ...)
+
+    Raises
+    ------
+    ValueError: If hessian does not have length (3*nat)**2
+    RuntimeError: If writing to file didn't work
+    """
+    ndim = 3 * nat
+    if len(hessian) != ndim * ndim:
+        raise ValueError(f"Hessian has {len(hessian)} entries, expected (3*nat)**2 = {ndim * ndim}")
+    try:
+        with open(filename, "w") as f:
+            f.write("$orca_hessian_file\n\n")
+            f.write("# Raw Cartesian Hessian in atomic units.\n")
+            f.write("$hessian\n")
+            f.write(f"{ndim}\n")
+            for block_start in range(0, ndim, 5):
+                block_cols = range(block_start, min(block_start + 5, ndim))
+                f.write("".join(f"{c:19d}" for c in block_cols) + "\n")
+                for row in range(ndim):
+                    row_values = (hessian[row * ndim + c] for c in block_cols)
+                    f.write(f"{row:4d}" + "".join(f"{v:19.10E}" for v in row_values) + "\n")
+            f.write("\n$end\n")
+    except OSError as e:
+        raise RuntimeError(f"Failed to write ORCA Hessian file {filename}: {e}")
 
 
 def nat_from_xyzfile(xyz_file: str | Path) -> int:

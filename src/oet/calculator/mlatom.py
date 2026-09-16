@@ -168,7 +168,7 @@ class MlatomCalc(BaseCalc):
         calc_data: CalculationData,
         args_parsed: Namespace,
         args_not_parsed: list[str],
-    ) -> tuple[float, list[float]]:
+    ) -> tuple[float, list[float], list[float]]:
         """
         Routine for calculating energy and optional gradient.
         Writes ORCA output
@@ -188,6 +188,8 @@ class MlatomCalc(BaseCalc):
             The computed energy (Eh)
         list[float]
             Flattened gradient vector (Eh/Bohr), if computed, otherwise empty.
+        list[float]
+            Hessian, always empty (not supported)
         """
         # Get options that were parsed
         prog = args_parsed.prog
@@ -209,7 +211,7 @@ class MlatomCalc(BaseCalc):
         # parse the MLatom output
         energy, gradient = self.read_mlatomout(calc_data=calc_data)
 
-        return energy, gradient
+        return energy, gradient, []
 
 
 def main() -> None:
