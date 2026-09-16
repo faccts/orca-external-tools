@@ -258,34 +258,37 @@ class BaseCalc(ABC):
         if directory:
             directory = check_path(directory)
             os.chdir(directory)
-        # Set filenames and paths according to inputfile name. Also make tmpdir
-        calc_data = CalculationData(inputfile=inputfile, program_names=self.PROGRAM_NAMES)
-        # Run the routine performing actual calculation
         try:
-            # Go to tmp dir where the calculation should be performed
-            os.chdir(calc_data.tmp_dir)
-            # Perform calculation
-            energy, gradient = self.calc(
-                calc_data=calc_data,
-                args_parsed=args_parsed,
-                args_not_parsed=list(args_not_parsed),
+            # Set filenames and paths according to inputfile name. Also make tmpdir
+            calc_data = CalculationData(inputfile=inputfile, program_names=self.PROGRAM_NAMES)
+            # Run the routine performing actual calculation
+            try:
+                # Go to tmp dir where the calculation should be performed
+                os.chdir(calc_data.tmp_dir)
+                # Perform calculation
+                energy, gradient = self.calc(
+                    calc_data=calc_data,
+                    args_parsed=args_parsed,
+                    args_not_parsed=list(args_not_parsed),
+                )
+                # Go back to directory where input file was located
+                os.chdir(calc_data.orca_input_dir)
+            except Exception as e:
+                raise RuntimeError("Failed to compute energy and/or gradient") from e
+            # Write output for ORCA. A failure here is left uncaught, so it surfaces as-is;
+            # the starting directory is still restored below via the outer finally.
+            write_output(
+                filename=calc_data.orca_engrad, nat=calc_data.natoms, etot=energy, grad=gradient
             )
-            # Go back to directory where input file was located
-            os.chdir(calc_data.orca_input_dir)
-        except Exception as e:
-            raise RuntimeError("Failed to compute energy and/or gradient") from e
-        # Write output for ORCA
-        write_output(
-            filename=calc_data.orca_engrad, nat=calc_data.natoms, etot=energy, grad=gradient
-        )
-        # Write program output to STDOUT
-        if calc_data.output_file.exists():
-            print_filecontent(calc_data.output_file)
-        # Remove tmp dir
-        calc_data.remove_tmp()
-        # Go back to start directory
-        if directory:
-            os.chdir(start_dir)
+            # Write program output to STDOUT
+            if calc_data.output_file.exists():
+                print_filecontent(calc_data.output_file)
+            # Remove tmp dir
+            calc_data.remove_tmp()
+        finally:
+            # Go back to start directory, whatever happened above
+            if directory:
+                os.chdir(start_dir)
 
     def parse_args(self, input_args: list[str] | None = None) -> tuple[str, Namespace, list[str]]:
         """
