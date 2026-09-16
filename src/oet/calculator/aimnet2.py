@@ -176,6 +176,9 @@ _SYMBOL_TO_Z: dict[str, int] = {sym: i + 1 for i, sym in enumerate(_PERIODIC_TAB
 class Aimnet2Calc(BaseCalc):
     """ORCA ExtTool calculator backed by AIMNet2 (aimnet>=0.2,<0.3)."""
 
+    # Hessian supported via autograd
+    SUPPORTS_HESSIAN: bool = True
+
     # Wired into extend_parser's choices=, single source of truth.
     _SUPPORTED_DEVICES: tuple[str, ...] = ("cpu", "cuda", "auto")
     _COULOMB_METHODS: tuple[str, ...] = ("simple", "dsf", "ewald")
@@ -699,6 +702,7 @@ class Aimnet2Calc(BaseCalc):
         charge: int,
         mult: int,
         dograd: bool,
+        dohess: bool,
     ) -> dict[str, Any]:
         """Build kwargs for AIMNet2Calculator.eval().
 
@@ -717,6 +721,8 @@ class Aimnet2Calc(BaseCalc):
             Spin multiplicity (2S + 1).
         dograd : bool
             Whether to compute the gradient.
+        dohess : bool
+            Whether to compute the Hessian.
 
         Returns
         -------
@@ -731,8 +737,7 @@ class Aimnet2Calc(BaseCalc):
             - ``forces`` : bool, mirrors `dograd`.
             - ``stress`` : bool, always False (unsupported by the
               ORCA external-tool protocol).
-            - ``hessian`` : bool, always False (Hessian sidecar is
-              deferred per cplett's RFC reply).
+            - ``hessian`` : bool, mirrors `dohess`.
         """
         numbers = [self.atomic_symbol_to_number(sym) for sym in atom_types]
         data: dict[str, Any] = {
@@ -763,7 +768,7 @@ class Aimnet2Calc(BaseCalc):
             "data": data,
             "forces": dograd,
             "stress": False,
-            "hessian": False,
+            "hessian": dohess,
         }
 
     def run_aimnet2(
@@ -771,7 +776,7 @@ class Aimnet2Calc(BaseCalc):
         atom_types: list[str],
         coordinates: list[tuple[float, float, float]],
         calc_data: CalculationData,
-    ) -> tuple[float, list[float]]:
+    ) -> tuple[float, list[float], list[float]]:
         """
         Runs an AimNet2 calculation.
 
@@ -790,6 +795,8 @@ class Aimnet2Calc(BaseCalc):
             The computed energy (Eh)
         list[float]
             Flattened gradient vector (Eh/Bohr), if computed, otherwise empty.
+        list[float]
+            Flattened Hessian vector (Eh/Bohr^2), if computed, otherwise empty.
         """
 
         # make ase atoms object for calculation
@@ -799,6 +806,7 @@ class Aimnet2Calc(BaseCalc):
             mult=calc_data.mult,
             charge=calc_data.charge,
             dograd=calc_data.dograd,
+            dohess=calc_data.dohess,
         )
 
         if not self._calc:
@@ -812,22 +820,30 @@ class Aimnet2Calc(BaseCalc):
 
         energy = float(results["energy"].detach()) / ENERGY_CONVERSION["eV"]
         gradient = []
-        if (forces := results.get("forces", None)) is not None:
+        if calc_data.dograd and (forces := results.get("forces", None)) is not None:
             # detach() defends against any future create_graph=True default.
             forces = forces.detach()
             # unit conversion & factor of -1 to convert from forces to gradient
             fac = -LENGTH_CONVERSION["Ang"] / ENERGY_CONVERSION["eV"]
             gradient = (forces * fac).flatten().tolist()
 
-        return energy, gradient
+        hessian = []
+        if calc_data.dohess and (raw_hessian := results.get("hessian", None)) is not None:
+            # detach() defends against any future create_graph=True default.
+            raw_hessian = raw_hessian.detach()
+            # unit conversion
+            fac = LENGTH_CONVERSION["Ang"] ** 2 / ENERGY_CONVERSION["eV"]
+            hessian = (raw_hessian * fac).flatten().tolist()
+
+        return energy, gradient, hessian
 
     def calc(
         self,
         calc_data: CalculationData,
         args_parsed: Namespace,
         args_not_parsed: list[str],
-    ) -> tuple[float, list[float]]:
-        """Routine for calculating energy + optional gradient.
+    ) -> tuple[float, list[float], list[float]]:
+        """Routine for calculating energy + optional gradient/Hessian.
 
         Validates cross-flag constraints, then sets up the calculator and
         runs run_aimnet2.
@@ -886,11 +902,12 @@ class Aimnet2Calc(BaseCalc):
 
         # --- read XYZ and run --------------------------------------------
         atom_types, coordinates = xyzfile_to_at_coord(calc_data.xyzfile)
-        return self.run_aimnet2(
+        energy, gradient, hessian = self.run_aimnet2(
             atom_types=atom_types,
             coordinates=coordinates,
             calc_data=calc_data,
         )
+        return energy, gradient, hessian
 
 
 def main(argv: list[str] | None = None) -> None:

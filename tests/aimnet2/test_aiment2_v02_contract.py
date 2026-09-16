@@ -99,6 +99,7 @@ class TestNseMultGating:
             charge=0,
             mult=1,
             dograd=True,
+            dohess=False,
         )
 
     def test_mult_omitted_for_non_nse_model(self):
@@ -130,6 +131,7 @@ class TestNseMultGating:
                 charge=0,
                 mult=2,
                 dograd=True,
+                dohess=False,
             )
 
     def test_open_shell_with_nse_model_no_warn(self):
@@ -144,6 +146,7 @@ class TestNseMultGating:
                 charge=0,
                 mult=2,
                 dograd=True,
+                dohess=False,
             )
         assert out["data"]["mult"] == [2]
 
