@@ -6,10 +6,38 @@ import argparse
 from collections.abc import Sequence
 from pathlib import Path
 import shutil
+import tomllib
+
+# Set some paths and variables
+ROOT = Path(__file__).resolve().parent
+PYPROJECT = ROOT / "pyproject.toml"
+
+# Backend extras defined in pyproject.toml that don't come with tests.
+NON_BACKEND_EXTRAS = {"dev"}
 
 
-# Available extras
-EXTRAS = ["aimnet2", "mace", "mlatom", "uma"]
+# Get backends that require a separate venv.
+def get_backend_extras() -> list[str]:
+    """
+    Return backend extras declared in pyproject.toml except the `NON_BACKEND_EXTRAS`.
+    """
+    with PYPROJECT.open("rb") as handle:
+        pyproject = tomllib.load(handle)
+
+    optional_dependencies = (
+        pyproject
+        .get("project", {})
+        .get("optional-dependencies", {})
+    )
+
+    return sorted(
+        name
+        for name in optional_dependencies
+        if name not in NON_BACKEND_EXTRAS
+    )
+
+
+EXTRAS = get_backend_extras()
 
 # Minimal python interpreter required by the base class
 minimal_python_version = (3, 11)
@@ -19,7 +47,7 @@ if sys.version_info < minimal_python_version:
     )
 
 
-def create_venv(venv_dir: Path) -> None:
+def create_venv(venv_dir: Path, extras: Sequence[str]) -> None:
     """
     Create virtual environment, if not present.
 
@@ -29,7 +57,8 @@ def create_venv(venv_dir: Path) -> None:
         Path to the virtual environment
     """
     print(f"Creating virtual environment in '{venv_dir}'...")
-    subprocess.check_call([sys.executable, "-m", "venv", str(venv_dir)])
+    prompt = "oet" + "".join(f"-{e}" for e in sorted(extras))
+    subprocess.check_call([sys.executable, "-m", "venv", "--prompt", prompt, str(venv_dir)])
     print("Virtual environment created.")
 
 
@@ -203,19 +232,19 @@ def parse_args():
 def main():
     args = parse_args()
 
+    # Setup the extras to be installed
+    extras = list(args.extra)
+    if args.dev:
+        extras.append("dev")
+
     # Create venv
     if not args.venv_dir.exists():
-        create_venv(args.venv_dir)
+        create_venv(args.venv_dir, extras)
     else:
         print(
             f"Virtual environment already exists in '{args.venv_dir}'.\n"
             "Installing oet to this venv."
         )
-
-    # Setup the extras to be installed
-    extras = list(args.extra)
-    if args.dev:
-        extras.append("dev")
 
     # Install oet
     pip_install_target(args.venv_dir, args.script_dir, extras, args.editable)

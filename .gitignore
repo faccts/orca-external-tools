@@ -130,6 +130,19 @@ ENV/
 env.bak/
 venv.bak/
 
+# OET installations and downloaded model assets
+.test-venvs/
+.test-bins/
+bin/
+scripts/
+src/oet/assets/
+
+# Generated integration-test artifacts
+tests/**/*.engrad
+tests/**/*.extinp.tmp
+tests/**/*.out
+tests/**/*.xyz
+
 # Spyder project settings
 .spyderproject
 .spyproject
