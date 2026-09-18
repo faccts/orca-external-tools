@@ -47,7 +47,7 @@ if sys.version_info < minimal_python_version:
     )
 
 
-def create_venv(venv_dir: Path) -> None:
+def create_venv(venv_dir: Path, extras: Sequence[str]) -> None:
     """
     Create virtual environment, if not present.
 
@@ -57,7 +57,8 @@ def create_venv(venv_dir: Path) -> None:
         Path to the virtual environment
     """
     print(f"Creating virtual environment in '{venv_dir}'...")
-    subprocess.check_call([sys.executable, "-m", "venv", str(venv_dir)])
+    prompt = "oet" + "".join(f"-{e}" for e in sorted(extras))
+    subprocess.check_call([sys.executable, "-m", "venv", "--prompt", prompt, str(venv_dir)])
     print("Virtual environment created.")
 
 
@@ -231,19 +232,19 @@ def parse_args():
 def main():
     args = parse_args()
 
+    # Setup the extras to be installed
+    extras = list(args.extra)
+    if args.dev:
+        extras.append("dev")
+
     # Create venv
     if not args.venv_dir.exists():
-        create_venv(args.venv_dir)
+        create_venv(args.venv_dir, extras)
     else:
         print(
             f"Virtual environment already exists in '{args.venv_dir}'.\n"
             "Installing oet to this venv."
         )
-
-    # Setup the extras to be installed
-    extras = list(args.extra)
-    if args.dev:
-        extras.append("dev")
 
     # Install oet
     pip_install_target(args.venv_dir, args.script_dir, extras, args.editable)
