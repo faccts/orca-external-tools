@@ -31,6 +31,9 @@ DEFAULT_BIN_ROOT = ROOT / ".test-bins"
 # Backend extras defined in pyproject.toml that don't come with tests.
 NON_BACKEND_EXTRAS = {"dev"}
 
+# Files to be cleaned after if the test was successful.
+TEST_ARTIFACT_PATTERNS = ("*.engrad", "*.extinp.tmp", "*.out", "*.xyz")
+
 # Get extra dependencies that require installation in separate venvs.
 def get_backend_extras() -> set[str]:
     """
@@ -166,6 +169,12 @@ def parse_args() -> argparse.Namespace:
             "Refresh the managed environment if it already exists. "
             "Cannot be used with --bin-dir."
         ),
+    )
+
+    parser.add_argument(
+        "--no-clean",
+        action="store_true",
+        help="Keep files produced by the tests even for successful test runs.",
     )
 
     args = parser.parse_args()
@@ -514,11 +523,13 @@ def install_environment(
         "--script-dir",
         str(bin_dir),
         "--editable",
+        "--extra",
+        "test",
     ]
     
-    # Check for extras to be installed.
+    # Check for additional extras to be installed.
     if environment in BACKEND_EXTRAS:
-        command.extend(["--extra", environment])
+        command.append(environment)
 
     print(f"[setup] $ {' '.join(command)}")
 
@@ -595,6 +606,21 @@ def make_test_environment(
 
     return env
 
+def clean_test_artifacts(test_file: Path) -> None:
+    """
+    Remove artifacts created by a successfully completed test.
+    
+    Parameters
+    ----------
+    test_file: Path
+        The test file. All artifacts in its directory will be deleted.
+    """
+    directory = test_file.parent
+
+    for pattern in TEST_ARTIFACT_PATTERNS:
+        for artifact in directory.glob(pattern):
+            if artifact.is_file():
+                artifact.unlink()
 
 def run_test_file(
     test_file: Path,
@@ -636,7 +662,7 @@ def run_test_file(
 
     # Run the test
     subprocess.run(
-        [str(python), str(test_file)],
+        [str(python), "-m", "pytest", str(test_file)],
         cwd=test_file.parent,
         env=env,
         check=True,
@@ -653,6 +679,7 @@ def run_target(
     installed: dict[str, tuple[Path, Path]],
     external_installations: dict[str, Path] | None = None,
     external_bin_dir: Path | None = None,
+    clean_files: bool = True,
 ) -> list[tuple[Path, subprocess.CalledProcessError]]:
     """
     Set up the required installation and execute one test set.
@@ -675,6 +702,8 @@ def run_target(
         External installation if available.
     external_bin_dir: Path | None, default: None
         External bin dirs. Must be provided if `external_installations` was given.
+    clean_files: bool, default: True
+        Whether to clean all files produced by the test or not.
     
     Returns
     -------
@@ -723,6 +752,9 @@ def run_target(
             )
         except subprocess.CalledProcessError as exc:
             failures.append((test_file, exc))
+        else:
+            if clean_files:
+                clean_test_artifacts(test_file=test_file)
 
     return failures
 
@@ -803,6 +835,7 @@ def main() -> int:
             installed=installed,
             external_installations=external_installations,
             external_bin_dir=external_bin_dir,
+            clean_files=not args.no_clean,
         )
 
         if failures:

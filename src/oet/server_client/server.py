@@ -412,6 +412,7 @@ class OtoolServer:
 
         return inputfile, args, remaining_args
 
+
 def create_app(server: OtoolServer) -> Flask:
     """
     Takes the OtoolServer and returns a Flask application
