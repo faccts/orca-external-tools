@@ -641,7 +641,6 @@ class Aimnet2Calc(BaseCalc):
 
         # --- Special options ----------------------------------------------
         parser.add_argument(
-            "-do",
             "--download-only",
             action="store_true",
             default=False,
