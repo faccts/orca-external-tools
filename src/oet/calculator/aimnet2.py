@@ -864,7 +864,7 @@ class Aimnet2Calc(BaseCalc):
 
         # Mirror the argparse default so mypy sees a guaranteed-str (the
         # parser sets default=str(DEFAULT_MODEL_PATH)).
-        device = str(args_parsed.get("device"))
+        device = str(args_parsed.device)
         if device not in self._SUPPORTED_DEVICES:
             raise RuntimeError(
                 f"Device {device} not supported. Use one of {self._SUPPORTED_DEVICES}."
