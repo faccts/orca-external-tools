@@ -205,7 +205,6 @@ class UmaCalc(BaseCalc):
             f'Default: "{DEFAULT_CACHE_DIR}".',
         )
         parser.add_argument(
-            "-do",
             "--download-only",
             action="store_true",
             default=False,
