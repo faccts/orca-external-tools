@@ -11,7 +11,6 @@ main: function
     Main function
 """
 
-import sys
 from argparse import ArgumentParser, Namespace
 
 from oet.core.base_calc import BaseCalc, CalculationData
@@ -85,15 +84,13 @@ class XtbCalc(BaseCalc):
                     elif "$end" in line:
                         break
                 if natoms_read != natoms:
-                    print(
+                    raise ValueError(
                         f"Number of atoms read: {natoms_read} does not match the expected: {natoms}"
                     )
-                    sys.exit(1)
                 if len(gradient) != 3 * natoms:
-                    print(
+                    raise ValueError(
                         f"Number of gradient entries: {len(gradient)} does not match 3x number of atoms: {natoms}"
                     )
-                    sys.exit(1)
         if not energy:
             raise ValueError(f"Total energy not found in file {calc_data.output_file}")
         return energy, gradient

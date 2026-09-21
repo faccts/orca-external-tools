@@ -332,21 +332,7 @@ def get_ncores_from_input(
     FileNotFoundError: Input file not found
     ValueError: If input contained values in wrong format
     """
-    # Get every first entry of each line of input file
-    try:
-        with open(inputfile, "r") as f:
-            lines = [line.split(" ")[0].strip() for line in f if line.strip()]
-    except FileNotFoundError:
-        raise FileNotFoundError(f"Input file not found: {inputfile}")
-    # Save information
-    try:
-        ncores = int(lines[3])
-    except ValueError as e:
-        raise ValueError(f"Error reading ORCA input file: {e}")
-    # Some sanity check
-    if ncores < 1:
-        raise ValueError("NCores must be a positive integer.")
-    return ncores
+    return read_input(inputfile=inputfile)[3]
 
 
 def check_file(file_path: Path | str) -> bool:

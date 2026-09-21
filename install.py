@@ -55,6 +55,8 @@ def create_venv(venv_dir: Path, extras: Sequence[str]) -> None:
     ----------
     venv_dir: Path
         Path to the virtual environment
+    extras: Sequence[str]
+        Requested extras. These will be added to the shell prompt.
     """
     print(f"Creating virtual environment in '{venv_dir}'...")
     prompt = "oet" + "".join(f"-{e}" for e in sorted(extras))

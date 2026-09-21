@@ -155,7 +155,7 @@ class TestSetupSignature:
         monkeypatch.setattr("torch.cuda.is_available", lambda: False)
         calc = Aimnet2Calc()
         with pytest.raises(RuntimeError, match="CUDA requested but not available"):
-            calc.setup(model="aimnet2", model_dir="/tmp", device="cuda", ncores=1)
+            calc.setup(model="aimnet2", model_dir="/tmp", device="cuda")
 
     def test_args_match_short_circuit(self):
         """Second setup() call with same args is a no-op."""
@@ -169,7 +169,6 @@ class TestSetupSignature:
                 "model": "aimnet2",
                 "model_dir": "/tmp",
                 "device": "cpu",
-                "ncores": 1,
                 "compile_model": False,
                 "nb_threshold": 120,
                 "ensemble_member": 0,
@@ -186,7 +185,6 @@ class TestSetupSignature:
             model="aimnet2",
             model_dir="/tmp",
             device="cpu",
-            ncores=1,
         )
         assert calc._calc is not None  # still the original mock
 
@@ -201,7 +199,6 @@ class TestSetupSignature:
                 "model": "aimnet2",
                 "model_dir": "/tmp",
                 "device": "cpu",
-                "ncores": 1,
                 "compile_model": False,
                 "nb_threshold": 120,
                 "ensemble_member": 0,
@@ -218,7 +215,6 @@ class TestSetupSignature:
                 model="aimnet2-2025",
                 model_dir="/tmp",
                 device="cpu",
-                ncores=1,
             )
 
     def test_auto_and_none_device_compare_equal(self):
@@ -233,7 +229,6 @@ class TestSetupSignature:
                 "model": "aimnet2",
                 "model_dir": "/tmp",
                 "device": None,
-                "ncores": 1,
                 "compile_model": False,
                 "nb_threshold": 120,
                 "ensemble_member": 0,
@@ -250,7 +245,6 @@ class TestSetupSignature:
             model="aimnet2",
             model_dir="/tmp",
             device=None,
-            ncores=1,
         )
         assert calc._calc is not None
 
@@ -262,7 +256,6 @@ class TestSetupSignature:
                 model="aimnet2",
                 model_dir="/tmp",
                 device="cpu",
-                ncores=1,
                 coulomb="yes",
             )
 
@@ -274,7 +267,6 @@ class TestSetupSignature:
                 model="aimnet2",
                 model_dir="/tmp",
                 device="cpu",
-                ncores=1,
                 coulomb_method="wolf",
             )
 
@@ -297,7 +289,6 @@ class TestSetupSignature:
                     model="aimnet2-rxn",
                     model_dir=str(tmp_path),
                     device="cpu",
-                    ncores=1,
                     coulomb_method="dsf",
                     coulomb_cutoff=12.0,
                 )
@@ -319,7 +310,6 @@ class TestSetupSignature:
                     model="aimnet2-rxn",
                     model_dir=str(tmp_path),
                     device="cpu",
-                    ncores=1,
                     coulomb_method="dsf",
                     coulomb_cutoff=4.6,
                 )
@@ -344,7 +334,6 @@ class TestSetupSignature:
                     model="aimnet2-rxn",
                     model_dir=str(tmp_path),
                     device="cpu",
-                    ncores=1,
                 )
             rxn_warnings = [w for w in caught if "aimnet2-rxn training cutoff" in str(w.message)]
             assert rxn_warnings == []
@@ -392,7 +381,6 @@ class TestReleaseHook:
                 model="aimnet2-2025",
                 model_dir="/tmp",
                 device="cpu",
-                ncores=2,
             )
         assert calc._calc is not None
         assert calc._setup_args is not None
@@ -419,7 +407,6 @@ class TestReleaseHook:
                 model="aimnet2",
                 model_dir="/tmp",
                 device="cpu",
-                ncores=2,
                 coulomb_method="dsf",
                 coulomb_cutoff=12.0,
             )

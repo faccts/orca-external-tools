@@ -29,7 +29,10 @@ try:
         from ase.calculators.calculator import PropertyNotImplementedError
         from fairchem.core import FAIRChemCalculator, pretrained_mlip
         from fairchem.core.calculate.pretrained_mlip import available_models
-        from fairchem.core.units.mlip_unit.api.inference import UMATask
+        from fairchem.core.units.mlip_unit.api.inference import (
+            UMATask,
+            inference_settings_default,
+        )
         from huggingface_hub import hf_hub_download
 except ImportError as e:
     print(
@@ -64,7 +67,13 @@ class UmaCalc(BaseCalc):
     _calc: FAIRChemCalculator | None = None
 
     def set_calculator(
-        self, param: str, basemodel: str, device: str, cache_dir: str, force: bool = False
+        self,
+        param: str,
+        basemodel: str,
+        device: str,
+        cache_dir: str,
+        force: bool = False,
+        compile_model: bool = False,
     ) -> None:
         """
         Prepare the `FAIRChemCalculator` object to compute energy and gradient, if not done already.
@@ -81,6 +90,8 @@ class UmaCalc(BaseCalc):
             Cache directory to read/write downloaded model files to
         force: bool, default = False
             Force re-initialization of the calculator, even if already initialized
+        compile_model: bool, default = False
+            Wrap the model with `torch.compile`
         """
         if not self._calc or force:
             # Make sure the cache directory exists
@@ -88,11 +99,14 @@ class UmaCalc(BaseCalc):
             # Monkey-patch the Fairchem CACHE_DIR: the provided one is not always respected.
             # In particular, `pretrained_checkpoint_path_from_name` just uses `CACHE_DIR`
             pretrained_mlip.CACHE_DIR = cache_dir
+            # `inference_settings_default()` builds a fresh object, so modifying it is safe
+            settings = inference_settings_default()
+            settings.compile = compile_model
             # Suppress fairchemcore internal warnings
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
                 predictor = pretrained_mlip.get_predict_unit(
-                    basemodel, device=device, cache_dir=cache_dir
+                    basemodel, device=device, cache_dir=cache_dir, inference_settings=settings
                 )
                 self._calc = FAIRChemCalculator(predictor, task_name=param)
 
@@ -203,6 +217,17 @@ class UmaCalc(BaseCalc):
             help="The cache directory to store downloaded model files. "
             "Can also be set via the environment variable FAIRCHEM_CACHE_DIR. "
             f'Default: "{DEFAULT_CACHE_DIR}".',
+        )
+        parser.add_argument(
+            "--compile",
+            dest="compile",
+            action="store_true",
+            default=False,
+            help="Enable torch.compile JIT. SERVER MODE ONLY - standalone "
+            "oet_uma is a fresh process per ORCA call and re-pays the JIT cost "
+            "every step. First-call latency 20-60 s, in exchange for roughly "
+            "10-30 %% faster subsequent calls. Recompiles on shape change, so "
+            "do NOT use with NEB / OptTS / IRC. ",
         )
         parser.add_argument(
             "--download-only",
@@ -343,6 +368,7 @@ class UmaCalc(BaseCalc):
         device = args_parsed.device
         cache_dir = args_parsed.cache_dir
         offline_mode = args_parsed.offline_mode
+        compile = args_parsed.compile
         # Check if the model files are available
         model_files_available = self.check_for_model_files(basemodel=basemodel, cache_dir=cache_dir)
         # If they are available, switch to offline mode.
@@ -363,7 +389,13 @@ class UmaCalc(BaseCalc):
         # setup calculator if not already set
         # this is important as usage on a server would otherwise cause
         # initialization with every call so that nothing is gained
-        self.set_calculator(param=param, basemodel=basemodel, device=device, cache_dir=cache_dir)
+        self.set_calculator(
+            param=param,
+            basemodel=basemodel,
+            device=device,
+            cache_dir=cache_dir,
+            compile_model=compile,
+        )
 
         # process the XYZ file
         atom_types, coordinates = xyzfile_to_at_coord(calc_data.xyzfile)
