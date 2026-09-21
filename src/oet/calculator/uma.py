@@ -222,6 +222,7 @@ class UmaCalc(BaseCalc):
             "--compile",
             dest="compile",
             action="store_true",
+            default=False,
             help="Enable torch.compile JIT. SERVER MODE ONLY - standalone "
             "oet_uma is a fresh process per ORCA call and re-pays the JIT cost "
             "every step. First-call latency 20-60 s, in exchange for roughly "
@@ -367,6 +368,7 @@ class UmaCalc(BaseCalc):
         device = args_parsed.device
         cache_dir = args_parsed.cache_dir
         offline_mode = args_parsed.offline_mode
+        compile = args_parsed.compile
         # Check if the model files are available
         model_files_available = self.check_for_model_files(basemodel=basemodel, cache_dir=cache_dir)
         # If they are available, switch to offline mode.
@@ -392,7 +394,7 @@ class UmaCalc(BaseCalc):
             basemodel=basemodel,
             device=device,
             cache_dir=cache_dir,
-            compile_model=args_parsed.get("compile", False),
+            compile_model=compile,
         )
 
         # process the XYZ file
