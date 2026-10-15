@@ -7,7 +7,7 @@ import sys
 import warnings
 from argparse import ArgumentParser, Namespace
 
-from oet.core.base_calc import BaseCalc, CalculationData
+from oet.core.base_calc import BaseCalc, CalcResult, CalculationData
 from oet.core.misc import ENERGY_CONVERSION, LENGTH_CONVERSION, xyzfile_to_at_coord
 
 try:
@@ -256,7 +256,7 @@ class MaceCalc(BaseCalc):
         calc_data: CalculationData,
         args_parsed: Namespace,
         args_not_parsed: list[str],
-    ) -> tuple[float, list[float], list[float]]:
+    ) -> CalcResult:
         """
         Routine for calculating energy and optional gradient.
 
@@ -271,12 +271,8 @@ class MaceCalc(BaseCalc):
 
         Returns
         -------
-        float
-            The computed energy (Eh)
-        list[float]
-            Flattened gradient vector (Eh/Bohr), if computed, otherwise empty
-        list[float]
-            Hessian, always empty (not supported)
+        CalcResult
+            Energy (Eh) and, if requested, gradient (Eh/Bohr) and Hessian (Eh/Bohr^2)
         """
 
         suite = args_parsed.suite
@@ -318,7 +314,7 @@ class MaceCalc(BaseCalc):
             atom_types=atom_types, coordinates=coordinates, calc_data=calc_data
         )
 
-        return energy, gradient, []
+        return CalcResult(energy=energy, gradient=gradient)
 
 
 def main() -> None:

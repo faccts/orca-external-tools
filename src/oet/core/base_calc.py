@@ -4,6 +4,8 @@ They set the framework for easy implementation of new methods.
 
 Provides
 --------
+class: CalcResult
+    Results of a calculation as returned by BaseCalc.calc.
 class: CalculationData
     Holds data and settings related to a specific calculation: file names, coordinates, etc.
 class: BaseCalc(ABC)
@@ -17,6 +19,7 @@ import sys
 from abc import ABC, abstractmethod
 from argparse import ArgumentParser, Namespace
 from collections.abc import Sequence
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from oet import __version__ as version
@@ -45,6 +48,26 @@ CALCULATOR_CLASSES = {
     "uma": ("oet.calculator.uma", "UmaCalc"),
     "xtb": ("oet.calculator.xtb", "XtbCalc"),
 }
+
+
+@dataclass
+class CalcResult:
+    """
+    Results of a calculation, returned by BaseCalc.calc.
+
+    Attributes
+    ----------
+    energy: float
+        Electronic energy in Hartree
+    gradient: list[float]
+        Gradient in Hartree/Bohr, leave empty if dograd=False
+    hessian: list[float]
+        Flattened row-major Hessian in Hartree/Bohr^2, leave empty if dohess=False
+    """
+
+    energy: float
+    gradient: list[float] = field(default_factory=list)
+    hessian: list[float] = field(default_factory=list)
 
 
 class CalculationData:
@@ -221,7 +244,7 @@ class BaseCalc(ABC):
         calc_data: CalculationData,
         args_parsed: Namespace,
         args_not_parsed: list[str],
-    ) -> tuple[float, list[float], list[float]]:
+    ) -> CalcResult:
         """
         Main routing for calculating energy, gradient and Hessian.
         Gets information from input file and should return energy
@@ -238,9 +261,8 @@ class BaseCalc(ABC):
 
         Returns
         -------
-        float: electronic energy in Hartree
-        list[float]: gradient in Hartree/Bohr, leave empty if dograd=False
-        list[float]: flattened row-major Hessian in Hartree/Bohr^2, leave empty if dohess=False
+        CalcResult: energy in Hartree, and, if requested, gradient in Hartree/Bohr
+            and flattened row-major Hessian in Hartree/Bohr^2
         """
 
     def run(
@@ -294,7 +316,7 @@ class BaseCalc(ABC):
                 # Go to tmp dir where the calculation should be performed
                 os.chdir(calc_data.tmp_dir)
                 # Perform calculation
-                energy, gradient, hessian = self.calc(
+                result = self.calc(
                     calc_data=calc_data,
                     args_parsed=args_parsed,
                     args_not_parsed=list(args_not_parsed),
@@ -307,11 +329,14 @@ class BaseCalc(ABC):
             # left uncaught, so it surfaces as-is; the starting directory is still restored
             # below via the outer finally.
             write_output(
-                filename=calc_data.orca_engrad, nat=calc_data.natoms, etot=energy, grad=gradient
+                filename=calc_data.orca_engrad,
+                nat=calc_data.natoms,
+                etot=result.energy,
+                grad=result.gradient,
             )
             if calc_data.dohess:
                 write_hess_output(
-                    filename=calc_data.orca_hess, nat=calc_data.natoms, hessian=hessian
+                    filename=calc_data.orca_hess, nat=calc_data.natoms, hessian=result.hessian
                 )
             # Write program output to STDOUT
             if calc_data.output_file.exists():

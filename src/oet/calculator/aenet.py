@@ -15,7 +15,7 @@ from argparse import ArgumentParser, Namespace
 from collections.abc import Mapping
 from pathlib import Path
 
-from oet.core.base_calc import BaseCalc, CalculationData
+from oet.core.base_calc import BaseCalc, CalcResult, CalculationData
 from oet.core.misc import (
     ENERGY_CONVERSION,
     LENGTH_CONVERSION,
@@ -172,7 +172,7 @@ class AenetCalc(BaseCalc):
         calc_data: CalculationData,
         args_parsed: Namespace,
         args_not_parsed: list[str],
-    ) -> tuple[float, list[float], list[float]]:
+    ) -> CalcResult:
         """
         Routine for calculating energy and optional gradient.
         Writes ORCA output
@@ -188,12 +188,8 @@ class AenetCalc(BaseCalc):
 
         Returns
         -------
-        float
-            The computed energy (Eh)
-        list[float]
-            Flattened gradient vector (Eh/Bohr), if computed, otherwise empty
-        list[float]
-            Hessian, always empty (not supported)
+        CalcResult
+            Energy (Eh) and, if requested, gradient (Eh/Bohr) and Hessian (Eh/Bohr^2)
         """
         # Get the arguments parsed as defined in extend_parser
         prog = args_parsed.prog
@@ -235,7 +231,7 @@ class AenetCalc(BaseCalc):
         # parse the output
         energy, gradient = self.read_predict_output(natoms, calc_data.dograd, prog_out)
 
-        return energy, gradient, []
+        return CalcResult(energy=energy, gradient=gradient)
 
 
 def main() -> None:

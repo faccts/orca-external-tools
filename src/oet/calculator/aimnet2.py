@@ -20,7 +20,7 @@ from typing import Any, ClassVar
 from requests.exceptions import HTTPError
 
 from oet import ASSETS_DIR
-from oet.core.base_calc import BaseCalc, CalculationData
+from oet.core.base_calc import BaseCalc, CalcResult, CalculationData
 from oet.core.misc import (
     ENERGY_CONVERSION,
     LENGTH_CONVERSION,
@@ -842,7 +842,7 @@ class Aimnet2Calc(BaseCalc):
         calc_data: CalculationData,
         args_parsed: Namespace,
         args_not_parsed: list[str],
-    ) -> tuple[float, list[float], list[float]]:
+    ) -> CalcResult:
         """Routine for calculating energy + optional gradient/Hessian.
 
         Validates cross-flag constraints, then sets up the calculator and
@@ -907,7 +907,7 @@ class Aimnet2Calc(BaseCalc):
             coordinates=coordinates,
             calc_data=calc_data,
         )
-        return energy, gradient, hessian
+        return CalcResult(energy=energy, gradient=gradient, hessian=hessian)
 
 
 def main(argv: list[str] | None = None) -> None:

@@ -39,7 +39,7 @@ import tempfile
 from argparse import ArgumentParser, Namespace
 from pathlib import Path
 
-from oet.core.base_calc import BaseCalc, CalculationData
+from oet.core.base_calc import BaseCalc, CalcResult, CalculationData
 from oet.core.misc import LENGTH_CONVERSION, check_path, run_command
 
 
@@ -168,7 +168,7 @@ class MlatomCalc(BaseCalc):
         calc_data: CalculationData,
         args_parsed: Namespace,
         args_not_parsed: list[str],
-    ) -> tuple[float, list[float], list[float]]:
+    ) -> CalcResult:
         """
         Routine for calculating energy and optional gradient.
         Writes ORCA output
@@ -184,12 +184,8 @@ class MlatomCalc(BaseCalc):
 
         Returns
         -------
-        float
-            The computed energy (Eh)
-        list[float]
-            Flattened gradient vector (Eh/Bohr), if computed, otherwise empty.
-        list[float]
-            Hessian, always empty (not supported)
+        CalcResult
+            Energy (Eh) and, if requested, gradient (Eh/Bohr) and Hessian (Eh/Bohr^2)
         """
         # Get options that were parsed
         prog = args_parsed.prog
@@ -211,7 +207,7 @@ class MlatomCalc(BaseCalc):
         # parse the MLatom output
         energy, gradient = self.read_mlatomout(calc_data=calc_data)
 
-        return energy, gradient, []
+        return CalcResult(energy=energy, gradient=gradient)
 
 
 def main() -> None:

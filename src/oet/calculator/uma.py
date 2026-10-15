@@ -20,7 +20,7 @@ from functools import partial
 from pathlib import Path
 
 from oet import ASSETS_DIR
-from oet.core.base_calc import BaseCalc, CalculationData
+from oet.core.base_calc import BaseCalc, CalcResult, CalculationData
 from oet.core.misc import ENERGY_CONVERSION, LENGTH_CONVERSION, xyzfile_to_at_coord
 
 try:
@@ -406,7 +406,7 @@ class UmaCalc(BaseCalc):
         calc_data: CalculationData,
         args_parsed: Namespace,
         args_not_parsed: list[str],
-    ) -> tuple[float, list[float], list[float]]:
+    ) -> CalcResult:
         """
         Routine for calculating energy and optional gradient/Hessian.
         Writes ORCA output
@@ -423,12 +423,8 @@ class UmaCalc(BaseCalc):
 
         Returns
         -------
-        float
-            The computed energy (Eh)
-        list[float]
-            Flattened gradient vector (Eh/Bohr), if computed, otherwise empty
-        list[float]
-            Flattened Hessian vector (Eh/Bohr^2), if computed, otherwise empty
+        CalcResult
+            Energy (Eh) and, if requested, gradient (Eh/Bohr) and Hessian (Eh/Bohr^2)
         """
         # Get the arguments parsed as defined in extend_parser
         param = args_parsed.param
@@ -474,7 +470,7 @@ class UmaCalc(BaseCalc):
             atom_types=atom_types, coordinates=coordinates, calc_data=calc_data
         )
 
-        return energy, gradient, hessian
+        return CalcResult(energy=energy, gradient=gradient, hessian=hessian)
 
 
 def main() -> None:
