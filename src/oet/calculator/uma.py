@@ -16,6 +16,7 @@ import os
 import sys
 import warnings
 from argparse import ArgumentParser, Namespace
+from functools import partial
 from pathlib import Path
 
 from oet import ASSETS_DIR
@@ -158,9 +159,12 @@ class UmaCalc(BaseCalc):
         """
         Goes into offline mode to prevent HuggingFace from downloading something from the web
         """
-        os.environ["HF_HUB_OFFLINE"] = "1"
-        # Older versions require a different keyword:
-        os.environ["HUGGINGFACE_HUB_OFFLINE"] = "1"
+        # Setting os.environ["HF_HUB_OFFLINE"] = "1" does not work after the HuggingFace libraries
+        # were loaded. Thus, force the subroutine communicating with the internet into offline mode.
+        pretrained_mlip.hf_hub_download = partial(
+            hf_hub_download,
+            local_files_only=True,
+        )
 
     @classmethod
     def extend_parser(cls, parser: ArgumentParser) -> None:
