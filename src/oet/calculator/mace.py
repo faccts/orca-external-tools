@@ -6,9 +6,10 @@ MACE wrapper for ORCA's ExtTool interface.
 import sys
 import warnings
 from argparse import ArgumentParser, Namespace
+import numpy as np
 
 from oet.core.base_calc import BaseCalc, CalculationData, CalculationResult
-from oet.core.definitions import ENERGY_CONVERSION, LENGTH_CONVERSION
+from oet.core.definitions import ENERGY_CONVERSION, LENGTH_CONVERSION, Property
 from oet.core.misc import xyzfile_to_at_coord
 
 try:
@@ -46,6 +47,8 @@ except ImportError as e:
 class MaceCalc(BaseCalc):
     # MACE calculator used for computations
     _calc: MACECalculator | None = None
+    # For MACE, in addition to the default properties, also Hessians are available.
+    DEFAULT_PROPERTIES = BaseCalc.DEFAULT_PROPERTIES | {Property.HESSIAN}
 
     def set_calculator(
         self,
@@ -204,12 +207,62 @@ class MaceCalc(BaseCalc):
             help="Advanced option: Select MACE head. Only applicable for the MP suite.",
         )
 
+    def _get_hessian(self, atoms: Atoms) -> list[float]:
+        """
+        Compute a Hessian with MACE.
+
+        Parameters
+        ----------
+        atoms: Atoms
+            The ASE Atoms type object for computing the Hessian.
+
+        Returns
+        -------
+        list[float]
+            Flattened Hessian vector (Eh/Bohr^2).
+        """
+
+        # Safety check
+        if self._calc is None:
+            raise RuntimeError("MACE calculator has not been initialized.")
+
+        # Get the raw Hessian
+        raw = self._calc.get_hessian(atoms=atoms)
+        # Flatten the MACE Hessian layout (3N, N, 3) or (3N, 3N).
+        natoms = len(atoms)
+        n = 3 * natoms
+        arr = np.asarray(raw, dtype=np.float64)
+        if arr.shape not in {(n, natoms, 3), (n, n)}:
+            raise ValueError(
+                f"Unexpected MACE Hessian shape {arr.shape}; "
+                f"expected {(n, natoms, 3)} or {(n, n)}."
+            )
+        if not np.isfinite(arr).all():
+            raise ValueError("MACE Hessian contains NaN or infinity.")
+        matrix =  arr.reshape(n, n, order="C")
+
+        # `get_hessian` returns raw model derivatives, unlike the
+        # energy/forces in calc.results, which are already converted to ASE units.
+        # Foundation MP/OMOL models use energy_units_to_eV = length_units_to_A = 1.
+        e_to_ev = float(self._calc.energy_units_to_eV)
+        l_to_ang = float(self._calc.length_units_to_A)
+        if not np.isfinite([e_to_ev, l_to_ang]).all() or min(e_to_ev, l_to_ang) <= 0:
+            raise ValueError("Invalid MACE model unit conversion factors.")
+        factor = (
+            e_to_ev / l_to_ang**2
+            * LENGTH_CONVERSION["Ang"]**2 / ENERGY_CONVERSION["eV"]
+        )
+        converted = matrix * factor
+        if not np.isfinite(converted).all():
+            raise ValueError("Converted MACE Hessian contains NaN or infinity.")
+        return converted.ravel(order="C").tolist()
+
     def run_mace(
         self,
         atom_types: list[str],
         coordinates: list[tuple[float, float, float]],
         calc_data: CalculationData,
-    ) -> tuple[float, list[float]]:
+    ) -> tuple[float, list[float], list[float]]:
         """
         Runs a Mace calculation.
 
@@ -228,6 +281,8 @@ class MaceCalc(BaseCalc):
             The computed energy (Eh)
         list[float]
             Flattened gradient vector (Eh/Bohr), if computed, otherwise empty
+        list[float]
+            Flattened Hessian vector (Eh/Bohr^2), if computed, otherwise empty
         """
 
         # set the number of threads
@@ -250,7 +305,10 @@ class MaceCalc(BaseCalc):
             # forces may not be available
             pass
 
-        return energy, gradient
+        # Compute Hessians
+        hessian = self._get_hessian(atoms) if calc_data.dohess else []
+
+        return energy, gradient, hessian
 
     def calc(
         self,
@@ -311,11 +369,11 @@ class MaceCalc(BaseCalc):
         atom_types, coordinates = xyzfile_to_at_coord(calc_data.xyzfile)
 
         # run mace
-        energy, gradient = self.run_mace(
+        energy, gradient, hessian = self.run_mace(
             atom_types=atom_types, coordinates=coordinates, calc_data=calc_data
         )
 
-        return CalculationResult(energy=energy, gradient=gradient)
+        return CalculationResult(energy=energy, gradient=gradient, hessian=hessian)
 
 
 def main() -> None:
