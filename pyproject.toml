@@ -82,7 +82,7 @@ mlatom = [
 
 uma = [
     "setuptools<82.0.0",
-    "fairchem-core>=2.2.0",
+    "fairchem-core>=2.17.0",
 ]
 
 dev = [

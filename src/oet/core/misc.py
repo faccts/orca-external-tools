@@ -10,12 +10,6 @@ from collections.abc import Callable, Iterable, Sequence
 from pathlib import Path
 from shutil import which
 
-# Energy conversion factors (Hartree -> unit)
-ENERGY_CONVERSION = {"eV": 27.21138625, "kcal/mol": 627.509}
-
-# Length conversion factors (Bohr -> unit)
-LENGTH_CONVERSION = {"Ang": 0.529177210903}
-
 
 def search_path(file: str | Path) -> Path:
     """

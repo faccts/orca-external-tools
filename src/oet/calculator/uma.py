@@ -20,8 +20,9 @@ from functools import partial
 from pathlib import Path
 
 from oet import ASSETS_DIR
-from oet.core.base_calc import BaseCalc, CalcResult, CalculationData
-from oet.core.misc import ENERGY_CONVERSION, LENGTH_CONVERSION, xyzfile_to_at_coord
+from oet.core.base_calc import BaseCalc, CalculationData, CalculationResult
+from oet.core.definitions import ENERGY_CONVERSION, LENGTH_CONVERSION, Property
+from oet.core.misc import xyzfile_to_at_coord
 
 try:
     # Suppress pkg_resources deprecated warning
@@ -64,13 +65,14 @@ DEFAULT_CACHE_DIR = str(os.environ.get("FAIRCHEM_CACHE_DIR", ASSETS_DIR / "fairc
 
 
 class UmaCalc(BaseCalc):
-    # Hessian supported via autograd, see set_calculator
-    SUPPORTS_HESSIAN: bool = True
 
     # Fairchem calculator used to compute energy and grad
     _calc: FAIRChemCalculator | None = None
     # Whether the cached calculator was built with the Hessian task enabled
     _calc_hessian: bool = False
+
+    # For UMA, in addition to the default properties, also Hessians are available.
+    DEFAULT_PROPERTIES = BaseCalc.DEFAULT_PROPERTIES | {Property.HESSIAN}
 
     def set_calculator(
         self,
@@ -113,6 +115,7 @@ class UmaCalc(BaseCalc):
             Hessian is requested.
         """
         # Nothing to do if a calculator for the requested mode is already cached
+        # Whether the exact settings match is checked by the server itself.
         if self._calc is not None and not force and self._calc_hessian == hessian:
             return
 
@@ -406,7 +409,7 @@ class UmaCalc(BaseCalc):
         calc_data: CalculationData,
         args_parsed: Namespace,
         args_not_parsed: list[str],
-    ) -> CalcResult:
+    ) -> CalculationResult:
         """
         Routine for calculating energy and optional gradient/Hessian.
         Writes ORCA output
@@ -423,7 +426,7 @@ class UmaCalc(BaseCalc):
 
         Returns
         -------
-        CalcResult
+        CalculationResult
             Energy (Eh) and, if requested, gradient (Eh/Bohr) and Hessian (Eh/Bohr^2)
         """
         # Get the arguments parsed as defined in extend_parser
@@ -470,7 +473,7 @@ class UmaCalc(BaseCalc):
             atom_types=atom_types, coordinates=coordinates, calc_data=calc_data
         )
 
-        return CalcResult(energy=energy, gradient=gradient, hessian=hessian)
+        return CalculationResult(energy=energy, gradient=gradient, hessian=hessian)
 
 
 def main() -> None:

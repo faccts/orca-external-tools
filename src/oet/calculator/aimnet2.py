@@ -20,10 +20,9 @@ from typing import Any, ClassVar
 from requests.exceptions import HTTPError
 
 from oet import ASSETS_DIR
-from oet.core.base_calc import BaseCalc, CalcResult, CalculationData
+from oet.core.base_calc import BaseCalc, CalculationData, CalculationResult
+from oet.core.definitions import ENERGY_CONVERSION, LENGTH_CONVERSION, Property
 from oet.core.misc import (
-    ENERGY_CONVERSION,
-    LENGTH_CONVERSION,
     resolve_model_file,
     xyzfile_to_at_coord,
 )
@@ -176,9 +175,6 @@ _SYMBOL_TO_Z: dict[str, int] = {sym: i + 1 for i, sym in enumerate(_PERIODIC_TAB
 class Aimnet2Calc(BaseCalc):
     """ORCA ExtTool calculator backed by AIMNet2 (aimnet>=0.2,<0.3)."""
 
-    # Hessian supported via autograd
-    SUPPORTS_HESSIAN: bool = True
-
     # Wired into extend_parser's choices=, single source of truth.
     _SUPPORTED_DEVICES: tuple[str, ...] = ("cpu", "cuda", "auto")
     _COULOMB_METHODS: tuple[str, ...] = ("simple", "dsf", "ewald")
@@ -188,6 +184,8 @@ class Aimnet2Calc(BaseCalc):
         "on": True,
         "off": False,
     }
+    # For AIMNet2, in addition to the default properties, also Hessians are available.
+    DEFAULT_PROPERTIES = BaseCalc.DEFAULT_PROPERTIES | {Property.HESSIAN}
 
     _calc: AIMNet2Calculator | None = None
     _setup_args: frozenset[tuple[str, Any]] | None = None
@@ -284,12 +282,14 @@ class Aimnet2Calc(BaseCalc):
         dftd3_cutoff: float | None = None,
         dftd3_smoothing_fraction: float | None = None,
     ) -> None:
-        """Construct the calculator + apply post-ctor configuration.
+        """Construct the calculator and apply configuration.
 
-        First call wins: subsequent calls with the same args are a no-op;
-        calls with different args raise (server cache is responsible for
-        keying on args, so a single Aimnet2Calc instance only ever sees
-        one configuration). Per-call work belongs in run_aimnet2.
+        Subsequent calls with identical settings reuse the existing
+        calculator. If only the compilation setting changes, the
+        calculator is released and reinitialized.
+
+        Changes to other initialization settings raise an error,
+        as these are handled by the server cache.
 
         Parameters
         ----------
@@ -366,13 +366,10 @@ class Aimnet2Calc(BaseCalc):
         if self._calc is not None:
             if new_args == self._setup_args:
                 return
-            raise RuntimeError(
-                "Aimnet2Calc.setup() called with different args than the "
-                "cached calculator. Server-mode callers must key the cache "
-                "on setup args.\n"
-                f"Cached args: {self._setup_args}\n"
-                f"New args: {new_args}"
-            )
+            else:
+                raise RuntimeError(
+                    "Aimnet2Calc.setup() called with different initialization arguments."
+                )
 
         # Validate string-choice args with helpful error messages
         # (argparse normally enforces this for CLI users, but direct-API
@@ -556,7 +553,8 @@ class Aimnet2Calc(BaseCalc):
                 "oet_aimnet2 is a fresh process per ORCA call and re-pays "
                 "JIT cost every step. First-call latency 10-60s. Recompiles "
                 "on shape change. Incompatible with Hessian. Do NOT use with "
-                "NEB / OptTS / IRC."
+                "NEB / OptTS / IRC. Automatically disabled when a Hessian is "
+                "requested."
             ),
         )
         parser.add_argument(
@@ -842,7 +840,7 @@ class Aimnet2Calc(BaseCalc):
         calc_data: CalculationData,
         args_parsed: Namespace,
         args_not_parsed: list[str],
-    ) -> CalcResult:
+    ) -> CalculationResult:
         """Routine for calculating energy + optional gradient/Hessian.
 
         Validates cross-flag constraints, then sets up the calculator and
@@ -884,6 +882,16 @@ class Aimnet2Calc(BaseCalc):
                 f"Device {device} not supported. Use one of {self._SUPPORTED_DEVICES}."
             )
 
+        # Hessian is available if the model is not complied.
+        if compile_model and calc_data.dohess:
+            warnings.warn(
+                "--compile is ignored for Hessian calculations: Hessian calculations "
+                "are incompatible with compiling the model.",
+                UserWarning,
+                stacklevel=2,
+            )
+            compile_model = False
+
         # --- set up calculator (idempotent) ------------------------------
         self.setup(
             model=model,
@@ -907,7 +915,7 @@ class Aimnet2Calc(BaseCalc):
             coordinates=coordinates,
             calc_data=calc_data,
         )
-        return CalcResult(energy=energy, gradient=gradient, hessian=hessian)
+        return CalculationResult(energy=energy, gradient=gradient, hessian=hessian)
 
 
 def main(argv: list[str] | None = None) -> None:

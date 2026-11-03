@@ -18,10 +18,9 @@ import sys
 from argparse import ArgumentParser, Namespace
 from pathlib import Path
 
-from oet.core.base_calc import BaseCalc, CalcResult, CalculationData
+from oet.core.base_calc import BaseCalc, CalculationData, CalculationResult
+from oet.core.definitions import ENERGY_CONVERSION, LENGTH_CONVERSION
 from oet.core.misc import (
-    ENERGY_CONVERSION,
-    LENGTH_CONVERSION,
     check_path,
     nat_from_xyzfile,
     run_command,
@@ -282,7 +281,7 @@ class MopacCalc(BaseCalc):
 
     def calc(
         self, calc_data: CalculationData, args_parsed: Namespace, args_not_parsed: list[str]
-    ) -> CalcResult:
+    ) -> CalculationResult:
         """
         Routine for calculating energy and optional gradient.
         Writes ORCA output
@@ -298,7 +297,7 @@ class MopacCalc(BaseCalc):
 
         Returns
         -------
-        CalcResult
+        CalculationResult
             Energy (Eh) and, if requested, gradient (Eh/Bohr) and Hessian (Eh/Bohr^2)
         """
         # Get options that were parsed
@@ -331,7 +330,7 @@ class MopacCalc(BaseCalc):
         # parse the mopac output
         energy, gradient = self.read_mopac_out(calc_data=calc_data, natoms=natoms)
 
-        return CalcResult(energy=energy, gradient=gradient)
+        return CalculationResult(energy=energy, gradient=gradient)
 
 
 def main() -> None:

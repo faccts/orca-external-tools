@@ -13,7 +13,8 @@ main: function
 
 from argparse import ArgumentParser, Namespace
 
-from oet.core.base_calc import BaseCalc, CalcResult, CalculationData
+from oet.core.base_calc import BaseCalc, CalculationData, CalculationResult
+from oet.core.definitions import Property
 from oet.core.misc import (
     check_path,
     mult_to_nue,
@@ -23,8 +24,9 @@ from oet.core.misc import (
 
 
 class XtbCalc(BaseCalc):
-    # xtb supports computing a Hessian via its native --hess flag
-    SUPPORTS_HESSIAN: bool = True
+
+    # For xtb, in addition to the default properties, also Hessians are available.
+    DEFAULT_PROPERTIES = BaseCalc.DEFAULT_PROPERTIES | {Property.HESSIAN}
 
     @property
     def PROGRAM_NAMES(self) -> list[str]:
@@ -170,7 +172,7 @@ class XtbCalc(BaseCalc):
 
     def calc(
         self, calc_data: CalculationData, args_parsed: Namespace, args_not_parsed: list[str]
-    ) -> CalcResult:
+    ) -> CalculationResult:
         """
         Routine for calculating energy and optional gradient and Hessian.
         Writes ORCA output
@@ -186,7 +188,7 @@ class XtbCalc(BaseCalc):
 
         Returns
         -------
-        CalcResult
+        CalculationResult
             Energy (Eh) and, if requested, gradient (Eh/Bohr) and Hessian (Eh/Bohr^2)
         """
         # Get parsed options
@@ -215,7 +217,7 @@ class XtbCalc(BaseCalc):
         # parse the Hessian, if requested
         hessian = self.read_hessian(calc_data=calc_data, natoms=natoms) if calc_data.dohess else []
 
-        return CalcResult(energy=energy, gradient=gradient, hessian=hessian)
+        return CalculationResult(energy=energy, gradient=gradient, hessian=hessian)
 
 
 def main() -> None:

@@ -23,6 +23,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from oet import __version__ as version
+from oet.core.definitions import Property
 from oet.core.misc import (
     check_multi_progs,
     check_path,
@@ -51,7 +52,7 @@ CALCULATOR_CLASSES = {
 
 
 @dataclass
-class CalcResult:
+class CalculationResult:
     """
     Results of a calculation, returned by BaseCalc.calc.
 
@@ -216,22 +217,35 @@ class BaseCalc(ABC):
         Minimal python version required, default: 3.10
     PROGRAM_NAMES:
         Names of executable that is searched for in PATH
-    SUPPORTS_HESSIAN:
-        Whether this calculator supports computing a Hessian, default: False.
-        If a Hessian is requested for a calculator that doesn't support it,
-        run() aborts before calc() is ever called.
     extend_parser:
         Here, the parser can be extended with individual arguments
         They are provided to the calc routine unpacked
+    DEFAULT_PROPERTIES:
+        The properties every calculator has per default.
+        Can be overwritten by the calculators.
     """
 
     # Minimal Python version required;
     # Overwrite in wrapper if you require newer versions
     minimal_python_version: tuple[int, int] = (3, 10)
 
-    # Whether this calculator supports computing a Hessian;
-    # Overwrite in wrapper if it does
-    SUPPORTS_HESSIAN: bool = False
+    # A set of properties that will per default be assumed by every calculator to support.
+    # Will be used to initialize `self.available_properties`.
+    DEFAULT_PROPERTIES = frozenset(
+        {
+            Property.ENERGY,
+            Property.GRADIENT,
+        }
+    )
+
+    def __init__(self) -> None:
+        """
+        Initialize object variables.
+        """
+        # The properties that are supported by a specific calculator.
+        # Per default, energies and gradients are assumed to be supported.
+        # Can be adjusted by adding/removing specific properties of the calculator instance.
+        self.available_properties: set[Property] = set(self.DEFAULT_PROPERTIES)
 
     @property
     def PROGRAM_NAMES(self) -> list[str] | None:
@@ -244,7 +258,7 @@ class BaseCalc(ABC):
         calc_data: CalculationData,
         args_parsed: Namespace,
         args_not_parsed: list[str],
-    ) -> CalcResult:
+    ) -> CalculationResult:
         """
         Main routing for calculating energy, gradient and Hessian.
         Gets information from input file and should return energy
@@ -305,10 +319,17 @@ class BaseCalc(ABC):
             # No calculation was attempted, so there is nothing to debug: remove the tmp dir
             # that CalculationData already created (unlike a genuine runtime failure below,
             # which leaves it on disk for debugging).
-            if calc_data.dohess and not self.SUPPORTS_HESSIAN:
+            if calc_data.dohess and not Property.HESSIAN in self.available_properties:
                 calc_data.remove_tmp()
                 raise RuntimeError(
                     f"{type(self).__name__} does not support Hessian calculations, "
+                    "but one was requested in the ORCA input file."
+                )
+            # Abort early if a gradient calculation was requested and this calculator doesn't support it.
+            if calc_data.dograd and not Property.GRADIENT in self.available_properties:
+                calc_data.remove_tmp()
+                raise RuntimeError(
+                    f"{type(self).__name__} does not support gradient calculations, "
                     "but one was requested in the ORCA input file."
                 )
             # Run the routine performing actual calculation
