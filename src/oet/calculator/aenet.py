@@ -14,6 +14,7 @@ main: function
 from argparse import ArgumentParser, Namespace
 from collections.abc import Mapping
 from pathlib import Path
+from typing import Any
 
 from oet.core.base_calc import BaseCalc, CalculationData, CalculationResult
 from oet.core.definitions import ENERGY_CONVERSION, LENGTH_CONVERSION
@@ -64,6 +65,31 @@ class AenetCalc(BaseCalc):
                 else "If not provided, there must be a single file that matches the glob <Symbol>.*"
             ),
         )
+
+    @classmethod
+    def process_input_keywords(
+        cls, args_parsed: Namespace, calc_data: CalculationData
+    ) -> tuple[Any, ...]:
+        """
+        Extract and sanitize the calculation settings from the input Namespace.
+
+        Parameters
+        ----------
+        args_parsed: Namespace
+            The parsed namespace.
+        calc_data: CalculationData
+            The calculation data.
+
+        Returns
+        -------
+        tuple[Any, ...]: The settings used for setting up the calculator.
+        """
+
+        prog = args_parsed.prog
+        nnpath_name = args_parsed.nnpath
+        nnext = args_parsed.nnext
+
+        return prog, nnpath_name, nnext
 
     @staticmethod
     def write_predict_input(
@@ -191,9 +217,7 @@ class AenetCalc(BaseCalc):
             Energy (Eh) and, if requested, gradient (Eh/Bohr) and Hessian (Eh/Bohr^2)
         """
         # Get the arguments parsed as defined in extend_parser
-        prog = args_parsed.prog
-        nnpath_name = args_parsed.nnpath
-        nnext = args_parsed.nnext
+        prog, nnpath_name, nnext = self.process_input_keywords(args_parsed, calc_data)
 
         # Set and check program path
         calc_data.set_program_path(prog)

@@ -42,7 +42,7 @@ from flask import Flask, Response, jsonify, request
 from waitress import serve
 
 from oet import __version__ as version
-from oet.core.base_calc import CALCULATOR_CLASSES, BaseCalc
+from oet.core.base_calc import CALCULATOR_CLASSES, BaseCalc, CalculationData
 from oet.core.misc import get_ncores_from_input
 
 if typing.TYPE_CHECKING:
@@ -136,7 +136,11 @@ class CalculatorRuntimeException(RuntimeError):
 
 
 def _run_calc_in_process(
-    calc_module: str, calc_class: str, run_kwargs: dict[str, Any], max_memory_per_thread: int
+    calc_module: str,
+    calc_class: str,
+    run_kwargs: dict[str, Any],
+    max_memory_per_thread: int,
+    inputfile_path: Path,
 ) -> str:
     """
     Worker entrypoint. Runs in a separate process.
@@ -152,6 +156,8 @@ def _run_calc_in_process(
         Infos from client about the run
     max_memory_per_thread: int
         Maximum memory in MiB
+    inputfile_path: Path
+        The inputfile path.
 
     Returns
     -------
@@ -161,20 +167,26 @@ def _run_calc_in_process(
 
     # Make run_kwargs with only method-specific settings
     # It is assumed that all not parsed arguments are also method specific
-    args_parsed_frozen = tuple(sorted(vars(run_kwargs["args_parsed"]).items()))
+    # Also add input dependent calculator settings
+    mod = importlib.import_module(calc_module)
+    cls = getattr(mod, calc_class)
+    calc_data = CalculationData(inputfile_path, None)
+    args_parsed = cls.process_input_keywords(
+        args_parsed=run_kwargs["args_parsed"], calc_data=calc_data
+    )
+    args_parsed_frozen = tuple(args_parsed)
     args_not_parsed_frozen = tuple(run_kwargs["args_not_parsed"])
     method_specific_args = {
         "args_parsed": args_parsed_frozen,
         "args_not_parsed": args_not_parsed_frozen,
+        "variant": cls.input_dependent_calculator_initialization(calc_data),
     }
     # Use those to check if a calculator with these settings already exists.
     # If not, make another one and delete old calculators if it would exceed the current memory limit.
     key = (calc_module, calc_class, frozenset(method_specific_args.items()))
     calc = _WORKER_CALC_CACHE.get(key)
     if calc is None:
-        mod = importlib.import_module(calc_module)
-        Cls = getattr(mod, calc_class)
-        calc = Cls()
+        calc = cls()
         _WORKER_CALC_CACHE[key] = calc
         logger.debug(f"PID {os.getpid()}: Initialized new calculator with id: {key}")
     else:
@@ -347,6 +359,7 @@ class OtoolServer:
                 self.calc_class.calculator_name,
                 run_kwargs,
                 self.max_memory_per_thread,
+                inputfile_path,
             )
             # Will raise if the worker raised
             output = fut.result()

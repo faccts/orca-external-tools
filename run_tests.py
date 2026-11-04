@@ -32,7 +32,7 @@ DEFAULT_BIN_ROOT = ROOT / ".test-bins"
 NON_BACKEND_EXTRAS = {"dev"}
 
 # Files to be cleaned after if the test was successful.
-TEST_ARTIFACT_PATTERNS = ("*.engrad", "*.extinp.tmp", "*.out", "*.xyz")
+TEST_ARTIFACT_PATTERNS = ("*.engrad", "*.extinp.tmp", "*.out", "*.xyz", "*.hess")
 
 # Get extra dependencies that require installation in separate venvs.
 def get_backend_extras() -> set[str]:

@@ -18,6 +18,7 @@ import warnings
 from argparse import ArgumentParser, Namespace
 from functools import partial
 from pathlib import Path
+from typing import Any
 
 from oet import ASSETS_DIR
 from oet.core.base_calc import BaseCalc, CalculationData, CalculationResult
@@ -65,11 +66,8 @@ DEFAULT_CACHE_DIR = str(os.environ.get("FAIRCHEM_CACHE_DIR", ASSETS_DIR / "fairc
 
 
 class UmaCalc(BaseCalc):
-
     # Fairchem calculator used to compute energy and grad
     _calc: FAIRChemCalculator | None = None
-    # Whether the cached calculator was built with the Hessian task enabled
-    _calc_hessian: bool = False
 
     # For UMA, in addition to the default properties, also Hessians are available.
     DEFAULT_PROPERTIES = BaseCalc.DEFAULT_PROPERTIES | {Property.HESSIAN}
@@ -116,7 +114,7 @@ class UmaCalc(BaseCalc):
         """
         # Nothing to do if a calculator for the requested mode is already cached
         # Whether the exact settings match is checked by the server itself.
-        if self._calc is not None and not force and self._calc_hessian == hessian:
+        if self._calc is not None and not force:
             return
 
         # Drop the old predictor before building the new one, so that a server
@@ -133,15 +131,7 @@ class UmaCalc(BaseCalc):
 
         # `inference_settings_default()` builds a fresh object, so modifying it is safe
         settings = inference_settings_default()
-        if hessian and compile_model:
-            warnings.warn(
-                "--compile is ignored for Hessian calculations: the Hessian comes "
-                "from an autograd double-backward, which torch.compile's donated "
-                "buffers forbid (they require create_graph=False).",
-                UserWarning,
-                stacklevel=2,
-            )
-        settings.compile = compile_model and not hessian
+        settings.compile = compile_model
         if hessian:
             # Adds an inference-only Hessian task for this parameter set
             settings.predict_untrained_hessian = {param}
@@ -153,7 +143,6 @@ class UmaCalc(BaseCalc):
                 basemodel, device=device, cache_dir=cache_dir, inference_settings=settings
             )
             self._calc = FAIRChemCalculator(predictor, task_name=param)
-        self._calc_hessian = hessian
 
     def get_calculator(self) -> FAIRChemCalculator:
         """
@@ -334,6 +323,58 @@ class UmaCalc(BaseCalc):
 
         return False
 
+    @classmethod
+    def process_input_keywords(
+        cls, args_parsed: Namespace, calc_data: CalculationData
+    ) -> tuple[Any, ...]:
+        """
+        Extract and sanitize the calculation settings from the input Namespace.
+
+        Parameters
+        ----------
+        args_parsed: Namespace
+            The parsed namespace.
+        calc_data: CalculationData
+            The calculation data.
+
+        Returns
+        -------
+        tuple[Any, ...]: The settings used for setting up the calculator.
+        """
+
+        param = args_parsed.param
+        basemodel = args_parsed.basemodel
+        device = args_parsed.device
+        cache_dir = args_parsed.cache_dir
+        offline_mode = args_parsed.offline_mode
+        compile_model = args_parsed.compile
+
+        if calc_data.dohess and compile_model:
+            warnings.warn(
+                "--compile is ignored for Hessian calculations: the Hessian comes "
+                "from an autograd double-backward, which torch.compile's donated "
+                "buffers forbid (they require create_graph=False).",
+                UserWarning,
+                stacklevel=2,
+            )
+            compile_model = False
+
+        return param, basemodel, device, cache_dir, offline_mode, compile_model
+
+    @classmethod
+    def input_dependent_calculator_initialization(
+        cls, calc_data: CalculationData
+    ) -> tuple[str, bool]:
+        """
+        Computing a Hessian requires initialization of a separate calculator even if all other settings match.
+
+        Parameters
+        ----------
+        calc_data: CalculationData
+            The calculation data.
+        """
+        return "hessian", calc_data.dohess
+
     def run_uma(
         self,
         atom_types: list[str],
@@ -430,12 +471,9 @@ class UmaCalc(BaseCalc):
             Energy (Eh) and, if requested, gradient (Eh/Bohr) and Hessian (Eh/Bohr^2)
         """
         # Get the arguments parsed as defined in extend_parser
-        param = args_parsed.param
-        basemodel = args_parsed.basemodel
-        device = args_parsed.device
-        cache_dir = args_parsed.cache_dir
-        offline_mode = args_parsed.offline_mode
-        compile = args_parsed.compile
+        param, basemodel, device, cache_dir, offline_mode, compile_model = (
+            self.process_input_keywords(args_parsed, calc_data)
+        )
         # Check if the model files are available
         model_files_available = self.check_for_model_files(basemodel=basemodel, cache_dir=cache_dir)
         # If they are available, switch to offline mode.
@@ -462,7 +500,7 @@ class UmaCalc(BaseCalc):
             device=device,
             cache_dir=cache_dir,
             hessian=calc_data.dohess,
-            compile_model=compile,
+            compile_model=compile_model,
         )
 
         # process the XYZ file

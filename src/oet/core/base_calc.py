@@ -21,6 +21,7 @@ from argparse import ArgumentParser, Namespace
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 from oet import __version__ as version
 from oet.core.definitions import Property
@@ -76,14 +77,14 @@ class CalculationData:
     Holds the data for a given calculation. Performs file handling and input reading
     """
 
-    def __init__(self, inputfile: str, program_names: Sequence[str] | None) -> None:
+    def __init__(self, inputfile: str | Path, program_names: Sequence[str] | None) -> None:
         """
         Initialize the calculation data. Also, create tmp dir
 
         Parameters
         ----------
-        inputfile: str
-            Name of the input file
+        inputfile: str | Path
+            Name  or Path of the input file
         program_names: Sequence[str] | None
             List of program names that are tried to detect for settings path to program
         """
@@ -411,7 +412,7 @@ class BaseCalc(ABC):
         return inputfile, args, args_not_parsed
 
     @classmethod
-    def extend_parser(self, parser: ArgumentParser) -> None:
+    def extend_parser(cls, parser: ArgumentParser) -> None:
         """
         Subclasses override this to add custom arguments.
 
@@ -420,6 +421,49 @@ class BaseCalc(ABC):
         parser: ArgumentParser
             Parser that should be extended
         """
+
+    @classmethod
+    def process_input_keywords(
+        cls, args_parsed: Namespace, calc_data: CalculationData
+    ) -> tuple[Any, ...]:
+        """
+        Method that should be overwritten by each calculator to resolve settings options.
+        It should return the complete calculator settings as they will be used by the server to distinguish calculators.
+
+        Parameters
+        ----------
+        args_parsed: Namespace
+            The parsed namespace.
+        calc_data: CalculationData
+            The calculation data.
+
+        Returns
+        -------
+        tuple[Any, ...]: Any type of setting combinations.
+        """
+        return ()
+
+    @classmethod
+    def input_dependent_calculator_initialization(
+        cls, calc_data: CalculationData
+    ) -> tuple[Any, ...]:
+        """
+        Extra settings that affect calculator initialization.
+        This routine can be overwritten if specific input settings like `dohess` require a new instance of a calculator
+        to be initialized.
+        Will be taken into account when setting up the server.
+
+        Parameters
+        ----------
+        calc_data: CalculationData
+            The calculation data.
+
+        Returns
+        -------
+        tuple: Can be of any type and length. Will be used by the server to check whether an initialized calculator
+               can be reused or not.
+        """
+        return ()
 
     def release(self) -> None:
         """

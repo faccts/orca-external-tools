@@ -17,6 +17,7 @@ main: function
 import sys
 from argparse import ArgumentParser, Namespace
 from pathlib import Path
+from typing import Any
 
 from oet.core.base_calc import BaseCalc, CalculationData, CalculationResult
 from oet.core.definitions import ENERGY_CONVERSION, LENGTH_CONVERSION
@@ -49,6 +50,29 @@ class MopacCalc(BaseCalc):
             help="MOPAC method (default: PM6-D3H4X)",
         )
         parser.add_argument("-e", "--exe", dest="prog", help="Path to the MOPAC executable")
+
+    @classmethod
+    def process_input_keywords(
+        cls, args_parsed: Namespace, calc_data: CalculationData
+    ) -> tuple[Any, ...]:
+        """
+        Extract and sanitize the calculation settings from the input Namespace.
+
+        Parameters
+        ----------
+        args_parsed: Namespace
+            The parsed namespace.
+        calc_data: CalculationData
+            The calculation data.
+
+        Returns
+        -------
+        tuple[Any, ...]: The settings used for setting up the calculator.
+        """
+
+        prog = args_parsed.prog
+        method = args_parsed.method
+        return prog, method
 
     def write_mopac_input(
         self,
@@ -301,8 +325,7 @@ class MopacCalc(BaseCalc):
             Energy (Eh) and, if requested, gradient (Eh/Bohr) and Hessian (Eh/Bohr^2)
         """
         # Get options that were parsed
-        prog = args_parsed.prog
-        method = args_parsed.method
+        prog, method = self.process_input_keywords(args_parsed, calc_data)
         # Set and check the program path if its executable
         calc_data.set_program_path(prog)
         if calc_data.prog_path:

@@ -12,6 +12,7 @@ main: function
 """
 
 from argparse import ArgumentParser, Namespace
+from typing import Any
 
 from oet.core.base_calc import BaseCalc, CalculationData, CalculationResult
 from oet.core.definitions import Property
@@ -24,7 +25,6 @@ from oet.core.misc import (
 
 
 class XtbCalc(BaseCalc):
-
     # For xtb, in addition to the default properties, also Hessians are available.
     DEFAULT_PROPERTIES = BaseCalc.DEFAULT_PROPERTIES | {Property.HESSIAN}
 
@@ -43,6 +43,30 @@ class XtbCalc(BaseCalc):
             Parser that should be extended
         """
         parser.add_argument("-e", "--exe", dest="prog", help="Path to the xtb executable")
+
+    @classmethod
+    def process_input_keywords(
+        cls, args_parsed: Namespace, calc_data: CalculationData
+    ) -> tuple[Any, ...]:
+        """
+        Extract and sanitize the calculation settings from the input Namespace.
+
+        Parameters
+        ----------
+        args_parsed: Namespace
+            The parsed namespace.
+        calc_data: CalculationData
+            The calculation data.
+
+        Returns
+        -------
+        tuple[Any, ...]: The settings used for setting up the calculator.
+        """
+
+        prog = args_parsed.prog
+        print(prog)
+
+        return (prog,)
 
     def read_xtbout(self, calc_data: CalculationData, natoms: int) -> tuple[float, list[float]]:
         """
@@ -192,7 +216,7 @@ class XtbCalc(BaseCalc):
             Energy (Eh) and, if requested, gradient (Eh/Bohr) and Hessian (Eh/Bohr^2)
         """
         # Get parsed options
-        prog = args_parsed.prog
+        prog = self.process_input_keywords(args_parsed, calc_data)[0]
         # Set and check the program path if its executable
         calc_data.set_program_path(prog)
         if calc_data.prog_path:

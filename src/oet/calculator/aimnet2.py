@@ -678,6 +678,78 @@ class Aimnet2Calc(BaseCalc):
 
         return False
 
+    @classmethod
+    def process_input_keywords(
+        cls, args_parsed: Namespace, calc_data: CalculationData
+    ) -> tuple[Any, ...]:
+        """
+        Extract and sanitize the calculation settings from the input Namespace.
+
+        Parameters
+        ----------
+        args_parsed: Namespace
+            The parsed namespace.
+        calc_data: CalculationData
+            The calculation data.
+
+        Returns
+        -------
+        tuple[Any, ...]: The settings used for setting up the calculator.
+        """
+
+        model = args_parsed.model
+        model_dir = args_parsed.model_dir
+        coulomb_cutoff = args_parsed.coulomb_cutoff
+        device = str(args_parsed.device)
+        coulomb_method = args_parsed.coulomb_method
+        compile_model = args_parsed.compile
+        nb_threshold = args_parsed.nb_threshold
+        ensemble_member = args_parsed.ensemble_member
+        coulomb = args_parsed.coulomb
+        dispersion = args_parsed.dispersion
+        dftd3_cutoff = args_parsed.dftd3_cutoff
+        dftd3_smoothing_fraction = args_parsed.dftd3_smoothing_fraction
+
+        # --- cross-flag validation ----------------------------------------
+        # --coulomb-cutoff is only meaningful with --coulomb-method.
+        # The 15.0 != check has one corner: a user who passes --coulomb-cutoff 15.0
+        # explicitly without --coulomb-method silently gets a default-cutoff
+        # Coulomb-disabled run rather than a rejection. They should specify
+        # --coulomb-method anyway, so the false-negative is acceptable.
+        #
+        # We raise SystemExit(msg) directly rather than holding a parser ref:
+        # argparse's parser.error() is itself just print + SystemExit(2), and
+        # stashing the parser in args_parsed used to poison server.py's cache
+        # key (frozenset of args_parsed.items()) because ArgumentParser is
+        # hashed by identity. SystemExit's message goes to stderr automatically.
+        if coulomb_cutoff != 15.0 and coulomb_method is None:
+            raise SystemExit("oet_aimnet2: error: --coulomb-cutoff requires --coulomb-method")
+
+        # Hessian is available if the model is not complied.
+        if compile_model and calc_data.dohess:
+            warnings.warn(
+                "--compile is ignored for Hessian calculations: Hessian calculations "
+                "are incompatible with compiling the model.",
+                UserWarning,
+                stacklevel=2,
+            )
+            compile_model = False
+
+        return (
+            model,
+            model_dir,
+            coulomb_cutoff,
+            device,
+            coulomb_method,
+            compile_model,
+            nb_threshold,
+            ensemble_member,
+            coulomb,
+            dispersion,
+            dftd3_cutoff,
+            dftd3_smoothing_fraction,
+        )
+
     def atomic_symbol_to_number(self, symbol: str) -> int:
         """Convert an element symbol to atomic number.
 
@@ -846,33 +918,21 @@ class Aimnet2Calc(BaseCalc):
         Validates cross-flag constraints, then sets up the calculator and
         runs run_aimnet2.
         """
-        model = args_parsed.model
-        model_dir = args_parsed.model_dir
-        coulomb_cutoff = args_parsed.coulomb_cutoff
-        device = str(args_parsed.device)
-        coulomb_method = args_parsed.coulomb_method
-        compile_model = args_parsed.compile
-        nb_threshold = args_parsed.nb_threshold
-        ensemble_member = args_parsed.ensemble_member
-        coulomb = args_parsed.coulomb
-        dispersion = args_parsed.dispersion
-        dftd3_cutoff = args_parsed.dftd3_cutoff
-        dftd3_smoothing_fraction = args_parsed.dftd3_smoothing_fraction
 
-        # --- cross-flag validation ----------------------------------------
-        # --coulomb-cutoff is only meaningful with --coulomb-method.
-        # The 15.0 != check has one corner: a user who passes --coulomb-cutoff 15.0
-        # explicitly without --coulomb-method silently gets a default-cutoff
-        # Coulomb-disabled run rather than a rejection. They should specify
-        # --coulomb-method anyway, so the false-negative is acceptable.
-        #
-        # We raise SystemExit(msg) directly rather than holding a parser ref:
-        # argparse's parser.error() is itself just print + SystemExit(2), and
-        # stashing the parser in args_parsed used to poison server.py's cache
-        # key (frozenset of args_parsed.items()) because ArgumentParser is
-        # hashed by identity. SystemExit's message goes to stderr automatically.
-        if coulomb_cutoff != 15.0 and coulomb_method is None:
-            raise SystemExit("oet_aimnet2: error: --coulomb-cutoff requires --coulomb-method")
+        (
+            model,
+            model_dir,
+            coulomb_cutoff,
+            device,
+            coulomb_method,
+            compile_model,
+            nb_threshold,
+            ensemble_member,
+            coulomb,
+            dispersion,
+            dftd3_cutoff,
+            dftd3_smoothing_fraction,
+        ) = self.process_input_keywords(args_parsed, calc_data)
 
         # Mirror the argparse default so mypy sees a guaranteed-str (the
         # parser sets default=str(DEFAULT_MODEL_PATH)).
@@ -881,16 +941,6 @@ class Aimnet2Calc(BaseCalc):
             raise RuntimeError(
                 f"Device {device} not supported. Use one of {self._SUPPORTED_DEVICES}."
             )
-
-        # Hessian is available if the model is not complied.
-        if compile_model and calc_data.dohess:
-            warnings.warn(
-                "--compile is ignored for Hessian calculations: Hessian calculations "
-                "are incompatible with compiling the model.",
-                UserWarning,
-                stacklevel=2,
-            )
-            compile_model = False
 
         # --- set up calculator (idempotent) ------------------------------
         self.setup(
