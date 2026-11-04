@@ -364,7 +364,7 @@ class BaseCalc(ABC):
             if calc_data.output_file.exists():
                 print_filecontent(calc_data.output_file)
             # Remove tmp dir
-            calc_data.remove_tmp()
+            # calc_data.remove_tmp()
         finally:
             # Go back to start directory, whatever happened above
             if directory:
