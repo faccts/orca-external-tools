@@ -130,6 +130,7 @@ class MopacCalc(BaseCalc):
             coord_lines = lines
 
         spin = (calc_data.mult - 1) * 0.5
+        # Format spin to one decimal place (e.g., "0.5" for a doublet)
         spin_formatted = f"{spin:.1f}"
 
         # Select appropriate MOPAC calculation keywords.
@@ -235,7 +236,7 @@ class MopacCalc(BaseCalc):
         """
         energy = None
         gradient: list[float] = []
-        # > Depending on whether a Hessian calculation was done, the output might vary a bit.
+        # > Depending on whether a Hessian calculation was done, the output parsing varies.
         energy_line = "HEAT OF FORMATION" if calc_data.dohess else "FINAL HEAT OF FORMATION"
         with filename.open() as f:
             for line in f:
@@ -307,6 +308,7 @@ class MopacCalc(BaseCalc):
     def _read_aux_array(aux_path: Path, name: str) -> list[float]:
         """
         Read a numerical NAME[n]= array from MOPAC's AUX file.
+        [n] denotes the number of entries.
 
         MOPAC can wrap array values over multiple lines.
         Fortran D exponents and comment lines are supported.
@@ -318,6 +320,7 @@ class MopacCalc(BaseCalc):
         name: str
             The name of the property on the aux file.
         """
+
         # Header format of the aux file
         header = re.compile(
             rf"^\s*{re.escape(name)}(?::[^\[\]=]+)?"
@@ -330,16 +333,20 @@ class MopacCalc(BaseCalc):
         for line_idx, line in enumerate(lines):
             match = header.match(line)
 
+            # Only start parsing if the respective header is found
             if match is None:
                 continue
 
+            # Get how many values are to be parsed
             count = int(match.group(1))
+            # Get the raw values
             raw_values = match.group(2).split()
 
             for continuation in lines[line_idx + 1 :]:
                 if len(raw_values) >= count:
                     break
 
+                # Skip empty and comment lines
                 if continuation.lstrip().startswith("#") or not continuation.strip():
                     continue
 

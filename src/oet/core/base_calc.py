@@ -230,7 +230,7 @@ class BaseCalc(ABC):
     # Overwrite in wrapper if you require newer versions
     minimal_python_version: tuple[int, int] = (3, 10)
 
-    # A set of properties that will per default be assumed by every calculator to support.
+    # A set of properties that will per default be assumed to be supported by every calculator.
     # Will be used to initialize `self.available_properties`.
     DEFAULT_PROPERTIES = frozenset(
         {
@@ -347,6 +347,14 @@ class BaseCalc(ABC):
                 os.chdir(calc_data.orca_input_dir)
             except Exception as e:
                 raise RuntimeError("Failed to compute energy and/or gradient") from e
+            # Fallback safety checks if not checked by the individual calculators already.
+            ndim = 3 * calc_data.natoms
+            if calc_data.dograd and len(result.gradient) != ndim:
+                raise RuntimeError(f"The calculated gradient entries {len(result.gradient)} does not match the "
+                                   f"expected length {ndim}.")
+            if calc_data.dohess and len(result.hessian) != ndim*ndim:
+                raise RuntimeError(f"The calculated Hessian entries {len(result.hessian)} does not match the "
+                                   f"expected length {ndim*ndim}.")
             # Write output for ORCA. A failure here (e.g. an unexpectedly-sized Hessian) is
             # left uncaught, so it surfaces as-is; the starting directory is still restored
             # below via the outer finally.
@@ -364,7 +372,7 @@ class BaseCalc(ABC):
             if calc_data.output_file.exists():
                 print_filecontent(calc_data.output_file)
             # Remove tmp dir
-            # calc_data.remove_tmp()
+            calc_data.remove_tmp()
         finally:
             # Go back to start directory, whatever happened above
             if directory:
@@ -377,7 +385,7 @@ class BaseCalc(ABC):
 
         Parameters
         ----------
-        args: list[str] | None, default: None
+        input_args: list[str] | None, default: None
             Optional list of arguments to parse. If not given, command line arguments from `sys.argv` are used
 
         Returns
@@ -428,7 +436,9 @@ class BaseCalc(ABC):
     ) -> tuple[Any, ...]:
         """
         Method that should be overwritten by each calculator to resolve settings options.
-        It should return the complete calculator settings as they will be used by the server to distinguish calculators.
+        It should return the complete calculator settings as they will be used for the calculation.
+        These are used by the server to distinguish calculators and to decide if calculators can be reused for a specific
+        calculation.
 
         Parameters
         ----------

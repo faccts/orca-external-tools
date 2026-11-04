@@ -92,7 +92,8 @@ class UmaCalc(BaseCalc):
         argument and always evaluates everything the predictor implements. A
         Hessian-capable predictor is therefore about an order of magnitude
         slower on plain energy/gradient calls, so the two modes get separate
-        predictors and the cached one is rebuilt whenever `hessian` flips.
+        predictors and the cached one should be rebuilt whenever `hessian` flips.
+        This is handled by the server cache.
 
         Parameters
         ----------

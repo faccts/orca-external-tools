@@ -285,8 +285,7 @@ class Aimnet2Calc(BaseCalc):
         """Construct the calculator and apply configuration.
 
         Subsequent calls with identical settings reuse the existing
-        calculator. If only the compilation setting changes, the
-        calculator is released and reinitialized.
+        calculator.
 
         Changes to other initialization settings raise an error,
         as these are handled by the server cache.
@@ -368,7 +367,11 @@ class Aimnet2Calc(BaseCalc):
                 return
             else:
                 raise RuntimeError(
-                    "Aimnet2Calc.setup() called with different initialization arguments."
+                    "Aimnet2Calc.setup() called with different args than the "
+                    "cached calculator. Server-mode callers must key the cache "
+                    "on setup args.\n"
+                    f"Cached args: {self._setup_args}\n"
+                    f"New args: {new_args}"
                 )
 
         # Validate string-choice args with helpful error messages
@@ -725,7 +728,7 @@ class Aimnet2Calc(BaseCalc):
         if coulomb_cutoff != 15.0 and coulomb_method is None:
             raise SystemExit("oet_aimnet2: error: --coulomb-cutoff requires --coulomb-method")
 
-        # Hessian is available if the model is not complied.
+        # Hessian is only available if the model is not complied.
         if compile_model and calc_data.dohess:
             warnings.warn(
                 "--compile is ignored for Hessian calculations: Hessian calculations "
@@ -790,9 +793,9 @@ class Aimnet2Calc(BaseCalc):
         mult : int
             Spin multiplicity (2S + 1).
         dograd : bool
-            Whether to compute the gradient.
+            Whether to compute the gradient or not.
         dohess : bool
-            Whether to compute the Hessian.
+            Whether to compute the Hessian or not.
 
         Returns
         -------

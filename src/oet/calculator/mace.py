@@ -283,6 +283,7 @@ class MaceCalc(BaseCalc):
         natoms = len(atoms)
         n = 3 * natoms
         arr = np.asarray(raw, dtype=np.float64)
+        # Sanity check
         if arr.shape not in {(n, natoms, 3), (n, n)}:
             raise ValueError(
                 f"Unexpected MACE Hessian shape {arr.shape}; expected {(n, natoms, 3)} or {(n, n)}."
@@ -294,6 +295,7 @@ class MaceCalc(BaseCalc):
         # `get_hessian` returns raw model derivatives, unlike the
         # energy/forces in calc.results, which are already converted to ASE units.
         # Foundation MP/OMOL models use energy_units_to_eV = length_units_to_A = 1.
+        # Take the constant as implemented in MACE.
         e_to_ev = float(self._calc.energy_units_to_eV)
         l_to_ang = float(self._calc.length_units_to_A)
         if not np.isfinite([e_to_ev, l_to_ang]).all() or min(e_to_ev, l_to_ang) <= 0:

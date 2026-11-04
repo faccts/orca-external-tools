@@ -127,6 +127,8 @@ class XtbCalc(BaseCalc):
     def read_hessian(self, calc_data: CalculationData, natoms: int) -> list[float]:
         """
         Read the Hessian from xtb's native .hessian output file.
+        The first line of the file contains the `$hessian` block followed by the
+        values in Eh/Bohr**2
 
         Parameters
         ----------
@@ -137,8 +139,7 @@ class XtbCalc(BaseCalc):
 
         Returns
         -------
-        list[float]
-            Flattened, row-major Hessian matrix, of length (3*natoms)**2
+        list[float]: Flattened, row-major Hessian matrix, of length (3*natoms)**2
         """
         xtbhess_path = check_path(f"{calc_data.basename}.hessian")
         with xtbhess_path.open() as f:
@@ -239,7 +240,9 @@ class XtbCalc(BaseCalc):
         energy, gradient = self.read_xtbout(calc_data=calc_data, natoms=natoms)
 
         # parse the Hessian, if requested
-        hessian = self.read_hessian(calc_data=calc_data, natoms=natoms) if calc_data.dohess else []
+        hessian: list[float] = []
+        if calc_data.dohess:
+            hessian = self.read_hessian(calc_data=calc_data, natoms=natoms) if calc_data.dohess else []
 
         return CalculationResult(energy=energy, gradient=gradient, hessian=hessian)
 
