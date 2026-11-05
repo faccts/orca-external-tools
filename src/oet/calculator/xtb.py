@@ -242,7 +242,9 @@ class XtbCalc(BaseCalc):
         # parse the Hessian, if requested
         hessian: list[float] = []
         if calc_data.dohess:
-            hessian = self.read_hessian(calc_data=calc_data, natoms=natoms) if calc_data.dohess else []
+            hessian = (
+                self.read_hessian(calc_data=calc_data, natoms=natoms) if calc_data.dohess else []
+            )
 
         return CalculationResult(energy=energy, gradient=gradient, hessian=hessian)
 

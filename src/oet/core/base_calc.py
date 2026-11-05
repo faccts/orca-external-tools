@@ -350,11 +350,15 @@ class BaseCalc(ABC):
             # Fallback safety checks if not checked by the individual calculators already.
             ndim = 3 * calc_data.natoms
             if calc_data.dograd and len(result.gradient) != ndim:
-                raise RuntimeError(f"The calculated gradient entries {len(result.gradient)} does not match the "
-                                   f"expected length {ndim}.")
-            if calc_data.dohess and len(result.hessian) != ndim*ndim:
-                raise RuntimeError(f"The calculated Hessian entries {len(result.hessian)} does not match the "
-                                   f"expected length {ndim*ndim}.")
+                raise RuntimeError(
+                    f"The calculated gradient entries {len(result.gradient)} does not match the "
+                    f"expected length {ndim}."
+                )
+            if calc_data.dohess and len(result.hessian) != ndim * ndim:
+                raise RuntimeError(
+                    f"The calculated Hessian entries {len(result.hessian)} does not match the "
+                    f"expected length {ndim * ndim}."
+                )
             # Write output for ORCA. A failure here (e.g. an unexpectedly-sized Hessian) is
             # left uncaught, so it surfaces as-is; the starting directory is still restored
             # below via the outer finally.
@@ -431,9 +435,7 @@ class BaseCalc(ABC):
         """
 
     @classmethod
-    def process_input_keywords(
-        cls, args_parsed: Namespace, calc_data: CalculationData
-    ) -> Hashable:
+    def process_input_keywords(cls, args_parsed: Namespace, calc_data: CalculationData) -> Hashable:
         """
         Method that should be overwritten by each calculator to resolve settings options.
         It should return the complete calculator settings as they will be used for the calculation.

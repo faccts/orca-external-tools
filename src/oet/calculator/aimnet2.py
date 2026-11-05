@@ -705,7 +705,8 @@ class Aimnet2Calc(BaseCalc):
         cls, args_parsed: Namespace, calc_data: CalculationData
     ) -> Aimnet2Settings:
         """Validate and normalize initialization settings for reuse and setup."""
-        device = str(args_parsed.device)
+        # If `device` is "auto", it translates to None for upstream.
+        device: str | None = str(args_parsed.device)
         if device not in cls._SUPPORTED_DEVICES:
             raise ValueError(
                 f"Device {device!r} not supported. Use one of {cls._SUPPORTED_DEVICES}."

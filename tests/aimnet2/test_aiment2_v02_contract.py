@@ -562,14 +562,12 @@ class TestArgparseContract:
         from oet.calculator.aimnet2 import main
 
         with pytest.raises(
-                RuntimeError, match="Failed to compute energy and/or gradient"
+            RuntimeError, match="Failed to compute energy and/or gradient"
         ) as exc_info:
             main([str(extinp_h2_no_grad), "--coulomb-cutoff", "12.0"])
 
         assert isinstance(exc_info.value.__cause__, ValueError)
-        assert "--coulomb-cutoff requires --coulomb-method" in str(
-            exc_info.value.__cause__
-        )
+        assert "--coulomb-cutoff requires --coulomb-method" in str(exc_info.value.__cause__)
 
 
 @pytest.mark.network

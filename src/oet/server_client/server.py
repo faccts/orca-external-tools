@@ -88,9 +88,7 @@ def _pop_one_worker(protected_key: CacheKey | None) -> bool:
     return False
 
 
-def _evict_until_within_limits(
-    mem_limit_mib: int, protected_key: CacheKey | None
-) -> None:
+def _evict_until_within_limits(mem_limit_mib: int, protected_key: CacheKey | None) -> None:
     """
     Evict least-recently-used calculators until the memory limit is satisfied.
     `protect_key` (if given) will not be evicted (skip over it).
@@ -181,12 +179,7 @@ def _run_calc_in_process(
     # the dataclass into a tuple and losing its field names/type.
     if not isinstance(settings, tuple):
         params = getattr(type(settings), "__dataclass_params__", None)
-        if not (
-            is_dataclass(settings)
-            and params is not None
-            and params.frozen
-            and params.eq
-        ):
+        if not (is_dataclass(settings) and params is not None and params.frozen and params.eq):
             raise TypeError(
                 f"{calc_class}.process_input_keywords() must return a tuple "
                 "or a frozen dataclass with value-based equality"
@@ -195,8 +188,7 @@ def _run_calc_in_process(
         hash(settings)  # Also catches mutable fields inside a frozen dataclass.
     except TypeError as exc:
         raise TypeError(
-            f"{calc_class}.process_input_keywords() returned unhashable settings: "
-            f"{settings!r}"
+            f"{calc_class}.process_input_keywords() returned unhashable settings: {settings!r}"
         ) from exc
 
     key: CacheKey = (
