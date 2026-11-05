@@ -18,7 +18,7 @@ import shutil
 import sys
 from abc import ABC, abstractmethod
 from argparse import ArgumentParser, Namespace
-from collections.abc import Sequence
+from collections.abc import Hashable, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -433,12 +433,21 @@ class BaseCalc(ABC):
     @classmethod
     def process_input_keywords(
         cls, args_parsed: Namespace, calc_data: CalculationData
-    ) -> tuple[Any, ...]:
+    ) -> Hashable:
         """
         Method that should be overwritten by each calculator to resolve settings options.
         It should return the complete calculator settings as they will be used for the calculation.
         These are used by the server to distinguish calculators and to decide if calculators can be reused for a specific
         calculation.
+
+        Subclasses may return either a tuple or an instance of a frozen dataclass
+        (with the default value-based equality). All contained values must be
+        hashable. The server uses this result directly as part of its cache key.
+
+        This method must be deterministic and should not mutate calc_data or the
+        parsed arguments: the server and the calculator may call it separately.
+        Only include settings that affect the initialized calculator;
+        per-calculation data belongs in CalculationData.
 
         Parameters
         ----------
@@ -449,7 +458,7 @@ class BaseCalc(ABC):
 
         Returns
         -------
-        tuple[Any, ...]: Any type of setting combinations.
+        Hashable: Tuple of settings or a frozen dataclass instance.
         """
         return ()
 

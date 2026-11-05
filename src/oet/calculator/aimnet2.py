@@ -14,6 +14,7 @@ main: function
 import sys
 import warnings
 from argparse import ArgumentParser, Namespace
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, ClassVar
 
@@ -170,6 +171,24 @@ _PERIODIC_TABLE: tuple[str, ...] = (
 )
 assert len(_PERIODIC_TABLE) == 118, f"expected 118 elements, got {len(_PERIODIC_TABLE)}"
 _SYMBOL_TO_Z: dict[str, int] = {sym: i + 1 for i, sym in enumerate(_PERIODIC_TABLE)}
+
+
+@dataclass(frozen=True, slots=True)
+class Aimnet2Settings:
+    """Value-based, hashable settings used to initialize an AIMNet2 model."""
+
+    model: str
+    model_dir: str
+    device: str | None
+    compile_model: bool = False
+    nb_threshold: int = 120
+    ensemble_member: int = 0
+    coulomb: str = "auto"
+    dispersion: str = "auto"
+    coulomb_method: str | None = None
+    coulomb_cutoff: float = 15.0
+    dftd3_cutoff: float | None = None
+    dftd3_smoothing_fraction: float | None = None
 
 
 class Aimnet2Calc(BaseCalc):
@@ -684,34 +703,19 @@ class Aimnet2Calc(BaseCalc):
     @classmethod
     def process_input_keywords(
         cls, args_parsed: Namespace, calc_data: CalculationData
-    ) -> tuple[Any, ...]:
-        """
-        Extract and sanitize the calculation settings from the input Namespace.
-
-        Parameters
-        ----------
-        args_parsed: Namespace
-            The parsed namespace.
-        calc_data: CalculationData
-            The calculation data.
-
-        Returns
-        -------
-        tuple[Any, ...]: The settings used for setting up the calculator.
-        """
-
-        model = args_parsed.model
-        model_dir = args_parsed.model_dir
-        coulomb_cutoff = args_parsed.coulomb_cutoff
+    ) -> Aimnet2Settings:
+        """Validate and normalize initialization settings for reuse and setup."""
         device = str(args_parsed.device)
+        if device not in cls._SUPPORTED_DEVICES:
+            raise ValueError(
+                f"Device {device!r} not supported. Use one of {cls._SUPPORTED_DEVICES}."
+            )
+        # `setup()` treats auto and None identically. Match its canonical form
+        # so the worker cache does not keep duplicate calculators for them.
+        device = None if device == "auto" else device
+
+        coulomb_cutoff = args_parsed.coulomb_cutoff
         coulomb_method = args_parsed.coulomb_method
-        compile_model = args_parsed.compile
-        nb_threshold = args_parsed.nb_threshold
-        ensemble_member = args_parsed.ensemble_member
-        coulomb = args_parsed.coulomb
-        dispersion = args_parsed.dispersion
-        dftd3_cutoff = args_parsed.dftd3_cutoff
-        dftd3_smoothing_fraction = args_parsed.dftd3_smoothing_fraction
 
         # --- cross-flag validation ----------------------------------------
         # --coulomb-cutoff is only meaningful with --coulomb-method.
@@ -726,9 +730,9 @@ class Aimnet2Calc(BaseCalc):
         # key (frozenset of args_parsed.items()) because ArgumentParser is
         # hashed by identity. SystemExit's message goes to stderr automatically.
         if coulomb_cutoff != 15.0 and coulomb_method is None:
-            raise SystemExit("oet_aimnet2: error: --coulomb-cutoff requires --coulomb-method")
+            raise ValueError("--coulomb-cutoff requires --coulomb-method")
 
-        # Hessian is only available if the model is not complied.
+        compile_model = args_parsed.compile
         if compile_model and calc_data.dohess:
             warnings.warn(
                 "--compile is ignored for Hessian calculations: Hessian calculations "
@@ -738,19 +742,19 @@ class Aimnet2Calc(BaseCalc):
             )
             compile_model = False
 
-        return (
-            model,
-            model_dir,
-            coulomb_cutoff,
-            device,
-            coulomb_method,
-            compile_model,
-            nb_threshold,
-            ensemble_member,
-            coulomb,
-            dispersion,
-            dftd3_cutoff,
-            dftd3_smoothing_fraction,
+        return Aimnet2Settings(
+            model=args_parsed.model,
+            model_dir=args_parsed.model_dir,
+            device=device,
+            compile_model=compile_model,
+            nb_threshold=args_parsed.nb_threshold,
+            ensemble_member=args_parsed.ensemble_member,
+            coulomb=args_parsed.coulomb,
+            dispersion=args_parsed.dispersion,
+            coulomb_method=coulomb_method,
+            coulomb_cutoff=coulomb_cutoff,
+            dftd3_cutoff=args_parsed.dftd3_cutoff,
+            dftd3_smoothing_fraction=args_parsed.dftd3_smoothing_fraction,
         )
 
     def atomic_symbol_to_number(self, symbol: str) -> int:
@@ -922,44 +926,11 @@ class Aimnet2Calc(BaseCalc):
         runs run_aimnet2.
         """
 
-        (
-            model,
-            model_dir,
-            coulomb_cutoff,
-            device,
-            coulomb_method,
-            compile_model,
-            nb_threshold,
-            ensemble_member,
-            coulomb,
-            dispersion,
-            dftd3_cutoff,
-            dftd3_smoothing_fraction,
-        ) = self.process_input_keywords(args_parsed, calc_data)
+        settings = self.process_input_keywords(args_parsed, calc_data)
 
-        # Mirror the argparse default so mypy sees a guaranteed-str (the
-        # parser sets default=str(DEFAULT_MODEL_PATH)).
-        device = str(args_parsed.device)
-        if device not in self._SUPPORTED_DEVICES:
-            raise RuntimeError(
-                f"Device {device} not supported. Use one of {self._SUPPORTED_DEVICES}."
-            )
-
-        # --- set up calculator (idempotent) ------------------------------
-        self.setup(
-            model=model,
-            model_dir=model_dir,
-            device=device,
-            compile_model=compile_model,
-            nb_threshold=nb_threshold,
-            ensemble_member=ensemble_member,
-            coulomb=coulomb,
-            dispersion=dispersion,
-            coulomb_method=coulomb_method,
-            coulomb_cutoff=coulomb_cutoff,
-            dftd3_cutoff=dftd3_cutoff,
-            dftd3_smoothing_fraction=dftd3_smoothing_fraction,
-        )
+        # setup() keeps its existing keyword API for external callers, while
+        # the calculator itself passes one typed settings object around.
+        self.setup(**asdict(settings))
 
         # --- read XYZ and run --------------------------------------------
         atom_types, coordinates = xyzfile_to_at_coord(calc_data.xyzfile)

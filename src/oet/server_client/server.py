@@ -30,9 +30,10 @@ import traceback
 import typing
 from argparse import Action, ArgumentParser
 from collections import OrderedDict
-from collections.abc import Mapping, Sequence
+from collections.abc import Hashable, Mapping, Sequence
 from concurrent.futures import BrokenExecutor, ProcessPoolExecutor
 from contextlib import redirect_stdout
+from dataclasses import is_dataclass
 from pathlib import Path
 from types import FrameType
 from typing import Any
@@ -53,21 +54,22 @@ if typing.TYPE_CHECKING:
 # This guarantees that for calculators which are inadvertently not thread-safe
 # (because they temporarily hold calculation data in member variables)
 # we never use the same instance by multiple processes in parallel.
-# key: (module, class, frozenset(setup_items)) -> calc instance
-# OrderedDict, where the most currently used entry is moved to the end
-_WORKER_CALC_CACHE: OrderedDict[tuple[str, str, frozenset[tuple[str, Any]]], Any] = OrderedDict()
+# key: (module, class, normalized settings, unparsed args, input variant)
+# OrderedDict, where the most recently used entry is moved to the end.
+CacheKey = tuple[str, str, Hashable, tuple[str, ...], tuple[Any, ...]]
+_WORKER_CALC_CACHE: OrderedDict[CacheKey, BaseCalc] = OrderedDict()
 
 # Logger
 logger = logging.getLogger(__name__)
 
 
-def _pop_one_worker(protected_key: tuple[str, str, frozenset[tuple[str, Any]]] | None) -> bool:
+def _pop_one_worker(protected_key: CacheKey | None) -> bool:
     """
     Removes left most worker that isn't protected
 
     Parameters
     ----------
-    protected_key: tuple[str, str, frozenset[tuple[str, Any]]] | None
+    protected_key: CacheKey | None
         Protected keys that should not be deleted.
 
     Returns
@@ -87,7 +89,7 @@ def _pop_one_worker(protected_key: tuple[str, str, frozenset[tuple[str, Any]]] |
 
 
 def _evict_until_within_limits(
-    mem_limit_mib: int, protected_key: tuple[str, str, frozenset[tuple[str, Any]]] | None
+    mem_limit_mib: int, protected_key: CacheKey | None
 ) -> None:
     """
     Evict least-recently-used calculators until the memory limit is satisfied.
@@ -97,7 +99,7 @@ def _evict_until_within_limits(
     ----------
     mem_limit_mib: int
         Maximum memory usable by server in MiB
-    protected_key: tuple[str, str, frozenset[tuple[str, Any]]]
+    protected_key: CacheKey | None
         The one that should not be deleted from the _WORKER_CALC_CACHE
     """
     # RSS-based eviction (only if we can read RSS and a limit is set)
@@ -171,19 +173,39 @@ def _run_calc_in_process(
     mod = importlib.import_module(calc_module)
     cls = getattr(mod, calc_class)
     calc_data = CalculationData(inputfile_path, None)
-    args_parsed = cls.process_input_keywords(
+    settings = cls.process_input_keywords(
         args_parsed=run_kwargs["args_parsed"], calc_data=calc_data
     )
-    args_parsed_frozen = tuple(args_parsed)
-    args_not_parsed_frozen = tuple(run_kwargs["args_not_parsed"])
-    method_specific_args = {
-        "args_parsed": args_parsed_frozen,
-        "args_not_parsed": args_not_parsed_frozen,
-        "variant": cls.input_dependent_calculator_initialization(calc_data),
-    }
-    # Use those to check if a calculator with these settings already exists.
-    # If not, make another one and delete old calculators if it would exceed the current memory limit.
-    key = (calc_module, calc_class, frozenset(method_specific_args.items()))
+    # Calculators may return tuples or frozen dataclasses.
+    # Both can be used directly as keys, without converting
+    # the dataclass into a tuple and losing its field names/type.
+    if not isinstance(settings, tuple):
+        params = getattr(type(settings), "__dataclass_params__", None)
+        if not (
+            is_dataclass(settings)
+            and params is not None
+            and params.frozen
+            and params.eq
+        ):
+            raise TypeError(
+                f"{calc_class}.process_input_keywords() must return a tuple "
+                "or a frozen dataclass with value-based equality"
+            )
+    try:
+        hash(settings)  # Also catches mutable fields inside a frozen dataclass.
+    except TypeError as exc:
+        raise TypeError(
+            f"{calc_class}.process_input_keywords() returned unhashable settings: "
+            f"{settings!r}"
+        ) from exc
+
+    key: CacheKey = (
+        calc_module,
+        calc_class,
+        settings,
+        tuple(run_kwargs["args_not_parsed"]),
+        cls.input_dependent_calculator_initialization(calc_data),
+    )
     calc = _WORKER_CALC_CACHE.get(key)
     if calc is None:
         calc = cls()
