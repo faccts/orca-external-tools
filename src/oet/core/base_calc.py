@@ -4,6 +4,8 @@ They set the framework for easy implementation of new methods.
 
 Provides
 --------
+class: CalcResult
+    Results of a calculation as returned by BaseCalc.calc.
 class: CalculationData
     Holds data and settings related to a specific calculation: file names, coordinates, etc.
 class: BaseCalc(ABC)
@@ -16,10 +18,13 @@ import shutil
 import sys
 from abc import ABC, abstractmethod
 from argparse import ArgumentParser, Namespace
-from collections.abc import Sequence
+from collections.abc import Hashable, Sequence
+from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 from oet import __version__ as version
+from oet.core.definitions import Property
 from oet.core.misc import (
     check_multi_progs,
     check_path,
@@ -28,6 +33,7 @@ from oet.core.misc import (
     print_filecontent,
     read_input,
     search_path,
+    write_hess_output,
     write_output,
 )
 
@@ -46,19 +52,39 @@ CALCULATOR_CLASSES = {
 }
 
 
+@dataclass
+class CalculationResult:
+    """
+    Results of a calculation, returned by BaseCalc.calc.
+
+    Attributes
+    ----------
+    energy: float
+        Electronic energy in Hartree
+    gradient: list[float]
+        Gradient in Hartree/Bohr, leave empty if dograd=False
+    hessian: list[float]
+        Flattened row-major Hessian in Hartree/Bohr^2, leave empty if dohess=False
+    """
+
+    energy: float
+    gradient: list[float] = field(default_factory=list)
+    hessian: list[float] = field(default_factory=list)
+
+
 class CalculationData:
     """
     Holds the data for a given calculation. Performs file handling and input reading
     """
 
-    def __init__(self, inputfile: str, program_names: Sequence[str] | None) -> None:
+    def __init__(self, inputfile: str | Path, program_names: Sequence[str] | None) -> None:
         """
         Initialize the calculation data. Also, create tmp dir
 
         Parameters
         ----------
-        inputfile: str
-            Name of the input file
+        inputfile: str | Path
+            Name  or Path of the input file
         program_names: Sequence[str] | None
             List of program names that are tried to detect for settings path to program
         """
@@ -68,7 +94,9 @@ class CalculationData:
 
         # Read the input file
         # ------------------
-        xyzfile, charge, mult, ncores, dograd, pointcharges = read_input(inputfile=self._input_file)
+        xyzfile, charge, mult, ncores, dograd, pointcharges, dohess = read_input(
+            inputfile=self._input_file
+        )
         # Original structure file location
         # It is relative to the input file directory (or already an absolute path).
         # This should not be touched after copying to tmp dir
@@ -81,6 +109,8 @@ class CalculationData:
         self.ncores: int = ncores
         # Do gradient?
         self.dograd: bool = dograd
+        # Do Hessian?
+        self.dohess: bool = dohess
         # Original point charge file location (if any)
         # This should not be touched after copying to tmp dir
         self._orig_pointcharges: Path | None = (
@@ -102,6 +132,8 @@ class CalculationData:
         self.tmp_dir: Path = self.orca_input_dir / self.basename
         # Output file read by ORCA
         self.orca_engrad = self.orca_input_dir / (self.basename + ".engrad")
+        # Hessian output file read by ORCA (only written if self.dohess)
+        self.orca_hess = self.orca_input_dir / (self.basename + ".hess")
         # Temporary output file for the external program
         # At the end of the run. this will be printed to STDOUT and deleted
         self.output_file = self.tmp_dir / (self.basename + ".out")
@@ -177,8 +209,9 @@ class BaseCalc(ABC):
     Things that must be overwritten:
     calc:
         Main routine for calculation. Receives relevant settings
-        and should return an energy in Hartree and a gradient in
-        Hartree/Bohr. Gradient can be empty if dograd = False.
+        and should return an energy in Hartree, a gradient in
+        Hartree/Bohr, and a Hessian in Hartree/Bohr^2. Gradient can be
+        empty if dograd = False, Hessian can be empty if dohess = False.
 
     Things that might be overwritten:
     minimal_python_version:
@@ -188,11 +221,32 @@ class BaseCalc(ABC):
     extend_parser:
         Here, the parser can be extended with individual arguments
         They are provided to the calc routine unpacked
+    DEFAULT_PROPERTIES:
+        The properties every calculator has per default.
+        Can be overwritten by the calculators.
     """
 
     # Minimal Python version required;
     # Overwrite in wrapper if you require newer versions
     minimal_python_version: tuple[int, int] = (3, 10)
+
+    # A set of properties that will per default be assumed to be supported by every calculator.
+    # Will be used to initialize `self.available_properties`.
+    DEFAULT_PROPERTIES = frozenset(
+        {
+            Property.ENERGY,
+            Property.GRADIENT,
+        }
+    )
+
+    def __init__(self) -> None:
+        """
+        Initialize object variables.
+        """
+        # The properties that are supported by a specific calculator.
+        # Per default, energies and gradients are assumed to be supported.
+        # Can be adjusted by adding/removing specific properties of the calculator instance.
+        self.available_properties: set[Property] = set(self.DEFAULT_PROPERTIES)
 
     @property
     def PROGRAM_NAMES(self) -> list[str] | None:
@@ -205,11 +259,11 @@ class BaseCalc(ABC):
         calc_data: CalculationData,
         args_parsed: Namespace,
         args_not_parsed: list[str],
-    ) -> tuple[float, list[float]]:
+    ) -> CalculationResult:
         """
-        Main routing for calculating engrad.
+        Main routing for calculating energy, gradient and Hessian.
         Gets information from input file and should return energy
-        and optional gradient.
+        and optional gradient and Hessian.
 
         Parameters
         ----------
@@ -222,8 +276,8 @@ class BaseCalc(ABC):
 
         Returns
         -------
-        float: electronic energy in Hartree
-        list[float]: gradient in Hartree/Bohr, leave empty if dograd=False
+        CalcResult: energy in Hartree, and, if requested, gradient in Hartree/Bohr
+            and flattened row-major Hessian in Hartree/Bohr^2
         """
 
     def run(
@@ -249,7 +303,8 @@ class BaseCalc(ABC):
 
         Raises
         ------
-        RuntimeError: If parsing or energy/gradient calculation failed
+        RuntimeError: If parsing or energy/gradient/Hessian calculation failed,
+            or if a Hessian was requested but this calculator doesn't support it
         """
         # Check if python version matches requirements if redefined by subclass
         self._check_python_version()
@@ -261,12 +316,29 @@ class BaseCalc(ABC):
         try:
             # Set filenames and paths according to inputfile name. Also make tmpdir
             calc_data = CalculationData(inputfile=inputfile, program_names=self.PROGRAM_NAMES)
+            # Abort early if a Hessian was requested but this calculator doesn't support it.
+            # No calculation was attempted, so there is nothing to debug: remove the tmp dir
+            # that CalculationData already created (unlike a genuine runtime failure below,
+            # which leaves it on disk for debugging).
+            if calc_data.dohess and not Property.HESSIAN in self.available_properties:
+                calc_data.remove_tmp()
+                raise RuntimeError(
+                    f"{type(self).__name__} does not support Hessian calculations, "
+                    "but one was requested in the ORCA input file."
+                )
+            # Abort early if a gradient calculation was requested and this calculator doesn't support it.
+            if calc_data.dograd and not Property.GRADIENT in self.available_properties:
+                calc_data.remove_tmp()
+                raise RuntimeError(
+                    f"{type(self).__name__} does not support gradient calculations, "
+                    "but one was requested in the ORCA input file."
+                )
             # Run the routine performing actual calculation
             try:
                 # Go to tmp dir where the calculation should be performed
                 os.chdir(calc_data.tmp_dir)
                 # Perform calculation
-                energy, gradient = self.calc(
+                result = self.calc(
                     calc_data=calc_data,
                     args_parsed=args_parsed,
                     args_not_parsed=list(args_not_parsed),
@@ -275,11 +347,31 @@ class BaseCalc(ABC):
                 os.chdir(calc_data.orca_input_dir)
             except Exception as e:
                 raise RuntimeError("Failed to compute energy and/or gradient") from e
-            # Write output for ORCA. A failure here is left uncaught, so it surfaces as-is;
-            # the starting directory is still restored below via the outer finally.
+            # Fallback safety checks if not checked by the individual calculators already.
+            ndim = 3 * calc_data.natoms
+            if calc_data.dograd and len(result.gradient) != ndim:
+                raise RuntimeError(
+                    f"The calculated gradient entries {len(result.gradient)} does not match the "
+                    f"expected length {ndim}."
+                )
+            if calc_data.dohess and len(result.hessian) != ndim * ndim:
+                raise RuntimeError(
+                    f"The calculated Hessian entries {len(result.hessian)} does not match the "
+                    f"expected length {ndim * ndim}."
+                )
+            # Write output for ORCA. A failure here (e.g. an unexpectedly-sized Hessian) is
+            # left uncaught, so it surfaces as-is; the starting directory is still restored
+            # below via the outer finally.
             write_output(
-                filename=calc_data.orca_engrad, nat=calc_data.natoms, etot=energy, grad=gradient
+                filename=calc_data.orca_engrad,
+                nat=calc_data.natoms,
+                etot=result.energy,
+                grad=result.gradient,
             )
+            if calc_data.dohess:
+                write_hess_output(
+                    filename=calc_data.orca_hess, nat=calc_data.natoms, hessian=result.hessian
+                )
             # Write program output to STDOUT
             if calc_data.output_file.exists():
                 print_filecontent(calc_data.output_file)
@@ -297,7 +389,7 @@ class BaseCalc(ABC):
 
         Parameters
         ----------
-        args: list[str] | None, default: None
+        input_args: list[str] | None, default: None
             Optional list of arguments to parse. If not given, command line arguments from `sys.argv` are used
 
         Returns
@@ -332,7 +424,7 @@ class BaseCalc(ABC):
         return inputfile, args, args_not_parsed
 
     @classmethod
-    def extend_parser(self, parser: ArgumentParser) -> None:
+    def extend_parser(cls, parser: ArgumentParser) -> None:
         """
         Subclasses override this to add custom arguments.
 
@@ -341,6 +433,58 @@ class BaseCalc(ABC):
         parser: ArgumentParser
             Parser that should be extended
         """
+
+    @classmethod
+    def process_input_keywords(cls, args_parsed: Namespace, calc_data: CalculationData) -> Hashable:
+        """
+        Method that should be overwritten by each calculator to resolve settings options.
+        It should return the complete calculator settings as they will be used for the calculation.
+        These are used by the server to distinguish calculators and to decide if calculators can be reused for a specific
+        calculation.
+
+        Subclasses may return either a tuple or an instance of a frozen dataclass
+        (with the default value-based equality). All contained values must be
+        hashable. The server uses this result directly as part of its cache key.
+
+        This method must be deterministic and should not mutate calc_data or the
+        parsed arguments: the server and the calculator may call it separately.
+        Only include settings that affect the initialized calculator;
+        per-calculation data belongs in CalculationData.
+
+        Parameters
+        ----------
+        args_parsed: Namespace
+            The parsed namespace.
+        calc_data: CalculationData
+            The calculation data.
+
+        Returns
+        -------
+        Hashable: Tuple of settings or a frozen dataclass instance.
+        """
+        return ()
+
+    @classmethod
+    def input_dependent_calculator_initialization(
+        cls, calc_data: CalculationData
+    ) -> tuple[Any, ...]:
+        """
+        Extra settings that affect calculator initialization.
+        This routine can be overwritten if specific input settings like `dohess` require a new instance of a calculator
+        to be initialized.
+        Will be taken into account when setting up the server.
+
+        Parameters
+        ----------
+        calc_data: CalculationData
+            The calculation data.
+
+        Returns
+        -------
+        tuple: Can be of any type and length. Will be used by the server to check whether an initialized calculator
+               can be reused or not.
+        """
+        return ()
 
     def release(self) -> None:
         """

@@ -99,6 +99,7 @@ class TestNseMultGating:
             charge=0,
             mult=1,
             dograd=True,
+            dohess=False,
         )
 
     def test_mult_omitted_for_non_nse_model(self):
@@ -130,6 +131,7 @@ class TestNseMultGating:
                 charge=0,
                 mult=2,
                 dograd=True,
+                dohess=False,
             )
 
     def test_open_shell_with_nse_model_no_warn(self):
@@ -144,6 +146,7 @@ class TestNseMultGating:
                 charge=0,
                 mult=2,
                 dograd=True,
+                dohess=False,
             )
         assert out["data"]["mult"] == [2]
 
@@ -558,8 +561,13 @@ class TestArgparseContract:
 
         from oet.calculator.aimnet2 import main
 
-        with pytest.raises(SystemExit):
+        with pytest.raises(
+            RuntimeError, match="Failed to compute energy and/or gradient"
+        ) as exc_info:
             main([str(extinp_h2_no_grad), "--coulomb-cutoff", "12.0"])
+
+        assert isinstance(exc_info.value.__cause__, ValueError)
+        assert "--coulomb-cutoff requires --coulomb-method" in str(exc_info.value.__cause__)
 
 
 @pytest.mark.network

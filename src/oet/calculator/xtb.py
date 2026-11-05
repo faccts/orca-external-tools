@@ -12,8 +12,10 @@ main: function
 """
 
 from argparse import ArgumentParser, Namespace
+from typing import Any
 
-from oet.core.base_calc import BaseCalc, CalculationData
+from oet.core.base_calc import BaseCalc, CalculationData, CalculationResult
+from oet.core.definitions import Property
 from oet.core.misc import (
     check_path,
     mult_to_nue,
@@ -23,6 +25,9 @@ from oet.core.misc import (
 
 
 class XtbCalc(BaseCalc):
+    # For xtb, in addition to the default properties, also Hessians are available.
+    DEFAULT_PROPERTIES = BaseCalc.DEFAULT_PROPERTIES | {Property.HESSIAN}
+
     @property
     def PROGRAM_NAMES(self) -> list[str]:
         """Program names to search for in PATH"""
@@ -38,6 +43,30 @@ class XtbCalc(BaseCalc):
             Parser that should be extended
         """
         parser.add_argument("-e", "--exe", dest="prog", help="Path to the xtb executable")
+
+    @classmethod
+    def process_input_keywords(
+        cls, args_parsed: Namespace, calc_data: CalculationData
+    ) -> tuple[Any, ...]:
+        """
+        Extract and sanitize the calculation settings from the input Namespace.
+
+        Parameters
+        ----------
+        args_parsed: Namespace
+            The parsed namespace.
+        calc_data: CalculationData
+            The calculation data.
+
+        Returns
+        -------
+        tuple[Any, ...]: The settings used for setting up the calculator.
+        """
+
+        prog = args_parsed.prog
+        print(prog)
+
+        return (prog,)
 
     def read_xtbout(self, calc_data: CalculationData, natoms: int) -> tuple[float, list[float]]:
         """
@@ -95,6 +124,36 @@ class XtbCalc(BaseCalc):
             raise ValueError(f"Total energy not found in file {calc_data.output_file}")
         return energy, gradient
 
+    def read_hessian(self, calc_data: CalculationData, natoms: int) -> list[float]:
+        """
+        Read the Hessian from xtb's native .hessian output file.
+        The first line of the file contains the `$hessian` block followed by the
+        values in Eh/Bohr**2
+
+        Parameters
+        ----------
+        calc_data: CalculationData
+            Calculation data
+        natoms
+            number of atoms in the system
+
+        Returns
+        -------
+        list[float]: Flattened, row-major Hessian matrix, of length (3*natoms)**2
+        """
+        xtbhess_path = check_path(f"{calc_data.basename}.hessian")
+        with xtbhess_path.open() as f:
+            for line in f:
+                if "$hessian" in line:
+                    break
+            hessian = [float(value) for line in f for value in line.split()]
+        if len(hessian) != (3 * natoms) ** 2:
+            raise ValueError(
+                f"Number of Hessian entries: {len(hessian)} does not match "
+                f"(3x number of atoms)**2: {(3 * natoms) ** 2}"
+            )
+        return hessian
+
     def run_xtb(
         self,
         calc_data: CalculationData,
@@ -130,15 +189,17 @@ class XtbCalc(BaseCalc):
             args += ["-u", str(nue)]
         if calc_data.dograd:
             args += ["--grad"]
+        if calc_data.dohess:
+            args += ["--hess"]
         if not calc_data.prog_path:
             raise RuntimeError("Path to program is None.")
         run_command(calc_data.prog_path, calc_data.output_file, args)
 
     def calc(
         self, calc_data: CalculationData, args_parsed: Namespace, args_not_parsed: list[str]
-    ) -> tuple[float, list[float]]:
+    ) -> CalculationResult:
         """
-        Routine for calculating energy and optional gradient.
+        Routine for calculating energy and optional gradient and Hessian.
         Writes ORCA output
 
         Parameters
@@ -152,13 +213,11 @@ class XtbCalc(BaseCalc):
 
         Returns
         -------
-        float
-            The computed energy (Eh)
-        list[float]
-            Flattened gradient vector (Eh/Bohr), if computed, otherwise empty
+        CalculationResult
+            Energy (Eh) and, if requested, gradient (Eh/Bohr) and Hessian (Eh/Bohr^2)
         """
         # Get parsed options
-        prog = args_parsed.prog
+        prog = self.process_input_keywords(args_parsed, calc_data)[0]
         # Set and check the program path if its executable
         calc_data.set_program_path(prog)
         if calc_data.prog_path:
@@ -180,7 +239,14 @@ class XtbCalc(BaseCalc):
         # parse the xtb output
         energy, gradient = self.read_xtbout(calc_data=calc_data, natoms=natoms)
 
-        return energy, gradient
+        # parse the Hessian, if requested
+        hessian: list[float] = []
+        if calc_data.dohess:
+            hessian = (
+                self.read_hessian(calc_data=calc_data, natoms=natoms) if calc_data.dohess else []
+            )
+
+        return CalculationResult(energy=energy, gradient=gradient, hessian=hessian)
 
 
 def main() -> None:

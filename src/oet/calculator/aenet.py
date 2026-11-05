@@ -14,11 +14,11 @@ main: function
 from argparse import ArgumentParser, Namespace
 from collections.abc import Mapping
 from pathlib import Path
+from typing import Any
 
-from oet.core.base_calc import BaseCalc, CalculationData
+from oet.core.base_calc import BaseCalc, CalculationData, CalculationResult
+from oet.core.definitions import ENERGY_CONVERSION, LENGTH_CONVERSION
 from oet.core.misc import (
-    ENERGY_CONVERSION,
-    LENGTH_CONVERSION,
     check_path,
     get_nns,
     run_command,
@@ -65,6 +65,31 @@ class AenetCalc(BaseCalc):
                 else "If not provided, there must be a single file that matches the glob <Symbol>.*"
             ),
         )
+
+    @classmethod
+    def process_input_keywords(
+        cls, args_parsed: Namespace, calc_data: CalculationData
+    ) -> tuple[Any, ...]:
+        """
+        Extract and sanitize the calculation settings from the input Namespace.
+
+        Parameters
+        ----------
+        args_parsed: Namespace
+            The parsed namespace.
+        calc_data: CalculationData
+            The calculation data.
+
+        Returns
+        -------
+        tuple[Any, ...]: The settings used for setting up the calculator.
+        """
+
+        prog = args_parsed.prog
+        nnpath_name = args_parsed.nnpath
+        nnext = args_parsed.nnext
+
+        return prog, nnpath_name, nnext
 
     @staticmethod
     def write_predict_input(
@@ -172,7 +197,7 @@ class AenetCalc(BaseCalc):
         calc_data: CalculationData,
         args_parsed: Namespace,
         args_not_parsed: list[str],
-    ) -> tuple[float, list[float]]:
+    ) -> CalculationResult:
         """
         Routine for calculating energy and optional gradient.
         Writes ORCA output
@@ -188,15 +213,11 @@ class AenetCalc(BaseCalc):
 
         Returns
         -------
-        float
-            The computed energy (Eh)
-        list[float]
-            Flattened gradient vector (Eh/Bohr), if computed, otherwise empty
+        CalculationResult
+            Energy (Eh) and, if requested, gradient (Eh/Bohr) and Hessian (Eh/Bohr^2)
         """
         # Get the arguments parsed as defined in extend_parser
-        prog = args_parsed.prog
-        nnpath_name = args_parsed.nnpath
-        nnext = args_parsed.nnext
+        prog, nnpath_name, nnext = self.process_input_keywords(args_parsed, calc_data)
 
         # Set and check program path
         calc_data.set_program_path(prog)
@@ -233,7 +254,7 @@ class AenetCalc(BaseCalc):
         # parse the output
         energy, gradient = self.read_predict_output(natoms, calc_data.dograd, prog_out)
 
-        return energy, gradient
+        return CalculationResult(energy=energy, gradient=gradient)
 
 
 def main() -> None:

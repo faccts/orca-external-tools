@@ -6,9 +6,13 @@ MACE wrapper for ORCA's ExtTool interface.
 import sys
 import warnings
 from argparse import ArgumentParser, Namespace
+from typing import Any
 
-from oet.core.base_calc import BaseCalc, CalculationData
-from oet.core.misc import ENERGY_CONVERSION, LENGTH_CONVERSION, xyzfile_to_at_coord
+import numpy as np
+
+from oet.core.base_calc import BaseCalc, CalculationData, CalculationResult
+from oet.core.definitions import ENERGY_CONVERSION, LENGTH_CONVERSION, Property
+from oet.core.misc import xyzfile_to_at_coord
 
 try:
     with warnings.catch_warnings():
@@ -45,6 +49,8 @@ except ImportError as e:
 class MaceCalc(BaseCalc):
     # MACE calculator used for computations
     _calc: MACECalculator | None = None
+    # For MACE, in addition to the default properties, also Hessians are available.
+    DEFAULT_PROPERTIES = BaseCalc.DEFAULT_PROPERTIES | {Property.HESSIAN}
 
     def set_calculator(
         self,
@@ -203,12 +209,109 @@ class MaceCalc(BaseCalc):
             help="Advanced option: Select MACE head. Only applicable for the MP suite.",
         )
 
+    @classmethod
+    def process_input_keywords(
+        cls, args_parsed: Namespace, calc_data: CalculationData
+    ) -> tuple[Any, ...]:
+        """
+        Extract and sanitize the calculation settings from the input Namespace.
+
+        Parameters
+        ----------
+        args_parsed: Namespace
+            The parsed namespace.
+        calc_data: CalculationData
+            The calculation data.
+
+        Returns
+        -------
+        tuple[Any, ...]: The settings used for setting up the calculator.
+        """
+
+        suite = args_parsed.suite
+        model = args_parsed.model
+        dispersion = args_parsed.dispersion
+        damping = args_parsed.damping
+        dispersion_xc = args_parsed.dispersion_xc
+        dispersion_cutoff = args_parsed.dispersion_cutoff
+        device = args_parsed.device
+        default_dtype = args_parsed.default_dtype
+        head = args_parsed.head
+
+        if suite.startswith("mace"):
+            suite = suite.split("-", 1)[1]
+
+        if dispersion and suite != "mp":
+            print(
+                "WARNING: Dispersion flag recognized, but MP suite not used. Ignoring all options related to dispersion."
+            )
+
+        return (
+            suite,
+            model,
+            dispersion,
+            damping,
+            dispersion_xc,
+            dispersion_cutoff,
+            device,
+            default_dtype,
+            head,
+        )
+
+    def _get_hessian(self, atoms: Atoms) -> list[float]:
+        """
+        Compute a Hessian with MACE.
+
+        Parameters
+        ----------
+        atoms: Atoms
+            The ASE Atoms type object for computing the Hessian.
+
+        Returns
+        -------
+        list[float]
+            Flattened Hessian vector (Eh/Bohr^2).
+        """
+
+        # Safety check
+        if self._calc is None:
+            raise RuntimeError("MACE calculator has not been initialized.")
+
+        # Get the raw Hessian
+        raw = self._calc.get_hessian(atoms=atoms)
+        # Flatten the MACE Hessian layout (3N, N, 3) or (3N, 3N).
+        natoms = len(atoms)
+        n = 3 * natoms
+        arr = np.asarray(raw, dtype=np.float64)
+        # Sanity check
+        if arr.shape not in {(n, natoms, 3), (n, n)}:
+            raise ValueError(
+                f"Unexpected MACE Hessian shape {arr.shape}; expected {(n, natoms, 3)} or {(n, n)}."
+            )
+        if not np.isfinite(arr).all():
+            raise ValueError("MACE Hessian contains NaN or infinity.")
+        matrix = arr.reshape(n, n, order="C")
+
+        # `get_hessian` returns raw model derivatives, unlike the
+        # energy/forces in calc.results, which are already converted to ASE units.
+        # Foundation MP/OMOL models use energy_units_to_eV = length_units_to_A = 1.
+        # Take the constant as implemented in MACE.
+        e_to_ev = float(self._calc.energy_units_to_eV)
+        l_to_ang = float(self._calc.length_units_to_A)
+        if not np.isfinite([e_to_ev, l_to_ang]).all() or min(e_to_ev, l_to_ang) <= 0:
+            raise ValueError("Invalid MACE model unit conversion factors.")
+        factor = e_to_ev / l_to_ang**2 * LENGTH_CONVERSION["Ang"] ** 2 / ENERGY_CONVERSION["eV"]
+        converted = matrix * factor
+        if not np.isfinite(converted).all():
+            raise ValueError("Converted MACE Hessian contains NaN or infinity.")
+        return converted.ravel(order="C").tolist()
+
     def run_mace(
         self,
         atom_types: list[str],
         coordinates: list[tuple[float, float, float]],
         calc_data: CalculationData,
-    ) -> tuple[float, list[float]]:
+    ) -> tuple[float, list[float], list[float]]:
         """
         Runs a Mace calculation.
 
@@ -227,6 +330,8 @@ class MaceCalc(BaseCalc):
             The computed energy (Eh)
         list[float]
             Flattened gradient vector (Eh/Bohr), if computed, otherwise empty
+        list[float]
+            Flattened Hessian vector (Eh/Bohr^2), if computed, otherwise empty
         """
 
         # set the number of threads
@@ -249,14 +354,17 @@ class MaceCalc(BaseCalc):
             # forces may not be available
             pass
 
-        return energy, gradient
+        # Compute Hessians
+        hessian = self._get_hessian(atoms) if calc_data.dohess else []
+
+        return energy, gradient, hessian
 
     def calc(
         self,
         calc_data: CalculationData,
         args_parsed: Namespace,
         args_not_parsed: list[str],
-    ) -> tuple[float, list[float]]:
+    ) -> CalculationResult:
         """
         Routine for calculating energy and optional gradient.
 
@@ -271,22 +379,21 @@ class MaceCalc(BaseCalc):
 
         Returns
         -------
-        float
-            The computed energy (Eh)
-        list[float]
-            Flattened gradient vector (Eh/Bohr), if computed, otherwise empty
+        CalculationResult
+            Energy (Eh) and, if requested, gradient (Eh/Bohr) and Hessian (Eh/Bohr^2)
         """
 
-        suite = args_parsed.suite
-        if suite.startswith("mace"):
-            suite = suite.split("-", 1)[1]
-        dispersion = args_parsed.dispersion
-        dispersion_xc = args_parsed.dispersion_xc
-        dispersion_cutoff = args_parsed.dispersion_cutoff
-        if dispersion and suite != "mp":
-            print(
-                "WARNING: Dispersion flag recognized, but MP suite not used. Ignoring all options related to dispersion."
-            )
+        (
+            suite,
+            model,
+            dispersion,
+            damping,
+            dispersion_xc,
+            dispersion_cutoff,
+            device,
+            default_dtype,
+            head,
+        ) = self.process_input_keywords(args_parsed, calc_data)
 
         # Setup calculator if not already set.
         # This is important as usage on a server would otherwise cause an initialization with every call so that nothing is gained.
@@ -298,25 +405,25 @@ class MaceCalc(BaseCalc):
             )
             self.set_calculator(
                 suite=suite,
-                model=args_parsed.model,
+                model=model,
                 dispersion=dispersion,
-                damping=args_parsed.damping,
+                damping=damping,
                 dispersion_xc=dispersion_xc,
                 dispersion_cutoff=dispersion_cutoff,
-                device=args_parsed.device,
-                default_dtype=args_parsed.default_dtype,
-                head=args_parsed.head,
+                device=device,
+                default_dtype=default_dtype,
+                head=head,
             )
 
         # process the XYZ file
         atom_types, coordinates = xyzfile_to_at_coord(calc_data.xyzfile)
 
         # run mace
-        energy, gradient = self.run_mace(
+        energy, gradient, hessian = self.run_mace(
             atom_types=atom_types, coordinates=coordinates, calc_data=calc_data
         )
 
-        return energy, gradient
+        return CalculationResult(energy=energy, gradient=gradient, hessian=hessian)
 
 
 def main() -> None:

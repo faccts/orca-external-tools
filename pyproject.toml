@@ -69,7 +69,7 @@ aimnet2 = [
 ]
 
 mace = [
-    "mace-torch>=0.3.14",
+    "mace-torch>=0.3.17",
 ]
 
 mlatom = [
@@ -82,7 +82,7 @@ mlatom = [
 
 uma = [
     "setuptools<82.0.0",
-    "fairchem-core>=2.2.0",
+    "fairchem-core>=2.17.0",
 ]
 
 dev = [
@@ -96,7 +96,8 @@ type-check = [
     "pydantic>=2.11.5,<3",
     "types-waitress>=3.0.1",
     "types-requests>=2.32.0",
-    "types_psutil>=7.0.0"
+    "types_psutil>=7.0.0",
+    "numpy>=1.26.0"
 ]
 spell-check = [
     "codespell>=2.4.1",

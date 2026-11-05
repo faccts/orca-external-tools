@@ -14,16 +14,16 @@ main: function
 import sys
 import warnings
 from argparse import ArgumentParser, Namespace
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, ClassVar
 
 from requests.exceptions import HTTPError
 
 from oet import ASSETS_DIR
-from oet.core.base_calc import BaseCalc, CalculationData
+from oet.core.base_calc import BaseCalc, CalculationData, CalculationResult
+from oet.core.definitions import ENERGY_CONVERSION, LENGTH_CONVERSION, Property
 from oet.core.misc import (
-    ENERGY_CONVERSION,
-    LENGTH_CONVERSION,
     resolve_model_file,
     xyzfile_to_at_coord,
 )
@@ -173,6 +173,24 @@ assert len(_PERIODIC_TABLE) == 118, f"expected 118 elements, got {len(_PERIODIC_
 _SYMBOL_TO_Z: dict[str, int] = {sym: i + 1 for i, sym in enumerate(_PERIODIC_TABLE)}
 
 
+@dataclass(frozen=True, slots=True)
+class Aimnet2Settings:
+    """Value-based, hashable settings used to initialize an AIMNet2 model."""
+
+    model: str
+    model_dir: str
+    device: str | None
+    compile_model: bool = False
+    nb_threshold: int = 120
+    ensemble_member: int = 0
+    coulomb: str = "auto"
+    dispersion: str = "auto"
+    coulomb_method: str | None = None
+    coulomb_cutoff: float = 15.0
+    dftd3_cutoff: float | None = None
+    dftd3_smoothing_fraction: float | None = None
+
+
 class Aimnet2Calc(BaseCalc):
     """ORCA ExtTool calculator backed by AIMNet2 (aimnet>=0.2,<0.3)."""
 
@@ -185,6 +203,8 @@ class Aimnet2Calc(BaseCalc):
         "on": True,
         "off": False,
     }
+    # For AIMNet2, in addition to the default properties, also Hessians are available.
+    DEFAULT_PROPERTIES = BaseCalc.DEFAULT_PROPERTIES | {Property.HESSIAN}
 
     _calc: AIMNet2Calculator | None = None
     _setup_args: frozenset[tuple[str, Any]] | None = None
@@ -281,12 +301,13 @@ class Aimnet2Calc(BaseCalc):
         dftd3_cutoff: float | None = None,
         dftd3_smoothing_fraction: float | None = None,
     ) -> None:
-        """Construct the calculator + apply post-ctor configuration.
+        """Construct the calculator and apply configuration.
 
-        First call wins: subsequent calls with the same args are a no-op;
-        calls with different args raise (server cache is responsible for
-        keying on args, so a single Aimnet2Calc instance only ever sees
-        one configuration). Per-call work belongs in run_aimnet2.
+        Subsequent calls with identical settings reuse the existing
+        calculator.
+
+        Changes to other initialization settings raise an error,
+        as these are handled by the server cache.
 
         Parameters
         ----------
@@ -363,13 +384,14 @@ class Aimnet2Calc(BaseCalc):
         if self._calc is not None:
             if new_args == self._setup_args:
                 return
-            raise RuntimeError(
-                "Aimnet2Calc.setup() called with different args than the "
-                "cached calculator. Server-mode callers must key the cache "
-                "on setup args.\n"
-                f"Cached args: {self._setup_args}\n"
-                f"New args: {new_args}"
-            )
+            else:
+                raise RuntimeError(
+                    "Aimnet2Calc.setup() called with different args than the "
+                    "cached calculator. Server-mode callers must key the cache "
+                    "on setup args.\n"
+                    f"Cached args: {self._setup_args}\n"
+                    f"New args: {new_args}"
+                )
 
         # Validate string-choice args with helpful error messages
         # (argparse normally enforces this for CLI users, but direct-API
@@ -553,7 +575,8 @@ class Aimnet2Calc(BaseCalc):
                 "oet_aimnet2 is a fresh process per ORCA call and re-pays "
                 "JIT cost every step. First-call latency 10-60s. Recompiles "
                 "on shape change. Incompatible with Hessian. Do NOT use with "
-                "NEB / OptTS / IRC."
+                "NEB / OptTS / IRC. Automatically disabled when a Hessian is "
+                "requested."
             ),
         )
         parser.add_argument(
@@ -677,6 +700,64 @@ class Aimnet2Calc(BaseCalc):
 
         return False
 
+    @classmethod
+    def process_input_keywords(
+        cls, args_parsed: Namespace, calc_data: CalculationData
+    ) -> Aimnet2Settings:
+        """Validate and normalize initialization settings for reuse and setup."""
+        # If `device` is "auto", it translates to None for upstream.
+        device: str | None = str(args_parsed.device)
+        if device not in cls._SUPPORTED_DEVICES:
+            raise ValueError(
+                f"Device {device!r} not supported. Use one of {cls._SUPPORTED_DEVICES}."
+            )
+        # `setup()` treats auto and None identically. Match its canonical form
+        # so the worker cache does not keep duplicate calculators for them.
+        device = None if device == "auto" else device
+
+        coulomb_cutoff = args_parsed.coulomb_cutoff
+        coulomb_method = args_parsed.coulomb_method
+
+        # --- cross-flag validation ----------------------------------------
+        # --coulomb-cutoff is only meaningful with --coulomb-method.
+        # The 15.0 != check has one corner: a user who passes --coulomb-cutoff 15.0
+        # explicitly without --coulomb-method silently gets a default-cutoff
+        # Coulomb-disabled run rather than a rejection. They should specify
+        # --coulomb-method anyway, so the false-negative is acceptable.
+        #
+        # We raise SystemExit(msg) directly rather than holding a parser ref:
+        # argparse's parser.error() is itself just print + SystemExit(2), and
+        # stashing the parser in args_parsed used to poison server.py's cache
+        # key (frozenset of args_parsed.items()) because ArgumentParser is
+        # hashed by identity. SystemExit's message goes to stderr automatically.
+        if coulomb_cutoff != 15.0 and coulomb_method is None:
+            raise ValueError("--coulomb-cutoff requires --coulomb-method")
+
+        compile_model = args_parsed.compile
+        if compile_model and calc_data.dohess:
+            warnings.warn(
+                "--compile is ignored for Hessian calculations: Hessian calculations "
+                "are incompatible with compiling the model.",
+                UserWarning,
+                stacklevel=2,
+            )
+            compile_model = False
+
+        return Aimnet2Settings(
+            model=args_parsed.model,
+            model_dir=args_parsed.model_dir,
+            device=device,
+            compile_model=compile_model,
+            nb_threshold=args_parsed.nb_threshold,
+            ensemble_member=args_parsed.ensemble_member,
+            coulomb=args_parsed.coulomb,
+            dispersion=args_parsed.dispersion,
+            coulomb_method=coulomb_method,
+            coulomb_cutoff=coulomb_cutoff,
+            dftd3_cutoff=args_parsed.dftd3_cutoff,
+            dftd3_smoothing_fraction=args_parsed.dftd3_smoothing_fraction,
+        )
+
     def atomic_symbol_to_number(self, symbol: str) -> int:
         """Convert an element symbol to atomic number.
 
@@ -699,6 +780,7 @@ class Aimnet2Calc(BaseCalc):
         charge: int,
         mult: int,
         dograd: bool,
+        dohess: bool,
     ) -> dict[str, Any]:
         """Build kwargs for AIMNet2Calculator.eval().
 
@@ -716,7 +798,9 @@ class Aimnet2Calc(BaseCalc):
         mult : int
             Spin multiplicity (2S + 1).
         dograd : bool
-            Whether to compute the gradient.
+            Whether to compute the gradient or not.
+        dohess : bool
+            Whether to compute the Hessian or not.
 
         Returns
         -------
@@ -731,8 +815,7 @@ class Aimnet2Calc(BaseCalc):
             - ``forces`` : bool, mirrors `dograd`.
             - ``stress`` : bool, always False (unsupported by the
               ORCA external-tool protocol).
-            - ``hessian`` : bool, always False (Hessian sidecar is
-              deferred per cplett's RFC reply).
+            - ``hessian`` : bool, mirrors `dohess`.
         """
         numbers = [self.atomic_symbol_to_number(sym) for sym in atom_types]
         data: dict[str, Any] = {
@@ -763,7 +846,7 @@ class Aimnet2Calc(BaseCalc):
             "data": data,
             "forces": dograd,
             "stress": False,
-            "hessian": False,
+            "hessian": dohess,
         }
 
     def run_aimnet2(
@@ -771,7 +854,7 @@ class Aimnet2Calc(BaseCalc):
         atom_types: list[str],
         coordinates: list[tuple[float, float, float]],
         calc_data: CalculationData,
-    ) -> tuple[float, list[float]]:
+    ) -> tuple[float, list[float], list[float]]:
         """
         Runs an AimNet2 calculation.
 
@@ -790,6 +873,8 @@ class Aimnet2Calc(BaseCalc):
             The computed energy (Eh)
         list[float]
             Flattened gradient vector (Eh/Bohr), if computed, otherwise empty.
+        list[float]
+            Flattened Hessian vector (Eh/Bohr^2), if computed, otherwise empty.
         """
 
         # make ase atoms object for calculation
@@ -799,6 +884,7 @@ class Aimnet2Calc(BaseCalc):
             mult=calc_data.mult,
             charge=calc_data.charge,
             dograd=calc_data.dograd,
+            dohess=calc_data.dohess,
         )
 
         if not self._calc:
@@ -812,85 +898,49 @@ class Aimnet2Calc(BaseCalc):
 
         energy = float(results["energy"].detach()) / ENERGY_CONVERSION["eV"]
         gradient = []
-        if (forces := results.get("forces", None)) is not None:
+        if calc_data.dograd and (forces := results.get("forces", None)) is not None:
             # detach() defends against any future create_graph=True default.
             forces = forces.detach()
             # unit conversion & factor of -1 to convert from forces to gradient
             fac = -LENGTH_CONVERSION["Ang"] / ENERGY_CONVERSION["eV"]
             gradient = (forces * fac).flatten().tolist()
 
-        return energy, gradient
+        hessian = []
+        if calc_data.dohess and (raw_hessian := results.get("hessian", None)) is not None:
+            # detach() defends against any future create_graph=True default.
+            raw_hessian = raw_hessian.detach()
+            # unit conversion
+            fac = LENGTH_CONVERSION["Ang"] ** 2 / ENERGY_CONVERSION["eV"]
+            hessian = (raw_hessian * fac).flatten().tolist()
+
+        return energy, gradient, hessian
 
     def calc(
         self,
         calc_data: CalculationData,
         args_parsed: Namespace,
         args_not_parsed: list[str],
-    ) -> tuple[float, list[float]]:
-        """Routine for calculating energy + optional gradient.
+    ) -> CalculationResult:
+        """Routine for calculating energy + optional gradient/Hessian.
 
         Validates cross-flag constraints, then sets up the calculator and
         runs run_aimnet2.
         """
-        model = args_parsed.model
-        model_dir = args_parsed.model_dir
-        coulomb_cutoff = args_parsed.coulomb_cutoff
-        device = str(args_parsed.device)
-        coulomb_method = args_parsed.coulomb_method
-        compile_model = args_parsed.compile
-        nb_threshold = args_parsed.nb_threshold
-        ensemble_member = args_parsed.ensemble_member
-        coulomb = args_parsed.coulomb
-        dispersion = args_parsed.dispersion
-        dftd3_cutoff = args_parsed.dftd3_cutoff
-        dftd3_smoothing_fraction = args_parsed.dftd3_smoothing_fraction
 
-        # --- cross-flag validation ----------------------------------------
-        # --coulomb-cutoff is only meaningful with --coulomb-method.
-        # The 15.0 != check has one corner: a user who passes --coulomb-cutoff 15.0
-        # explicitly without --coulomb-method silently gets a default-cutoff
-        # Coulomb-disabled run rather than a rejection. They should specify
-        # --coulomb-method anyway, so the false-negative is acceptable.
-        #
-        # We raise SystemExit(msg) directly rather than holding a parser ref:
-        # argparse's parser.error() is itself just print + SystemExit(2), and
-        # stashing the parser in args_parsed used to poison server.py's cache
-        # key (frozenset of args_parsed.items()) because ArgumentParser is
-        # hashed by identity. SystemExit's message goes to stderr automatically.
-        if coulomb_cutoff != 15.0 and coulomb_method is None:
-            raise SystemExit("oet_aimnet2: error: --coulomb-cutoff requires --coulomb-method")
+        settings = self.process_input_keywords(args_parsed, calc_data)
 
-        # Mirror the argparse default so mypy sees a guaranteed-str (the
-        # parser sets default=str(DEFAULT_MODEL_PATH)).
-        device = str(args_parsed.device)
-        if device not in self._SUPPORTED_DEVICES:
-            raise RuntimeError(
-                f"Device {device} not supported. Use one of {self._SUPPORTED_DEVICES}."
-            )
-
-        # --- set up calculator (idempotent) ------------------------------
-        self.setup(
-            model=model,
-            model_dir=model_dir,
-            device=device,
-            compile_model=compile_model,
-            nb_threshold=nb_threshold,
-            ensemble_member=ensemble_member,
-            coulomb=coulomb,
-            dispersion=dispersion,
-            coulomb_method=coulomb_method,
-            coulomb_cutoff=coulomb_cutoff,
-            dftd3_cutoff=dftd3_cutoff,
-            dftd3_smoothing_fraction=dftd3_smoothing_fraction,
-        )
+        # setup() keeps its existing keyword API for external callers, while
+        # the calculator itself passes one typed settings object around.
+        self.setup(**asdict(settings))
 
         # --- read XYZ and run --------------------------------------------
         atom_types, coordinates = xyzfile_to_at_coord(calc_data.xyzfile)
-        return self.run_aimnet2(
+        energy, gradient, hessian = self.run_aimnet2(
             atom_types=atom_types,
             coordinates=coordinates,
             calc_data=calc_data,
         )
+        return CalculationResult(energy=energy, gradient=gradient, hessian=hessian)
 
 
 def main(argv: list[str] | None = None) -> None:

@@ -7,6 +7,7 @@ from oet.core.test_utilities import (
     OH,
     WATER,
     get_filenames,
+    read_hess_file,
     read_result_file,
     run_wrapper,
     write_input_file,
@@ -118,6 +119,140 @@ class Aimnet2Tests(unittest.TestCase):
         self.assertAlmostEqual(energy, expected_energy, places=6)
         for g1, g2 in zip(gradients, expected_gradients):
             self.assertAlmostEqual(g1, g2, places=6)
+
+    def test_H2O_hessian(self):
+        xyz_file, input_file, engrad_out, output_file = get_filenames("H2O_hess")
+        hess_out = "H2O_hess.hess"
+
+        write_xyz_file(xyz_file, WATER)
+        write_input_file(
+            filename=input_file,
+            xyz_filename=xyz_file,
+            charge=0,
+            multiplicity=1,
+            ncores=2,
+            do_gradient=0,
+            do_hessian=1,
+        )
+        run_aimnet2(input_file, output_file)
+
+        expected_num_atoms = 3
+        expected_energy = -7.647682538153e01
+        # Reference Hessian from a manual ORCA `! extopt freq` run (oet_client, default
+        # aimnet2 model) on this exact geometry (see tmp-hess-test/orca-aimnet2-exthess.hess).
+        # Energy/gradient from that same run agree with test_H2O_engrad's reference values
+        # at places=6, confirming geometry/model consistency.
+        expected_hessian = [
+            2.6714256406e-01,
+            6.8168923259e-02,
+            -2.0339417458e-01,
+            -6.5810315311e-02,
+            -1.0497983545e-01,
+            -4.0910472162e-03,
+            -2.0133224130e-01,
+            3.6810915917e-02,
+            2.0748521388e-01,
+            6.8168915808e-02,
+            4.7669112682e-01,
+            2.0490495861e-01,
+            -1.4572186768e-01,
+            -4.1061830521e-01,
+            -9.6135340631e-02,
+            7.7552951872e-02,
+            -6.6072836518e-02,
+            -1.0876961797e-01,
+            -2.0339421928e-01,
+            2.0490495861e-01,
+            3.2516893744e-01,
+            -2.7764758095e-02,
+            -1.3497269154e-01,
+            -5.8071408421e-02,
+            2.3115897179e-01,
+            -6.9932274520e-02,
+            -2.6709753275e-01,
+            -6.5810322762e-02,
+            -1.4572186768e-01,
+            -2.7764759958e-02,
+            6.2026463449e-02,
+            1.1753958464e-01,
+            1.4422318898e-02,
+            3.7838637363e-03,
+            2.8182294220e-02,
+            1.3342440128e-02,
+            -1.0497983545e-01,
+            -4.1061830521e-01,
+            -1.3497269154e-01,
+            1.1753955483e-01,
+            4.2296847701e-01,
+            1.3052608073e-01,
+            -1.2559722178e-02,
+            -1.2350210920e-02,
+            4.4465982355e-03,
+            -4.0910448879e-03,
+            -9.6135340631e-02,
+            -5.8071434498e-02,
+            1.4422321692e-02,
+            1.3052609563e-01,
+            6.7604519427e-02,
+            -1.0331274942e-02,
+            -3.4390751272e-02,
+            -9.5330830663e-03,
+            -2.0133221149e-01,
+            7.7552929521e-02,
+            2.3115889728e-01,
+            3.7838618737e-03,
+            -1.2559737079e-02,
+            -1.0331272148e-02,
+            1.9754832983e-01,
+            -6.4993195236e-02,
+            -2.2082759440e-01,
+            3.6810908467e-02,
+            -6.6072843969e-02,
+            -6.9932252169e-02,
+            2.8182301670e-02,
+            -1.2350201607e-02,
+            -3.4390751272e-02,
+            -6.4993217587e-02,
+            7.8423045576e-02,
+            1.0432300717e-01,
+            2.0748525858e-01,
+            -1.0876963288e-01,
+            -2.6709747314e-01,
+            1.3342444785e-02,
+            4.4466042891e-03,
+            -9.5330970362e-03,
+            -2.2082768381e-01,
+            1.0432302207e-01,
+            2.7663058043e-01,
+        ]
+
+        try:
+            num_atoms, energy, gradients = read_result_file(engrad_out)
+        except Exception as e:
+            raise FileNotFoundError(
+                f"Error wrapper outputfile not found. Check {output_file} for details"
+            ) from e
+
+        self.assertEqual(num_atoms, expected_num_atoms)
+        self.assertAlmostEqual(energy, expected_energy, places=6)
+        self.assertEqual(gradients, [])
+
+        try:
+            hessian = read_hess_file(hess_out)
+        except Exception as e:
+            raise FileNotFoundError(
+                f"Error Hessian outputfile not found. Check {output_file} for details"
+            ) from e
+
+        self.assertEqual(len(hessian), (3 * expected_num_atoms) ** 2)
+        for h1, h2 in zip(hessian, expected_hessian):
+            self.assertAlmostEqual(h1, h2, places=5)
+
+        # Check symmetry
+        ndim = 3 * expected_num_atoms
+        for i in range(ndim):
+            for j in range(ndim):
+                self.assertAlmostEqual(hessian[i * ndim + j], hessian[j * ndim + i], places=5)
 
     def test_OH_anion_eng_grad(self):
         xyz_file, input_file, engrad_out, output_file = get_filenames("OH_ainion")

@@ -17,8 +17,9 @@ import shutil
 import sys
 from argparse import ArgumentParser, Namespace
 from pathlib import Path
+from typing import Any
 
-from oet.core.base_calc import BaseCalc, CalculationData
+from oet.core.base_calc import BaseCalc, CalculationData, CalculationResult
 from oet.core.misc import (
     check_file,
     check_path,
@@ -63,6 +64,32 @@ class GxtbCalc(BaseCalc):
             dest="basis_parameterfile",
             help="path to the basis parameterfile",
         )
+
+    @classmethod
+    def process_input_keywords(
+        cls, args_parsed: Namespace, calc_data: CalculationData
+    ) -> tuple[Any, ...]:
+        """
+        Extract and sanitize the calculation settings from the input Namespace.
+
+        Parameters
+        ----------
+        args_parsed: Namespace
+            The parsed namespace.
+        calc_data: CalculationData
+            The calculation data.
+
+        Returns
+        -------
+        tuple[Any, ...]: The settings used for setting up the calculator.
+        """
+
+        prog = args_parsed.prog
+        gxtb_parameterfile = args_parsed.gxtb_parameterfile
+        eeq_parameterfile = args_parsed.eeq_parameterfile
+        basis_parameterfile = args_parsed.basis_parameterfile
+
+        return prog, gxtb_parameterfile, eeq_parameterfile, basis_parameterfile
 
     def check_parameter_files(self, file_path: str | None, filename: str) -> Path:
         """
@@ -224,7 +251,7 @@ class GxtbCalc(BaseCalc):
         calc_data: CalculationData,
         args_parsed: Namespace,
         args_not_parsed: list[str],
-    ) -> tuple[float, list[float]]:
+    ) -> CalculationResult:
         """
         Routine for calculating energy and optional gradient.
         Writes ORCA output
@@ -240,17 +267,13 @@ class GxtbCalc(BaseCalc):
 
         Returns
         -------
-        float
-            The computed energy (Eh)
-        list[float]
-            Flattened gradient vector (Eh/Bohr), if computed, otherwise empty.
+        CalculationResult
+            Energy (Eh) and, if requested, gradient (Eh/Bohr) and Hessian (Eh/Bohr^2)
         """
         # Get the arguments parsed as defined in extend_parser
-        prog = args_parsed.prog
-        gxtb_parameterfile = args_parsed.gxtb_parameterfile
-        eeq_parameterfile = args_parsed.eeq_parameterfile
-        basis_parameterfile = args_parsed.basis_parameterfile
-        calc_data.set_program_path(prog)
+        prog, gxtb_parameterfile, eeq_parameterfile, basis_parameterfile = (
+            self.process_input_keywords(args_parsed, calc_data)
+        )
         # Set and check the program path if its executable
         calc_data.set_program_path(prog)
         if calc_data.prog_path:
@@ -295,7 +318,7 @@ class GxtbCalc(BaseCalc):
             dograd=calc_data.dograd,
         )
 
-        return energy, gradient
+        return CalculationResult(energy=energy, gradient=gradient)
 
 
 def main() -> None:
