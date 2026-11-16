@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Wrapper for tblite (github.com/tblite/tblite), compatible with the 
+Wrapper for tblite (github.com/tblite/tblite), compatible with the
 ExtTool interface.
 
 Provides
@@ -172,8 +172,9 @@ class TbliteCalc(BaseCalc):
         args: list[str]
             Arguments not parsed so far
         """
-        # tblite is parallelized with OpenMP only and has no command-line option for it
-        os.environ["OMP_NUM_THREADS"] = str(calc_data.ncores)
+        # tblite is parallelized with OpenMP only and has no command-line option for it.
+        env = os.environ.copy()
+        env["OMP_NUM_THREADS"] = str(calc_data.ncores)
 
         run_args = ["run", "--charge", str(calc_data.charge)]
         # tblite expects the number of unpaired electrons and defaults to a spin-restricted
@@ -188,7 +189,7 @@ class TbliteCalc(BaseCalc):
 
         if not calc_data.prog_path:
             raise RuntimeError("Path to program is None.")
-        run_command(calc_data.prog_path, calc_data.output_file, run_args)
+        run_command(calc_data.prog_path, calc_data.output_file, run_args, env=env)
 
     def calc(
         self, calc_data: CalculationData, args_parsed: Namespace, args_not_parsed: list[str]
