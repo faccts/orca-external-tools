@@ -16,9 +16,9 @@ import os
 import sys
 import warnings
 from argparse import ArgumentParser, Namespace
+from dataclasses import dataclass
 from functools import partial
 from pathlib import Path
-from typing import Any
 
 from oet import ASSETS_DIR
 from oet.core.base_calc import BaseCalc, CalculationData, CalculationResult
@@ -65,6 +65,28 @@ except ImportError as e:
 DEFAULT_CACHE_DIR = str(os.environ.get("FAIRCHEM_CACHE_DIR", ASSETS_DIR / "fairchem"))
 
 
+@dataclass(frozen=True, slots=True)
+class UmaSettings:
+    """Value-based, hashable settings used to initialize an UMA model."""
+
+    # Parameter set used by FairChem.
+    param: UMATask
+    # UMA base model.
+    basemodel: str
+    # Compute device, e.g. "cpu" or "cuda".
+    device: str
+    # Cache directory to read/write downloaded model files.
+    cache_dir: str
+    # Force offline mode to prevent downloading model files.
+    # If the model files are unavailable locally, subsequent errors may occur.
+    offline_mode: bool
+    # Wrap the model with torch.compile. Ignored (with a warning) if a Hessian is requested.
+    compile_model: bool
+    # Build a predictor that also computes the Hessian.
+    # Hessian-enabled predictors are slower for energy/gradient calculations.
+    hessian: bool
+
+
 class UmaCalc(BaseCalc):
     # Fairchem calculator used to compute energy and grad
     _calc: FAIRChemCalculator | None = None
@@ -74,13 +96,8 @@ class UmaCalc(BaseCalc):
 
     def set_calculator(
         self,
-        param: str,
-        basemodel: str,
-        device: str,
-        cache_dir: str,
+        settings: UmaSettings,
         force: bool = False,
-        hessian: bool = False,
-        compile_model: bool = False,
     ) -> None:
         """
         Prepare the `FAIRChemCalculator` object to compute energy, gradient and
@@ -97,21 +114,11 @@ class UmaCalc(BaseCalc):
 
         Parameters
         ----------
-        param: str
-            Parameter set used by fairchem
-        basemodel: str
-            UMA basemodel
-        device: str
-            Device that should be used, e.g., cpu or cuda
-        cache_dir: str
-            Cache directory to read/write downloaded model files to
-        force: bool, default = False
-            Force re-initialization of the calculator, even if already initialized
-        hessian: bool, default = False
-            Build a predictor that also computes the Hessian
-        compile_model: bool, default = False
-            Wrap the model with `torch.compile`. Ignored (with a warning) if a
-            Hessian is requested.
+        settings: UmaSettings
+            The settings for setting up the calculator.
+        force: bool, default: False
+            Force reinitialization of the calculator.
+
         """
         # Nothing to do if a calculator for the requested mode is already cached
         # Whether the exact settings match is checked by the server itself.
@@ -125,25 +132,28 @@ class UmaCalc(BaseCalc):
             torch.cuda.empty_cache()
 
         # Make sure the cache directory exists
-        Path(cache_dir).mkdir(parents=True, exist_ok=True)
+        Path(settings.cache_dir).mkdir(parents=True, exist_ok=True)
         # Monkey-patch the Fairchem CACHE_DIR: the provided one is not always respected.
         # In particular, `pretrained_checkpoint_path_from_name` just uses `CACHE_DIR`
-        pretrained_mlip.CACHE_DIR = cache_dir
+        pretrained_mlip.CACHE_DIR = settings.cache_dir
 
         # `inference_settings_default()` builds a fresh object, so modifying it is safe
-        settings = inference_settings_default()
-        settings.compile = compile_model
-        if hessian:
+        uma_settings = inference_settings_default()
+        uma_settings.compile = settings.compile_model
+        if settings.hessian:
             # Adds an inference-only Hessian task for this parameter set
-            settings.predict_untrained_hessian = {param}
+            uma_settings.predict_untrained_hessian = {settings.param}
 
         # Suppress fairchemcore internal warnings
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             predictor = pretrained_mlip.get_predict_unit(
-                basemodel, device=device, cache_dir=cache_dir, inference_settings=settings
+                settings.basemodel,
+                device=settings.device,
+                cache_dir=settings.cache_dir,
+                inference_settings=uma_settings,
             )
-            self._calc = FAIRChemCalculator(predictor, task_name=param)
+            self._calc = FAIRChemCalculator(predictor, task_name=settings.param)
 
     def get_calculator(self) -> FAIRChemCalculator:
         """
@@ -309,15 +319,26 @@ class UmaCalc(BaseCalc):
 
         # Handle download only.
         if download_only:
+            # If offline mode is requested, no download can be done.
+            if args_parsed.offline_mode:
+                print(
+                    "Download only requested together with offline mode. Cannot download anything."
+                )
+                return True
             # Get the calculator specific parameters
-            param = args_parsed.param
-            basemodel = args_parsed.basemodel
-            device = args_parsed.device
-            cache_dir = args_parsed.cache_dir
+            settings = UmaSettings(
+                param=args_parsed.param,
+                basemodel=args_parsed.basemodel,
+                device=args_parsed.device,
+                cache_dir=args_parsed.cache_dir,
+                offline_mode=args_parsed.offline_mode,
+                compile_model=False,
+                hessian=False,
+            )
             # Download the files if necessary.
-            print(f"Downloading model files if necessary to {DEFAULT_CACHE_DIR}.")
+            print(f"Downloading model files if necessary to {settings.cache_dir}.")
             self.set_calculator(
-                param=param, basemodel=basemodel, device=device, cache_dir=cache_dir
+                settings=settings,
             )
             print("Done")
             return True
@@ -327,7 +348,7 @@ class UmaCalc(BaseCalc):
     @classmethod
     def process_input_keywords(
         cls, args_parsed: Namespace, calc_data: CalculationData
-    ) -> tuple[Any, ...]:
+    ) -> UmaSettings:
         """
         Extract and sanitize the calculation settings from the input Namespace.
 
@@ -340,7 +361,8 @@ class UmaCalc(BaseCalc):
 
         Returns
         -------
-        tuple[Any, ...]: The settings used for setting up the calculator.
+        UmaSettings
+            The settings used for setting up the calculator.
         """
 
         param = args_parsed.param
@@ -349,8 +371,13 @@ class UmaCalc(BaseCalc):
         cache_dir = args_parsed.cache_dir
         offline_mode = args_parsed.offline_mode
         compile_model = args_parsed.compile
+        # > Include the `do_hess` here as it is important when setting up the calculators on the server
+        # >> A calculator that was initialized without the ability to compute the Hessian cannot be used for computing
+        # >> the Hessian.
+        # >> Also, a calculator that was initialized for computing the Hessian will be slower for energy/gradient calculations.
+        do_hess = calc_data.dohess
 
-        if calc_data.dohess and compile_model:
+        if do_hess and compile_model:
             warnings.warn(
                 "--compile is ignored for Hessian calculations: the Hessian comes "
                 "from an autograd double-backward, which torch.compile's donated "
@@ -360,28 +387,22 @@ class UmaCalc(BaseCalc):
             )
             compile_model = False
 
-        return param, basemodel, device, cache_dir, offline_mode, compile_model
-
-    @classmethod
-    def input_dependent_calculator_initialization(
-        cls, calc_data: CalculationData
-    ) -> tuple[str, bool]:
-        """
-        Computing a Hessian requires initialization of a separate calculator even if all other settings match.
-
-        Parameters
-        ----------
-        calc_data: CalculationData
-            The calculation data.
-        """
-        return "hessian", calc_data.dohess
+        return UmaSettings(
+            param=param,
+            basemodel=basemodel,
+            device=device,
+            cache_dir=cache_dir,
+            offline_mode=offline_mode,
+            compile_model=compile_model,
+            hessian=do_hess,
+        )
 
     def run_uma(
         self,
         atom_types: list[str],
         coordinates: list[tuple[float, float, float]],
         calc_data: CalculationData,
-    ) -> tuple[float, list[float], list[float]]:
+    ) -> CalculationResult:
         """
         Runs an UMA calculation.
 
@@ -396,12 +417,8 @@ class UmaCalc(BaseCalc):
 
         Returns
         -------
-        float
-            The computed energy (Eh)
-        list[float]
-            Flattened gradient vector (Eh/Bohr), if computed, otherwise empty
-        list[float]
-            Flattened Hessian vector (Eh/Bohr^2), if computed, otherwise empty
+        CalculationResult
+            The calculation results.
         """
         if not self._calc:
             raise RuntimeError("Calculator could not be initialized.")
@@ -444,7 +461,7 @@ class UmaCalc(BaseCalc):
             fac = LENGTH_CONVERSION["Ang"] ** 2 / ENERGY_CONVERSION["eV"]
             hessian = (fac * raw_hessian).flatten().tolist()
 
-        return energy, gradient, hessian
+        return CalculationResult(energy=energy, gradient=gradient, hessian=hessian)
 
     def calc(
         self,
@@ -472,18 +489,18 @@ class UmaCalc(BaseCalc):
             Energy (Eh) and, if requested, gradient (Eh/Bohr) and Hessian (Eh/Bohr^2)
         """
         # Get the arguments parsed as defined in extend_parser
-        param, basemodel, device, cache_dir, offline_mode, compile_model = (
-            self.process_input_keywords(args_parsed, calc_data)
-        )
+        settings = self.process_input_keywords(args_parsed, calc_data)
         # Check if the model files are available
-        model_files_available = self.check_for_model_files(basemodel=basemodel, cache_dir=cache_dir)
+        model_files_available = self.check_for_model_files(
+            basemodel=settings.basemodel, cache_dir=settings.cache_dir
+        )
         # If they are available, switch to offline mode.
         if model_files_available:
             self.switch_to_offline_mode()
             print("Model files detected. Switching to offline mode.")
         # If they are not available, but the user requested the offline mode to prevent online communication,
         # print a warning as this will likely cause subsequent errors.
-        elif offline_mode:
+        elif settings.offline_mode:
             self.switch_to_offline_mode()
             # Check if the model files are locally available. If not, subsequent errors will occur
             # as they cannot be downloaded.
@@ -495,24 +512,13 @@ class UmaCalc(BaseCalc):
         # setup calculator if not already set
         # this is important as usage on a server would otherwise cause
         # initialization with every call so that nothing is gained
-        self.set_calculator(
-            param=param,
-            basemodel=basemodel,
-            device=device,
-            cache_dir=cache_dir,
-            hessian=calc_data.dohess,
-            compile_model=compile_model,
-        )
+        self.set_calculator(settings)
 
         # process the XYZ file
         atom_types, coordinates = xyzfile_to_at_coord(calc_data.xyzfile)
 
         # run uma
-        energy, gradient, hessian = self.run_uma(
-            atom_types=atom_types, coordinates=coordinates, calc_data=calc_data
-        )
-
-        return CalculationResult(energy=energy, gradient=gradient, hessian=hessian)
+        return self.run_uma(atom_types=atom_types, coordinates=coordinates, calc_data=calc_data)
 
 
 def main() -> None:

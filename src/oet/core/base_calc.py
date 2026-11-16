@@ -20,8 +20,8 @@ from abc import ABC, abstractmethod
 from argparse import ArgumentParser, Namespace
 from collections.abc import Hashable, Sequence
 from dataclasses import dataclass, field
+from math import isfinite
 from pathlib import Path
-from typing import Any
 
 from oet import __version__ as version
 from oet.core.definitions import Property
@@ -347,7 +347,11 @@ class BaseCalc(ABC):
                 os.chdir(calc_data.orca_input_dir)
             except Exception as e:
                 raise RuntimeError("Failed to compute energy and/or gradient") from e
-            # Fallback safety checks if not checked by the individual calculators already.
+
+            ################################
+            # Sanity checks of the results #
+            ################################
+            # > Dimension
             ndim = 3 * calc_data.natoms
             if calc_data.dograd and len(result.gradient) != ndim:
                 raise RuntimeError(
@@ -359,6 +363,22 @@ class BaseCalc(ABC):
                     f"The calculated Hessian entries {len(result.hessian)} does not match the "
                     f"expected length {ndim * ndim}."
                 )
+
+            # Check that all calculated values are finite.
+            if not isfinite(result.energy):
+                raise RuntimeError(f"The calculated energy is not finite: {result.energy!r}.")
+
+            for name, values in (
+                ("Gradient", result.gradient),
+                ("Hessian", result.hessian),
+            ):
+                for i, value in enumerate(values):
+                    if not isfinite(value):
+                        raise RuntimeError(
+                            f"The calculated {name.lower()} contains a non-finite "
+                            f"value at index {i}: {value!r}."
+                        )
+
             # Write output for ORCA. A failure here (e.g. an unexpectedly-sized Hessian) is
             # left uncaught, so it surfaces as-is; the starting directory is still restored
             # below via the outer finally.
@@ -446,7 +466,7 @@ class BaseCalc(ABC):
         (with the default value-based equality). All contained values must be
         hashable. The server uses this result directly as part of its cache key.
 
-        This method must be deterministic and should not mutate calc_data or the
+        This method must be idempotent and should not mutate calc_data or the
         parsed arguments: the server and the calculator may call it separately.
         Only include settings that affect the initialized calculator;
         per-calculation data belongs in CalculationData.
@@ -461,28 +481,6 @@ class BaseCalc(ABC):
         Returns
         -------
         Hashable: Tuple of settings or a frozen dataclass instance.
-        """
-        return ()
-
-    @classmethod
-    def input_dependent_calculator_initialization(
-        cls, calc_data: CalculationData
-    ) -> tuple[Any, ...]:
-        """
-        Extra settings that affect calculator initialization.
-        This routine can be overwritten if specific input settings like `dohess` require a new instance of a calculator
-        to be initialized.
-        Will be taken into account when setting up the server.
-
-        Parameters
-        ----------
-        calc_data: CalculationData
-            The calculation data.
-
-        Returns
-        -------
-        tuple: Can be of any type and length. Will be used by the server to check whether an initialized calculator
-               can be reused or not.
         """
         return ()
 

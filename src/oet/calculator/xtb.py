@@ -12,7 +12,6 @@ main: function
 """
 
 from argparse import ArgumentParser, Namespace
-from typing import Any
 
 from oet.core.base_calc import BaseCalc, CalculationData, CalculationResult
 from oet.core.definitions import Property
@@ -47,7 +46,7 @@ class XtbCalc(BaseCalc):
     @classmethod
     def process_input_keywords(
         cls, args_parsed: Namespace, calc_data: CalculationData
-    ) -> tuple[Any, ...]:
+    ) -> tuple[str | None]:
         """
         Extract and sanitize the calculation settings from the input Namespace.
 
@@ -60,7 +59,8 @@ class XtbCalc(BaseCalc):
 
         Returns
         -------
-        tuple[Any, ...]: The settings used for setting up the calculator.
+        str | None
+            The executable path, if provided.
         """
 
         prog = args_parsed.prog

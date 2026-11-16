@@ -6,7 +6,7 @@ MACE wrapper for ORCA's ExtTool interface.
 import sys
 import warnings
 from argparse import ArgumentParser, Namespace
-from typing import Any
+from dataclasses import dataclass
 
 import numpy as np
 
@@ -46,6 +46,32 @@ except ImportError as e:
     sys.exit(1)
 
 
+@dataclass(frozen=True, slots=True)
+class MaceSettings:
+    """Hashable settings used to initialize a MACE model."""
+
+    # Suite for the calculator.
+    suite: str
+    # Model/model path to be used.
+    model: str | None
+    # Whether to use a dispersion model or not.
+    dispersion: bool
+    # Dispersion damping.
+    damping: str
+    # XC functional for the dispersion model.
+    dispersion_xc: str
+    # Cutoff radius for the dispersion model.
+    dispersion_cutoff: float
+    # Device (cuda or cpu).
+    device: str
+    # Precision type.
+    default_dtype: str
+    # The head of the MACE model.
+    head: str | None
+    # Compile the model.
+    compile_model: bool = False
+
+
 class MaceCalc(BaseCalc):
     # MACE calculator used for computations
     _calc: MACECalculator | None = None
@@ -54,15 +80,7 @@ class MaceCalc(BaseCalc):
 
     def set_calculator(
         self,
-        suite: str,
-        model: str,
-        dispersion: bool,
-        damping: str,
-        dispersion_xc: str,
-        dispersion_cutoff: float,
-        device: str,
-        default_dtype: str,
-        head: str,
+        settings: MaceSettings,
         force: bool = False,
     ) -> None:
         """
@@ -70,52 +88,40 @@ class MaceCalc(BaseCalc):
 
         Parameters
         ----------
-        suite: str
-            Suite for the calculator.
-        model: str
-            Model/model path to be used.
-        dispersion: bool
-            Whether to use a dispersion model or not.
-        damping: str
-            Dispersion damping.
-        dispersion_xc: str
-            XC functional for the dispersion model.
-        dispersion_cutoff: str
-            Cutoff radius for the dispersion model.
-        device: str
-            Device (cuda or cpu).
-        default_dtype: str
-            Precision type.
-        head: str
-            The head of the MACE model.
+        settings: MaceSettings
+            The current calculation settings
         force: bool, default = False
             Force re-initialization of the calculator, even if already initialized.
         """
         if self._calc and not force:
             return
-        match suite:
+        match settings.suite:
             case "mp":
                 kwargs: dict[str, object] = {
-                    "model": model,
-                    "device": device,
-                    "default_dtype": default_dtype or "float32",
-                    "dispersion": dispersion,
-                    "damping": damping,
-                    "dispersion_xc": dispersion_xc,
-                    "dispersion_cutoff": (dispersion_cutoff * LENGTH_CONVERSION["Ang"]),
+                    "model": settings.model,
+                    "device": settings.device,
+                    "default_dtype": settings.default_dtype or "float32",
+                    "dispersion": settings.dispersion,
+                    "damping": settings.damping,
+                    "dispersion_xc": settings.dispersion_xc,
+                    "dispersion_cutoff": (settings.dispersion_cutoff * LENGTH_CONVERSION["Ang"]),
+                    "compile_mode": "default" if settings.compile_model else None,
                 }
-                if head:
-                    kwargs["head"] = head
+                if settings.head:
+                    kwargs["head"] = settings.head
                 calc = mace_mp(**kwargs)
-            # No dispersion applicable for omol
+
             case "omol":
+                # No dispersion applicable for OMOL.
                 calc = mace_omol(
-                    model=model,
-                    device=device,
-                    default_dtype=default_dtype or "float64",
+                    model=settings.model,
+                    device=settings.device,
+                    default_dtype=settings.default_dtype or "float64",
+                    compile_mode="default" if settings.compile_model else None,
                 )
+
             case _:
-                raise RuntimeError(f"The suite {suite} is not supported.")
+                raise RuntimeError(f"The suite {settings.suite} is not supported.")
         self._calc = calc
 
     def get_calculator(self) -> MACECalculator | None:
@@ -208,11 +214,20 @@ class MaceCalc(BaseCalc):
             default=None,
             help="Advanced option: Select MACE head. Only applicable for the MP suite.",
         )
+        parser.add_argument(
+            "--compile",
+            action="store_true",
+            dest="compile",
+            help=(
+                "Enable torch.compile for the MACE model. "
+                "Recommended for repeated calculations in server mode. Will be ignored when running Hessian calculations. "
+            ),
+        )
 
     @classmethod
     def process_input_keywords(
         cls, args_parsed: Namespace, calc_data: CalculationData
-    ) -> tuple[Any, ...]:
+    ) -> MaceSettings:
         """
         Extract and sanitize the calculation settings from the input Namespace.
 
@@ -225,37 +240,43 @@ class MaceCalc(BaseCalc):
 
         Returns
         -------
-        tuple[Any, ...]: The settings used for setting up the calculator.
+        MaceSettings
+            The settings for the current calculation.
         """
 
         suite = args_parsed.suite
-        model = args_parsed.model
-        dispersion = args_parsed.dispersion
-        damping = args_parsed.damping
-        dispersion_xc = args_parsed.dispersion_xc
-        dispersion_cutoff = args_parsed.dispersion_cutoff
-        device = args_parsed.device
-        default_dtype = args_parsed.default_dtype
-        head = args_parsed.head
 
         if suite.startswith("mace"):
             suite = suite.split("-", 1)[1]
 
-        if dispersion and suite != "mp":
+        if args_parsed.dispersion and suite != "mp":
             print(
-                "WARNING: Dispersion flag recognized, but MP suite not used. Ignoring all options related to dispersion."
+                "WARNING: Dispersion flag recognized, but MP suite not used. "
+                "Ignoring all options related to dispersion."
             )
 
-        return (
-            suite,
-            model,
-            dispersion,
-            damping,
-            dispersion_xc,
-            dispersion_cutoff,
-            device,
-            default_dtype,
-            head,
+        # Conservatively disable compilation for Hessian calculations.
+        # Compatibility with higher-order derivatives has not been verified.
+        compile_model = args_parsed.compile
+        if calc_data.dohess and compile_model:
+            warnings.warn(
+                "--compile is ignored for Hessian calculations.",
+                UserWarning,
+                stacklevel=2,
+            )
+            compile_model = False
+
+        return MaceSettings(
+            suite=suite,
+            model=args_parsed.model,
+            dispersion=args_parsed.dispersion,
+            damping=args_parsed.damping,
+            dispersion_xc=args_parsed.dispersion_xc,
+            dispersion_cutoff=args_parsed.dispersion_cutoff,
+            device=args_parsed.device,
+            default_dtype=args_parsed.default_dtype,
+            head=args_parsed.head,
+            compile_model=compile_model,
         )
 
     def _get_hessian(self, atoms: Atoms) -> list[float]:
@@ -302,8 +323,6 @@ class MaceCalc(BaseCalc):
             raise ValueError("Invalid MACE model unit conversion factors.")
         factor = e_to_ev / l_to_ang**2 * LENGTH_CONVERSION["Ang"] ** 2 / ENERGY_CONVERSION["eV"]
         converted = matrix * factor
-        if not np.isfinite(converted).all():
-            raise ValueError("Converted MACE Hessian contains NaN or infinity.")
         return converted.ravel(order="C").tolist()
 
     def run_mace(
@@ -311,7 +330,7 @@ class MaceCalc(BaseCalc):
         atom_types: list[str],
         coordinates: list[tuple[float, float, float]],
         calc_data: CalculationData,
-    ) -> tuple[float, list[float], list[float]]:
+    ) -> CalculationResult:
         """
         Runs a Mace calculation.
 
@@ -326,12 +345,8 @@ class MaceCalc(BaseCalc):
 
         Returns
         -------
-        float
-            The computed energy (Eh)
-        list[float]
-            Flattened gradient vector (Eh/Bohr), if computed, otherwise empty
-        list[float]
-            Flattened Hessian vector (Eh/Bohr^2), if computed, otherwise empty
+        CalculationResult
+            The calculation results.
         """
 
         # set the number of threads
@@ -357,7 +372,7 @@ class MaceCalc(BaseCalc):
         # Compute Hessians
         hessian = self._get_hessian(atoms) if calc_data.dohess else []
 
-        return energy, gradient, hessian
+        return CalculationResult(energy=energy, gradient=gradient, hessian=hessian)
 
     def calc(
         self,
@@ -383,17 +398,7 @@ class MaceCalc(BaseCalc):
             Energy (Eh) and, if requested, gradient (Eh/Bohr) and Hessian (Eh/Bohr^2)
         """
 
-        (
-            suite,
-            model,
-            dispersion,
-            damping,
-            dispersion_xc,
-            dispersion_cutoff,
-            device,
-            default_dtype,
-            head,
-        ) = self.process_input_keywords(args_parsed, calc_data)
+        settings = self.process_input_keywords(args_parsed, calc_data)
 
         # Setup calculator if not already set.
         # This is important as usage on a server would otherwise cause an initialization with every call so that nothing is gained.
@@ -403,27 +408,13 @@ class MaceCalc(BaseCalc):
                 "ignore",
                 message="Environment variable TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD detected",
             )
-            self.set_calculator(
-                suite=suite,
-                model=model,
-                dispersion=dispersion,
-                damping=damping,
-                dispersion_xc=dispersion_xc,
-                dispersion_cutoff=dispersion_cutoff,
-                device=device,
-                default_dtype=default_dtype,
-                head=head,
-            )
+            self.set_calculator(settings)
 
         # process the XYZ file
         atom_types, coordinates = xyzfile_to_at_coord(calc_data.xyzfile)
 
         # run mace
-        energy, gradient, hessian = self.run_mace(
-            atom_types=atom_types, coordinates=coordinates, calc_data=calc_data
-        )
-
-        return CalculationResult(energy=energy, gradient=gradient, hessian=hessian)
+        return self.run_mace(atom_types=atom_types, coordinates=coordinates, calc_data=calc_data)
 
 
 def main() -> None:

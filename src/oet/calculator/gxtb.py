@@ -17,7 +17,6 @@ import shutil
 import sys
 from argparse import ArgumentParser, Namespace
 from pathlib import Path
-from typing import Any
 
 from oet.core.base_calc import BaseCalc, CalculationData, CalculationResult
 from oet.core.misc import (
@@ -68,7 +67,7 @@ class GxtbCalc(BaseCalc):
     @classmethod
     def process_input_keywords(
         cls, args_parsed: Namespace, calc_data: CalculationData
-    ) -> tuple[Any, ...]:
+    ) -> tuple[str | None, str | None, str | None, str | None]:
         """
         Extract and sanitize the calculation settings from the input Namespace.
 
@@ -81,7 +80,14 @@ class GxtbCalc(BaseCalc):
 
         Returns
         -------
-        tuple[Any, ...]: The settings used for setting up the calculator.
+        str | None
+            The executable path, if provided.
+        str | None
+            Path to the g-xTB parameter file, if provided.
+        str | None
+            Path to the EEQ parameter file, if provided.
+        str | None
+            Path to the basis parameter file, if provided.
         """
 
         prog = args_parsed.prog

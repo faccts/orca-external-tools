@@ -56,7 +56,12 @@ if typing.TYPE_CHECKING:
 # we never use the same instance by multiple processes in parallel.
 # key: (module, class, normalized settings, unparsed args, input variant)
 # OrderedDict, where the most recently used entry is moved to the end.
-CacheKey = tuple[str, str, Hashable, tuple[str, ...], tuple[Any, ...]]
+CacheKey = tuple[
+    str,
+    str,
+    Hashable,
+    tuple[str, ...],
+]
 _WORKER_CALC_CACHE: OrderedDict[CacheKey, BaseCalc] = OrderedDict()
 
 # Logger
@@ -196,7 +201,6 @@ def _run_calc_in_process(
         calc_class,
         settings,
         tuple(run_kwargs["args_not_parsed"]),
-        cls.input_dependent_calculator_initialization(calc_data),
     )
     calc = _WORKER_CALC_CACHE.get(key)
     if calc is None:

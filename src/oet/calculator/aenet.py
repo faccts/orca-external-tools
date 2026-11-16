@@ -14,7 +14,6 @@ main: function
 from argparse import ArgumentParser, Namespace
 from collections.abc import Mapping
 from pathlib import Path
-from typing import Any
 
 from oet.core.base_calc import BaseCalc, CalculationData, CalculationResult
 from oet.core.definitions import ENERGY_CONVERSION, LENGTH_CONVERSION
@@ -69,7 +68,7 @@ class AenetCalc(BaseCalc):
     @classmethod
     def process_input_keywords(
         cls, args_parsed: Namespace, calc_data: CalculationData
-    ) -> tuple[Any, ...]:
+    ) -> tuple[str | None, str | Path, str | None]:
         """
         Extract and sanitize the calculation settings from the input Namespace.
 
@@ -82,7 +81,12 @@ class AenetCalc(BaseCalc):
 
         Returns
         -------
-        tuple[Any, ...]: The settings used for setting up the calculator.
+        str | None
+            Optional path to the executable.
+        str | Path
+            Directory containing the model files.
+        str | None
+            Optional model extension.
         """
 
         prog = args_parsed.prog
