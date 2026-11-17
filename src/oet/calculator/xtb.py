@@ -64,7 +64,6 @@ class XtbCalc(BaseCalc):
         """
 
         prog = args_parsed.prog
-        print(prog)
 
         return (prog,)
 
