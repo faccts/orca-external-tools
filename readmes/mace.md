@@ -13,6 +13,7 @@ Wrapper around MACE calculators to use ORCA's `otool_external` interface.
 | Common | `-m, --model` | Model spec or local path. MP examples: `medium-mpa-0`, `medium`, `small`; OMOL: `extra_large` or local path | — |
 | Common | `--default-dtype` | `float32` (MD speed) or `float64` (optimization accuracy) | — |
 | Common | `--device` | Compute device, e.g. `cpu`, `cuda` | Auto / framework default |
+| Common | `--compile` | Enable torch.compile using MACE's default compilation mode | Off |
 | MP only | `--dispersion` | Enable D3 dispersion correction | Off |
 | MP only | `--damping` | Advanced dispersion damping controls | — |
 | MP only | `--dispersion-xc` | Exchange-correlation functional for dispersion | — |

@@ -6,6 +6,7 @@ from oet.core.test_utilities import (
     OH,
     WATER,
     get_filenames,
+    read_hess_file,
     read_result_file,
     run_wrapper,
     write_input_file,
@@ -77,6 +78,137 @@ class XtbTests(unittest.TestCase):
         self.assertAlmostEqual(energy, expected_energy, places=9)
         for g1, g2 in zip(gradients, expected_gradients):
             self.assertAlmostEqual(g1, g2, places=9)
+
+    def test_H2O_hessian(self):
+        basename = "H2O_hess"
+        xyz_file, input_file, engrad_out, output_file = get_filenames(basename)
+        hess_out = basename + ".hess"
+        write_xyz_file(xyz_file, WATER)
+        write_input_file(
+            filename=input_file,
+            xyz_filename=xyz_file,
+            charge=0,
+            multiplicity=1,
+            ncores=2,
+            do_gradient=0,
+            do_hessian=1,
+        )
+        run_xtb(input_file, output_file)
+
+        expected_num_atoms = 3
+        expected_energy = -5.07020855616
+        # Reference Hessian (Eh/Bohr^2), flattened row-major, computed with GFN2-xTB
+        # for the same WATER geometry/charge/multiplicity as test_H2O_engrad.
+        expected_hessian = [
+            0.2430965910,
+            0.0745472590,
+            -0.1884155965,
+            -0.0608292195,
+            -0.1043009764,
+            -0.0026203284,
+            -0.1822673715,
+            0.0297537174,
+            0.1910359249,
+            0.0745472590,
+            0.4172496600,
+            0.1713881066,
+            -0.1338212069,
+            -0.3630080293,
+            -0.0833669269,
+            0.0592739479,
+            -0.0542416307,
+            -0.0880211797,
+            -0.1884155965,
+            0.1713881066,
+            0.2791959884,
+            -0.0197735972,
+            -0.1115071858,
+            -0.0459440378,
+            0.2081891938,
+            -0.0598809208,
+            -0.2332519506,
+            -0.0608292195,
+            -0.1338212069,
+            -0.0197735972,
+            0.0535907569,
+            0.1064876235,
+            0.0107910085,
+            0.0072384626,
+            0.0273335834,
+            0.0089825888,
+            -0.1043009764,
+            -0.3630080293,
+            -0.1115071858,
+            0.1064876235,
+            0.3784810458,
+            0.1184136358,
+            -0.0021866471,
+            -0.0154730165,
+            -0.0069064499,
+            -0.0026203284,
+            -0.0833669269,
+            -0.0459440378,
+            0.0107910085,
+            0.1184136358,
+            0.0585198396,
+            -0.0081706801,
+            -0.0350467089,
+            -0.0125758017,
+            -0.1822673715,
+            0.0592739479,
+            0.2081891938,
+            0.0072384626,
+            -0.0021866471,
+            -0.0081706801,
+            0.1750289089,
+            -0.0570873008,
+            -0.2000185137,
+            0.0297537174,
+            -0.0542416307,
+            -0.0598809208,
+            0.0273335834,
+            -0.0154730165,
+            -0.0350467089,
+            -0.0570873008,
+            0.0697146472,
+            0.0949276296,
+            0.1910359249,
+            -0.0880211797,
+            -0.2332519506,
+            0.0089825888,
+            -0.0069064499,
+            -0.0125758017,
+            -0.2000185137,
+            0.0949276296,
+            0.2458277523,
+        ]
+
+        try:
+            num_atoms, energy, gradients = read_result_file(engrad_out)
+        except Exception as e:
+            raise FileNotFoundError(
+                f"Error wrapper outputfile not found. Check {output_file} for details"
+            ) from e
+
+        self.assertEqual(num_atoms, expected_num_atoms)
+        self.assertAlmostEqual(energy, expected_energy, places=9)
+        self.assertEqual(gradients, [])
+
+        try:
+            hessian = read_hess_file(hess_out)
+        except Exception as e:
+            raise FileNotFoundError(
+                f"Error Hessian outputfile not found. Check {output_file} for details"
+            ) from e
+
+        self.assertEqual(len(hessian), (3 * expected_num_atoms) ** 2)
+        for h1, h2 in zip(hessian, expected_hessian):
+            self.assertAlmostEqual(h1, h2, places=8)
+        # Check symmetry
+        ndim = 3 * expected_num_atoms
+        for i in range(ndim):
+            for j in range(ndim):
+                self.assertAlmostEqual(hessian[i * ndim + j], hessian[j * ndim + i], places=8)
 
     def test_OH_anion_eng_grad(self):
         xyz_file, input_file, engrad_out, output_file = get_filenames("OH_anion")

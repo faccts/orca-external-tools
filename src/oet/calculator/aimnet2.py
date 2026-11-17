@@ -14,16 +14,16 @@ main: function
 import sys
 import warnings
 from argparse import ArgumentParser, Namespace
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, ClassVar
 
 from requests.exceptions import HTTPError
 
 from oet import ASSETS_DIR
-from oet.core.base_calc import BaseCalc, CalculationData
+from oet.core.base_calc import BaseCalc, CalculationData, CalculationResult
+from oet.core.definitions import ENERGY_CONVERSION, LENGTH_CONVERSION, Property
 from oet.core.misc import (
-    ENERGY_CONVERSION,
-    LENGTH_CONVERSION,
     resolve_model_file,
     xyzfile_to_at_coord,
 )
@@ -173,6 +173,39 @@ assert len(_PERIODIC_TABLE) == 118, f"expected 118 elements, got {len(_PERIODIC_
 _SYMBOL_TO_Z: dict[str, int] = {sym: i + 1 for i, sym in enumerate(_PERIODIC_TABLE)}
 
 
+@dataclass(frozen=True, slots=True)
+class Aimnet2Settings:
+    """Value-based, hashable settings used to initialize an AIMNet2 model."""
+
+    # Model name (e.g. "aimnet2"), filename, or absolute path. Forwarded to get_model_file() for resolution and caching.
+    model: str
+    # Local cache directory for downloaded model files.
+    model_dir: str
+    # Compute device. One of {"cpu", "cuda", "auto"}; "auto" maps to
+    # None upstream (auto-detect). When "cuda" is requested, setup() raises if torch.cuda.is_available() is False.
+    device: str | None
+    # If True, wrap the model with torch.compile. Server mode only; see readmes/aimnet2.md.
+    compile_model: bool = False
+    # Adaptive neighbor-list batch size forwarded to the constructor.
+    nb_threshold: int = 120
+    # Which ensemble member (0..3) to load. OET runs ONE model per call.
+    ensemble_member: int = 0
+    # Tri-state ("auto" / "on" / "off") forcing the long-range Coulomb
+    # module on or off. "auto" defers to the model's default.
+    coulomb: str = "auto"
+    # Tri-state for the DFT-D3 module, same semantics as coulomb.
+    dispersion: str = "auto"
+    # One of {"simple", "dsf", "ewald"} or None. If set, applied via set_lrcoulomb_method() after construction.
+    coulomb_method: str | None = None
+    # Coulomb cutoff in Ångström (used by dsf/ewald). For aimnet2-rxn* models the training-frozen value is 4.6;
+    # other values trigger a UserWarning.
+    coulomb_cutoff: float = 15.0
+    # Override the D3 cutoff via set_dftd3_cutoff() if non-None.
+    dftd3_cutoff: float | None = None
+    # Override the D3 smoothing fraction via set_dftd3_cutoff() if non-None.
+    dftd3_smoothing_fraction: float | None = None
+
+
 class Aimnet2Calc(BaseCalc):
     """ORCA ExtTool calculator backed by AIMNet2 (aimnet>=0.2,<0.3)."""
 
@@ -185,9 +218,11 @@ class Aimnet2Calc(BaseCalc):
         "on": True,
         "off": False,
     }
+    # For AIMNet2, in addition to the default properties, also Hessians are available.
+    DEFAULT_PROPERTIES = BaseCalc.DEFAULT_PROPERTIES | {Property.HESSIAN}
 
     _calc: AIMNet2Calculator | None = None
-    _setup_args: frozenset[tuple[str, Any]] | None = None
+    _setup_args: Aimnet2Settings | None = None
 
     def get_calculator(self) -> AIMNet2Calculator:
         """
@@ -267,62 +302,20 @@ class Aimnet2Calc(BaseCalc):
 
     def setup(
         self,
-        model: str,
-        model_dir: str,
-        device: str | None,
-        *,
-        compile_model: bool = False,
-        nb_threshold: int = 120,
-        ensemble_member: int = 0,
-        coulomb: str = "auto",
-        dispersion: str = "auto",
-        coulomb_method: str | None = None,
-        coulomb_cutoff: float = 15.0,
-        dftd3_cutoff: float | None = None,
-        dftd3_smoothing_fraction: float | None = None,
+        settings: Aimnet2Settings,
     ) -> None:
-        """Construct the calculator + apply post-ctor configuration.
+        """Construct the calculator and apply configuration.
 
-        First call wins: subsequent calls with the same args are a no-op;
-        calls with different args raise (server cache is responsible for
-        keying on args, so a single Aimnet2Calc instance only ever sees
-        one configuration). Per-call work belongs in run_aimnet2.
+        Subsequent calls with identical settings reuse the existing
+        calculator.
+
+        Changes to other initialization settings raise an error,
+        as these are handled by the server cache.
 
         Parameters
         ----------
-        model : str
-            Model name (e.g. "aimnet2"), filename, or absolute path. Forwarded
-            to :meth:`get_model_file` for resolution and caching.
-        model_dir : str
-            Local cache directory for downloaded model files.
-        device : str | None
-            Compute device. One of {"cpu", "cuda", "auto"}; "auto" maps to
-            None upstream (auto-detect). When "cuda" is requested, this
-            method raises if torch.cuda.is_available() is False.
-        compile_model : bool, default: False
-            If True, wrap the model with torch.compile. Server mode only;
-            see readmes/aimnet2.md.
-        nb_threshold : int, default: 120
-            Adaptive neighbor-list batch size forwarded to the constructor.
-        ensemble_member : int, default: 0
-            Which ensemble member (0..3) to load. OET runs ONE model per call.
-        coulomb : str, default: "auto"
-            Tri-state ("auto" / "on" / "off") forcing the long-range Coulomb
-            module on or off. "auto" defers to the model's default.
-        dispersion : str, default: "auto"
-            Tri-state for the DFT-D3 module, same semantics as `coulomb`.
-        coulomb_method : str | None, default: None
-            One of {"simple", "dsf", "ewald"} or None. If set, applied via
-            `set_lrcoulomb_method` after construction.
-        coulomb_cutoff : float, default: 15.0
-            Coulomb cutoff in Ångström (used by dsf/ewald). For
-            `aimnet2-rxn*` models the training-frozen value is 4.6;
-            other values trigger a UserWarning.
-        dftd3_cutoff : float | None, default: None
-            Override the D3 cutoff via `set_dftd3_cutoff` if non-None.
-        dftd3_smoothing_fraction : float | None, default: None
-            Override the D3 smoothing fraction via `set_dftd3_cutoff` if
-            non-None.
+        settings: Aimnet2Settings
+            The settings for the current AIMNet2 calculator.
 
         Raises
         ------
@@ -334,70 +327,50 @@ class Aimnet2Calc(BaseCalc):
         # Validate device availability BEFORE the cache short-circuit so
         # a cached CPU calc does not silently service a --device cuda
         # request on a no-CUDA box.
-        if device == "cuda" and not torch.cuda.is_available():
+        if settings.device == "cuda" and not torch.cuda.is_available():
             raise RuntimeError("CUDA requested but not available")
 
-        # Normalize device for storage so "auto" and None compare equal
-        # in the args-match check below (both resolve to None upstream).
-        device_arg = None if device == "auto" else device
-
-        # Args-match short-circuit (uses normalized device).
-        # frozenset of items (not tuple) so adding a new kwarg doesn't
-        # require editing positional indices everywhere.
-        new_args = frozenset(
-            {
-                "model": model,
-                "model_dir": model_dir,
-                "device": device_arg,
-                "compile_model": compile_model,
-                "nb_threshold": nb_threshold,
-                "ensemble_member": ensemble_member,
-                "coulomb": coulomb,
-                "dispersion": dispersion,
-                "coulomb_method": coulomb_method,
-                "coulomb_cutoff": coulomb_cutoff,
-                "dftd3_cutoff": dftd3_cutoff,
-                "dftd3_smoothing_fraction": dftd3_smoothing_fraction,
-            }.items()
-        )
         if self._calc is not None:
-            if new_args == self._setup_args:
+            if settings == self._setup_args:
                 return
             raise RuntimeError(
-                "Aimnet2Calc.setup() called with different args than the "
+                "Aimnet2Calc.setup() called with different settings than the "
                 "cached calculator. Server-mode callers must key the cache "
-                "on setup args.\n"
-                f"Cached args: {self._setup_args}\n"
-                f"New args: {new_args}"
+                "on setup settings.\n"
+                f"Cached settings: {self._setup_args}\n"
+                f"New settings: {settings}"
             )
 
         # Validate string-choice args with helpful error messages
         # (argparse normally enforces this for CLI users, but direct-API
         # callers benefit from the early check too).
         for arg_name, arg_val, allowed in (
-            ("coulomb", coulomb, tuple(self._TRISTATE_MAP)),
-            ("dispersion", dispersion, tuple(self._TRISTATE_MAP)),
+            ("coulomb", settings.coulomb, tuple(self._TRISTATE_MAP)),
+            ("dispersion", settings.dispersion, tuple(self._TRISTATE_MAP)),
         ):
             if arg_val not in allowed:
                 raise ValueError(f"setup(): {arg_name}={arg_val!r} not in {allowed}")
-        if coulomb_method is not None and coulomb_method not in self._COULOMB_METHODS:
+        if (
+            settings.coulomb_method is not None
+            and settings.coulomb_method not in self._COULOMB_METHODS
+        ):
             raise ValueError(
-                f"setup(): coulomb_method={coulomb_method!r} not in {self._COULOMB_METHODS}"
+                f"setup(): coulomb_method={settings.coulomb_method!r} not in {self._COULOMB_METHODS}"
             )
 
         # When coulomb_method=='simple', the cutoff is meaningless (simple has
         # no cutoff in the upstream LR module). Warn loudly so users don't
         # think a custom value applies.
-        if coulomb_method == "simple" and coulomb_cutoff != 15.0:
+        if settings.coulomb_method == "simple" and settings.coulomb_cutoff != 15.0:
             warnings.warn(
-                f"--coulomb-cutoff={coulomb_cutoff} is ignored when "
+                f"--coulomb-cutoff={settings.coulomb_cutoff} is ignored when "
                 "--coulomb-method=simple (simple Coulomb has no cutoff; "
                 "cutoff applies only to dsf/ewald methods).",
                 UserWarning,
                 stacklevel=2,
             )
 
-        model_path = str(self.get_model_file(model, model_dir))
+        model_path = str(self.get_model_file(settings.model, settings.model_dir))
 
         # Warn if user picked aimnet2-pd: it carries baked-in CPCM/THF
         # solvation, so energies are NOT gas-phase. Easy to miss from the
@@ -418,23 +391,27 @@ class Aimnet2Calc(BaseCalc):
         # physically-suspect electrostatics. Only relevant when the user
         # explicitly enabled the long-range method.
         is_rxn_family = "aimnet2-rxn" in model_path_lower or "aimnet2_rxn" in model_path_lower
-        if is_rxn_family and coulomb_method is not None and coulomb_cutoff != 4.6:
+        if is_rxn_family and settings.coulomb_method is not None and settings.coulomb_cutoff != 4.6:
             warnings.warn(
-                f"--coulomb-cutoff={coulomb_cutoff} with -m {model} disagrees with "
+                f"--coulomb-cutoff={settings.coulomb_cutoff} with -m {settings.model} disagrees with "
                 "the aimnet2-rxn training cutoff (4.6 A). Pass --coulomb-cutoff 4.6 "
                 "for physically meaningful long-range electrostatics.",
                 UserWarning,
                 stacklevel=2,
             )
 
+        # Normalize device for storage so "auto" and None compare equal
+        # in the args-match check below (both resolve to None upstream).
+        device_arg = None if settings.device == "auto" else settings.device
+
         self._calc = AIMNet2Calculator(
             model_path,
-            nb_threshold=nb_threshold,
-            needs_coulomb=self._TRISTATE_MAP[coulomb],
-            needs_dispersion=self._TRISTATE_MAP[dispersion],
+            nb_threshold=settings.nb_threshold,
+            needs_coulomb=self._TRISTATE_MAP[settings.coulomb],
+            needs_dispersion=self._TRISTATE_MAP[settings.dispersion],
             device=device_arg,
-            compile_model=compile_model,
-            ensemble_member=ensemble_member,
+            compile_model=settings.compile_model,
+            ensemble_member=settings.ensemble_member,
         )
 
         # Post-ctor configuration. If any of these raise, roll back via
@@ -443,19 +420,23 @@ class Aimnet2Calc(BaseCalc):
         # a repeat-bad-config server loop accumulates VRAM).
         try:
             # Skip cutoff for "simple" mode (no upstream cutoff parameter).
-            if coulomb_method is not None:
-                if coulomb_method == "simple":
-                    self._calc.set_lrcoulomb_method(coulomb_method)
+            if settings.coulomb_method is not None:
+                if settings.coulomb_method == "simple":
+                    self._calc.set_lrcoulomb_method(settings.coulomb_method)
                 else:
-                    self._calc.set_lrcoulomb_method(coulomb_method, cutoff=coulomb_cutoff)
+                    self._calc.set_lrcoulomb_method(
+                        settings.coulomb_method, cutoff=settings.coulomb_cutoff
+                    )
 
-            if dftd3_cutoff is not None or dftd3_smoothing_fraction is not None:
-                self._calc.set_dftd3_cutoff(dftd3_cutoff, dftd3_smoothing_fraction)
+            if settings.dftd3_cutoff is not None or settings.dftd3_smoothing_fraction is not None:
+                self._calc.set_dftd3_cutoff(
+                    settings.dftd3_cutoff, settings.dftd3_smoothing_fraction
+                )
         except Exception:
             self.release()
             raise
 
-        self._setup_args = new_args
+        self._setup_args = settings
 
     def release(self) -> None:
         """Release device-side resources held by the cached calculator.
@@ -552,8 +533,9 @@ class Aimnet2Calc(BaseCalc):
                 "Enable torch.compile JIT. SERVER MODE ONLY - standalone "
                 "oet_aimnet2 is a fresh process per ORCA call and re-pays "
                 "JIT cost every step. First-call latency 10-60s. Recompiles "
-                "on shape change. Incompatible with Hessian. Do NOT use with "
-                "NEB / OptTS / IRC."
+                "on shape change. Automatically disabled when a Hessian is "
+                "requested. Recompiles on shape change, so "
+                "do NOT use with NEB / OptTS / IRC."
             ),
         )
         parser.add_argument(
@@ -677,6 +659,64 @@ class Aimnet2Calc(BaseCalc):
 
         return False
 
+    @classmethod
+    def process_input_keywords(
+        cls, args_parsed: Namespace, calc_data: CalculationData
+    ) -> Aimnet2Settings:
+        """Validate and normalize initialization settings for reuse and setup."""
+        # If `device` is "auto", it translates to None for upstream.
+        device: str | None = str(args_parsed.device)
+        if device not in cls._SUPPORTED_DEVICES:
+            raise ValueError(
+                f"Device {device!r} not supported. Use one of {cls._SUPPORTED_DEVICES}."
+            )
+        # `setup()` treats auto and None identically. Match its canonical form
+        # so the worker cache does not keep duplicate calculators for them.
+        device = None if device == "auto" else device
+
+        coulomb_cutoff = args_parsed.coulomb_cutoff
+        coulomb_method = args_parsed.coulomb_method
+
+        # --- cross-flag validation ----------------------------------------
+        # --coulomb-cutoff is only meaningful with --coulomb-method.
+        # The 15.0 != check has one corner: a user who passes --coulomb-cutoff 15.0
+        # explicitly without --coulomb-method silently gets a default-cutoff
+        # Coulomb-disabled run rather than a rejection. They should specify
+        # --coulomb-method anyway, so the false-negative is acceptable.
+        #
+        # We raise SystemExit(msg) directly rather than holding a parser ref:
+        # argparse's parser.error() is itself just print + SystemExit(2), and
+        # stashing the parser in args_parsed used to poison server.py's cache
+        # key (frozenset of args_parsed.items()) because ArgumentParser is
+        # hashed by identity. SystemExit's message goes to stderr automatically.
+        if coulomb_cutoff != 15.0 and coulomb_method is None:
+            raise ValueError("--coulomb-cutoff requires --coulomb-method")
+
+        compile_model = args_parsed.compile
+        if compile_model and calc_data.dohess:
+            warnings.warn(
+                "--compile is ignored for Hessian calculations: Hessian calculations "
+                "are incompatible with compiling the model.",
+                UserWarning,
+                stacklevel=2,
+            )
+            compile_model = False
+
+        return Aimnet2Settings(
+            model=args_parsed.model,
+            model_dir=args_parsed.model_dir,
+            device=device,
+            compile_model=compile_model,
+            nb_threshold=args_parsed.nb_threshold,
+            ensemble_member=args_parsed.ensemble_member,
+            coulomb=args_parsed.coulomb,
+            dispersion=args_parsed.dispersion,
+            coulomb_method=coulomb_method,
+            coulomb_cutoff=coulomb_cutoff,
+            dftd3_cutoff=args_parsed.dftd3_cutoff,
+            dftd3_smoothing_fraction=args_parsed.dftd3_smoothing_fraction,
+        )
+
     def atomic_symbol_to_number(self, symbol: str) -> int:
         """Convert an element symbol to atomic number.
 
@@ -699,6 +739,7 @@ class Aimnet2Calc(BaseCalc):
         charge: int,
         mult: int,
         dograd: bool,
+        dohess: bool,
     ) -> dict[str, Any]:
         """Build kwargs for AIMNet2Calculator.eval().
 
@@ -716,7 +757,9 @@ class Aimnet2Calc(BaseCalc):
         mult : int
             Spin multiplicity (2S + 1).
         dograd : bool
-            Whether to compute the gradient.
+            Whether to compute the gradient or not.
+        dohess : bool
+            Whether to compute the Hessian or not.
 
         Returns
         -------
@@ -731,8 +774,7 @@ class Aimnet2Calc(BaseCalc):
             - ``forces`` : bool, mirrors `dograd`.
             - ``stress`` : bool, always False (unsupported by the
               ORCA external-tool protocol).
-            - ``hessian`` : bool, always False (Hessian sidecar is
-              deferred per cplett's RFC reply).
+            - ``hessian`` : bool, mirrors `dohess`.
         """
         numbers = [self.atomic_symbol_to_number(sym) for sym in atom_types]
         data: dict[str, Any] = {
@@ -763,7 +805,7 @@ class Aimnet2Calc(BaseCalc):
             "data": data,
             "forces": dograd,
             "stress": False,
-            "hessian": False,
+            "hessian": dohess,
         }
 
     def run_aimnet2(
@@ -771,7 +813,7 @@ class Aimnet2Calc(BaseCalc):
         atom_types: list[str],
         coordinates: list[tuple[float, float, float]],
         calc_data: CalculationData,
-    ) -> tuple[float, list[float]]:
+    ) -> CalculationResult:
         """
         Runs an AimNet2 calculation.
 
@@ -786,10 +828,8 @@ class Aimnet2Calc(BaseCalc):
 
         Returns
         -------
-        float
-            The computed energy (Eh)
-        list[float]
-            Flattened gradient vector (Eh/Bohr), if computed, otherwise empty.
+        CalculationResult
+            The calculation results.
         """
 
         # make ase atoms object for calculation
@@ -799,6 +839,7 @@ class Aimnet2Calc(BaseCalc):
             mult=calc_data.mult,
             charge=calc_data.charge,
             dograd=calc_data.dograd,
+            dohess=calc_data.dohess,
         )
 
         if not self._calc:
@@ -812,77 +853,39 @@ class Aimnet2Calc(BaseCalc):
 
         energy = float(results["energy"].detach()) / ENERGY_CONVERSION["eV"]
         gradient = []
-        if (forces := results.get("forces", None)) is not None:
+        if calc_data.dograd and (forces := results.get("forces", None)) is not None:
             # detach() defends against any future create_graph=True default.
             forces = forces.detach()
             # unit conversion & factor of -1 to convert from forces to gradient
             fac = -LENGTH_CONVERSION["Ang"] / ENERGY_CONVERSION["eV"]
             gradient = (forces * fac).flatten().tolist()
 
-        return energy, gradient
+        hessian = []
+        if calc_data.dohess and (raw_hessian := results.get("hessian", None)) is not None:
+            # detach() defends against any future create_graph=True default.
+            raw_hessian = raw_hessian.detach()
+            # unit conversion
+            fac = LENGTH_CONVERSION["Ang"] ** 2 / ENERGY_CONVERSION["eV"]
+            hessian = (raw_hessian * fac).flatten().tolist()
+
+        return CalculationResult(energy=energy, gradient=gradient, hessian=hessian)
 
     def calc(
         self,
         calc_data: CalculationData,
         args_parsed: Namespace,
         args_not_parsed: list[str],
-    ) -> tuple[float, list[float]]:
-        """Routine for calculating energy + optional gradient.
+    ) -> CalculationResult:
+        """Routine for calculating energy + optional gradient/Hessian.
 
         Validates cross-flag constraints, then sets up the calculator and
         runs run_aimnet2.
         """
-        model = args_parsed.model
-        model_dir = args_parsed.model_dir
-        coulomb_cutoff = args_parsed.coulomb_cutoff
-        device = str(args_parsed.device)
-        coulomb_method = args_parsed.coulomb_method
-        compile_model = args_parsed.compile
-        nb_threshold = args_parsed.nb_threshold
-        ensemble_member = args_parsed.ensemble_member
-        coulomb = args_parsed.coulomb
-        dispersion = args_parsed.dispersion
-        dftd3_cutoff = args_parsed.dftd3_cutoff
-        dftd3_smoothing_fraction = args_parsed.dftd3_smoothing_fraction
 
-        # --- cross-flag validation ----------------------------------------
-        # --coulomb-cutoff is only meaningful with --coulomb-method.
-        # The 15.0 != check has one corner: a user who passes --coulomb-cutoff 15.0
-        # explicitly without --coulomb-method silently gets a default-cutoff
-        # Coulomb-disabled run rather than a rejection. They should specify
-        # --coulomb-method anyway, so the false-negative is acceptable.
-        #
-        # We raise SystemExit(msg) directly rather than holding a parser ref:
-        # argparse's parser.error() is itself just print + SystemExit(2), and
-        # stashing the parser in args_parsed used to poison server.py's cache
-        # key (frozenset of args_parsed.items()) because ArgumentParser is
-        # hashed by identity. SystemExit's message goes to stderr automatically.
-        if coulomb_cutoff != 15.0 and coulomb_method is None:
-            raise SystemExit("oet_aimnet2: error: --coulomb-cutoff requires --coulomb-method")
+        settings = self.process_input_keywords(args_parsed, calc_data)
 
-        # Mirror the argparse default so mypy sees a guaranteed-str (the
-        # parser sets default=str(DEFAULT_MODEL_PATH)).
-        device = str(args_parsed.device)
-        if device not in self._SUPPORTED_DEVICES:
-            raise RuntimeError(
-                f"Device {device} not supported. Use one of {self._SUPPORTED_DEVICES}."
-            )
-
-        # --- set up calculator (idempotent) ------------------------------
-        self.setup(
-            model=model,
-            model_dir=model_dir,
-            device=device,
-            compile_model=compile_model,
-            nb_threshold=nb_threshold,
-            ensemble_member=ensemble_member,
-            coulomb=coulomb,
-            dispersion=dispersion,
-            coulomb_method=coulomb_method,
-            coulomb_cutoff=coulomb_cutoff,
-            dftd3_cutoff=dftd3_cutoff,
-            dftd3_smoothing_fraction=dftd3_smoothing_fraction,
-        )
+        # Set the calculator up
+        self.setup(settings)
 
         # --- read XYZ and run --------------------------------------------
         atom_types, coordinates = xyzfile_to_at_coord(calc_data.xyzfile)

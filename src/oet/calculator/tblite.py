@@ -16,7 +16,7 @@ import re
 from argparse import ArgumentParser, Namespace
 from pathlib import Path
 
-from oet.core.base_calc import BaseCalc, CalculationData
+from oet.core.base_calc import BaseCalc, CalculationData, CalculationResult
 from oet.core.misc import (
     check_path,
     mult_to_nue,
@@ -45,6 +45,30 @@ class TbliteCalc(BaseCalc):
             Parser that should be extended
         """
         parser.add_argument("-e", "--exe", dest="prog", help="Path to the tblite executable")
+
+    @classmethod
+    def process_input_keywords(
+        cls, args_parsed: Namespace, calc_data: CalculationData
+    ) -> tuple[str | None]:
+        """
+        Extract and sanitize the calculation settings from the input Namespace.
+
+        Parameters
+        ----------
+        args_parsed: Namespace
+            The parsed namespace.
+        calc_data: CalculationData
+            The calculation data.
+
+        Returns
+        -------
+        str | None
+            The executable path, if provided.
+        """
+
+        prog = args_parsed.prog
+
+        return (prog,)
 
     def read_tag_file(self, tag_file: str | Path) -> dict[str, list[float]]:
         """
@@ -193,7 +217,7 @@ class TbliteCalc(BaseCalc):
 
     def calc(
         self, calc_data: CalculationData, args_parsed: Namespace, args_not_parsed: list[str]
-    ) -> tuple[float, list[float]]:
+    ) -> CalculationResult:
         """
         Routine for calculating energy and optional gradient.
         Writes ORCA output
@@ -209,13 +233,11 @@ class TbliteCalc(BaseCalc):
 
         Returns
         -------
-        float
-            The computed energy (Eh)
-        list[float]
-            Flattened gradient vector (Eh/Bohr), if computed, otherwise empty
+        CalculationResult
+            Energy (Eh) and, if requested, gradient (Eh/Bohr).
         """
         # Get parsed options
-        prog = args_parsed.prog
+        prog = self.process_input_keywords(args_parsed, calc_data)[0]
         # Set and check the program path if its executable
         calc_data.set_program_path(prog)
         if calc_data.prog_path:
@@ -245,7 +267,7 @@ class TbliteCalc(BaseCalc):
             natoms=natoms,
         )
 
-        return energy, gradient
+        return CalculationResult(energy=energy, gradient=gradient)
 
 
 def main() -> None:

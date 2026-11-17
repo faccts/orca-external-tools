@@ -107,6 +107,7 @@ basename_EXT.xyz # xyz filename: string, ending in '.xyz'
 1 # NCores: positive integer
 0 # do gradient: 0 or 1
 pointcharges.pc # point charge filename: string (optional)
+0 # do Hessian: 0 or 1 (optional)
 ```
 Comments from `#` until the end of the line should be ignored.
 
@@ -151,6 +152,54 @@ The script may also print relevant output to STDOUT and/or STDERR.
 STDOUT will either be printed in the ORCA standard output, 
 or redirected to a temporary file and removed afterwards,
 depending on the type of job and ORCA output settings.
+
+#### Hessian file
+Starting with ORCA 7, the Hessian may be requested in the input file.
+If so, the script must also generate a file called `basename_EXT.hess` with the minimal contents:
+```
+$orca_hessian_file
+
+# Raw Cartesian Hessian in atomic units.
+$hessian
+9
+                    0                  1                  2                  3                  4
+    0      2.4309659100E-01   7.4547259000E-02  -1.8841559650E-01  -6.0829219500E-02  -1.0430097640E-01
+    1      7.4547259000E-02   4.1724966000E-01   1.7138810660E-01  -1.3382120690E-01  -3.6300802930E-01
+    2     -1.8841559650E-01   1.7138810660E-01   2.7919598840E-01  -1.9773597200E-02  -1.1150718580E-01
+    3     -6.0829219500E-02  -1.3382120690E-01  -1.9773597200E-02   5.3590756900E-02   1.0648762350E-01
+    4     -1.0430097640E-01  -3.6300802930E-01  -1.1150718580E-01   1.0648762350E-01   3.7848104580E-01
+    5     -2.6203284000E-03  -8.3366926900E-02  -4.5944037800E-02   1.0791008500E-02   1.1841363580E-01
+    6     -1.8226737150E-01   5.9273947900E-02   2.0818919380E-01   7.2384626000E-03  -2.1866471000E-03
+    7      2.9753717400E-02  -5.4241630700E-02  -5.9880920800E-02   2.7333583400E-02  -1.5473016500E-02
+    8      1.9103592490E-01  -8.8021179700E-02  -2.3325195060E-01   8.9825888000E-03  -6.9064499000E-03
+                    5                  6                  7                  8
+     0     -2.6203284000E-03  -1.8226737150E-01   2.9753717400E-02   1.9103592490E-01
+     1     -8.3366926900E-02   5.9273947900E-02  -5.4241630700E-02  -8.8021179700E-02
+     2     -4.5944037800E-02   2.0818919380E-01  -5.9880920800E-02  -2.3325195060E-01
+     3      1.0791008500E-02   7.2384626000E-03   2.7333583400E-02   8.9825888000E-03
+     4      1.1841363580E-01  -2.1866471000E-03  -1.5473016500E-02  -6.9064499000E-03
+     5      5.8519839600E-02  -8.1706801000E-03  -3.5046708900E-02  -1.2575801700E-02
+     6     -8.1706801000E-03   1.7502890890E-01  -5.7087300800E-02  -2.0001851370E-01
+     7     -3.5046708900E-02  -5.7087300800E-02   6.9714647200E-02   9.4927629600E-02
+     8     -1.2575801700E-02  -2.0001851370E-01   9.4927629600E-02   2.4582775230E-01
+
+$end
+```
+
+The file consists of keyword lines starting with `$`,
+each of which may require a value in a specific format, followed by an empty line.
+The first keyword must be `$orca_hessian_file` and the last `$end`, neither of which has a value.
+
+The other mandatory key is `$hessian`, which must be followed by the size of the Hessian matrix ($3 N_\text{Atoms}$).
+The next lines are the raw Cartesian Hessian in atomic units, stored as a full symmetric matrix,
+with rows and columns in the same order as the gradient (Atom1X, Atom1Y, Atom1Z, Atom2X, etc.).
+Rows and columns are numbered, starting from 0, as in the example above.
+Each line contains 5 matrix columns (and the row index), except in the last block of columns.
+
+Comments are only allowed between sections and must start with `#`.
+Additional keywords like `$atoms`, `$vibrational_frequencies`, `$dipole_derivatives`, `$ir_spectrum`, etc.
+are allowed but ignored by ORCA.
+
 
 # License
 ## Open Source License

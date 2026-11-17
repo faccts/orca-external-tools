@@ -60,6 +60,53 @@ def read_result_file(filename: str | Path) -> tuple[int, float, list[float]]:
     return num_atoms, energy, gradients
 
 
+def read_hess_file(filename: str | Path) -> list[float]:
+    """
+    Reads the .hess file written by write_hess_output and returns the flattened,
+    row-major Hessian matrix.
+
+    Parameters
+    ----------
+    filename: str | Path
+        Name of the .hess file
+
+    Returns
+    -------
+    list[float]: flattened, row-major Hessian matrix of length ndim**2
+
+    Raises
+    ------
+    OSError: Failing to open file
+    ValueError: Failed to convert the input to int/float, or malformed file
+    """
+    with open(filename) as f:
+        lines = f.readlines()
+
+    for i, line in enumerate(lines):
+        if line.strip() == "$hessian":
+            ndim = int(lines[i + 1])
+            block_lines = lines[i + 2 :]
+            break
+    else:
+        raise ValueError(f"No $hessian block found in {filename}")
+
+    matrix = [[0.0] * ndim for _ in range(ndim)]
+    pos = 0
+    while pos < len(block_lines):
+        header_cols = [int(c) for c in block_lines[pos].split()]
+        pos += 1
+        for row in range(ndim):
+            fields = block_lines[pos].split()
+            pos += 1
+            row_index = int(fields[0])
+            for col, value in zip(header_cols, fields[1:]):
+                matrix[row_index][col] = float(value)
+        if len(header_cols) < 5 or header_cols[-1] == ndim - 1:
+            break
+
+    return [value for row in matrix for value in row]
+
+
 def write_input_file(
     filename: str | Path,
     xyz_filename: Path,
@@ -68,6 +115,7 @@ def write_input_file(
     ncores: int,
     do_gradient: int | bool,
     pointcharges_filename: str | None = None,
+    do_hessian: int | bool = 0,
 ) -> None:
     """
     Write an input file for the extopt wrapper script with the given parameters.
@@ -88,6 +136,8 @@ def write_input_file(
         Compute gradient (1) or not (0)
     pointcharges_filename: str | None = None
         optional filename of the pointcharges
+    do_hessian: int, default: 0
+        Compute Hessian (1) or not (0)
     """
 
     # Validate inputs (basic checks)
@@ -101,6 +151,10 @@ def write_input_file(
         do_gradient = int(do_gradient)
     if do_gradient not in (0, 1):
         raise ValueError("do_gradient must be 0 or 1")
+    if type(do_hessian) is bool:
+        do_hessian = int(do_hessian)
+    if do_hessian not in (0, 1):
+        raise ValueError("do_hessian must be 0 or 1")
 
     with open(filename, "w") as f:
         f.write(f"{xyz_filename} # xyz filename: string, ending in '.xyz'\n")
@@ -112,6 +166,7 @@ def write_input_file(
             f.write(f"{pointcharges_filename} # point charge filename: string (optional)\n")
         else:
             f.write("\n")  # Write a blank line if no point charges file given
+        f.write(f"{do_hessian} # do Hessian: 0 or 1\n")
 
 
 def write_xyz_file(filename: str | Path, atoms: list[tuple[str, float, float, float]]) -> None:

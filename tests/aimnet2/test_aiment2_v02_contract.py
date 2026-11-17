@@ -12,7 +12,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from oet.calculator.aimnet2 import Aimnet2Calc
+from oet.calculator.aimnet2 import Aimnet2Calc, Aimnet2Settings
 
 
 @pytest.fixture
@@ -99,6 +99,7 @@ class TestNseMultGating:
             charge=0,
             mult=1,
             dograd=True,
+            dohess=False,
         )
 
     def test_mult_omitted_for_non_nse_model(self):
@@ -130,6 +131,7 @@ class TestNseMultGating:
                 charge=0,
                 mult=2,
                 dograd=True,
+                dohess=False,
             )
 
     def test_open_shell_with_nse_model_no_warn(self):
@@ -144,199 +146,126 @@ class TestNseMultGating:
                 charge=0,
                 mult=2,
                 dograd=True,
+                dohess=False,
             )
         assert out["data"]["mult"] == [2]
 
 
 class TestSetupSignature:
-    """Sanity checks on the new setup() method (no model load)."""
+    """Contract tests for setup(Aimnet2Settings), without a real model load."""
 
     def test_cuda_raises_when_unavailable(self, monkeypatch):
         monkeypatch.setattr("torch.cuda.is_available", lambda: False)
         calc = Aimnet2Calc()
+        settings = Aimnet2Settings(model="aimnet2", model_dir="/tmp", device="cuda")
         with pytest.raises(RuntimeError, match="CUDA requested but not available"):
-            calc.setup(model="aimnet2", model_dir="/tmp", device="cuda")
+            calc.setup(settings)
 
     def test_args_match_short_circuit(self):
-        """Second setup() call with same args is a no-op."""
+        """Equal settings values return the already cached calculator."""
         calc = Aimnet2Calc()
-        # Pre-populate as if first setup ran. MagicMock() is sufficient
-        # here because the args-match branch returns before touching
-        # any method on _calc.
-        calc._calc = MagicMock()
-        calc._setup_args = frozenset(
-            {
-                "model": "aimnet2",
-                "model_dir": "/tmp",
-                "device": "cpu",
-                "compile_model": False,
-                "nb_threshold": 120,
-                "ensemble_member": 0,
-                "coulomb": "auto",
-                "dispersion": "auto",
-                "coulomb_method": None,
-                "coulomb_cutoff": 15.0,
-                "dftd3_cutoff": None,
-                "dftd3_smoothing_fraction": None,
-            }.items()
-        )
-        # Same args -> no-op (does not raise, does not touch _calc).
-        calc.setup(
-            model="aimnet2",
-            model_dir="/tmp",
-            device="cpu",
-        )
-        assert calc._calc is not None  # still the original mock
+        cached = MagicMock()
+        settings = Aimnet2Settings(model="aimnet2", model_dir="/tmp", device="cpu")
+        calc._calc = cached
+        calc._setup_args = settings
+
+        # A separate instance with equal field values must also match.
+        same_settings = Aimnet2Settings(model="aimnet2", model_dir="/tmp", device="cpu")
+        assert same_settings is not settings
+        calc.setup(same_settings)
+        assert calc._calc is cached
+        assert calc._setup_args is settings
 
     def test_args_mismatch_raises(self):
-        """Second setup() call with different args raises."""
-        calc = Aimnet2Calc()
-        # MagicMock() is sufficient here because the args-mismatch branch
-        # raises before touching any method on _calc.
-        calc._calc = MagicMock()
-        calc._setup_args = frozenset(
-            {
-                "model": "aimnet2",
-                "model_dir": "/tmp",
-                "device": "cpu",
-                "compile_model": False,
-                "nb_threshold": 120,
-                "ensemble_member": 0,
-                "coulomb": "auto",
-                "dispersion": "auto",
-                "coulomb_method": None,
-                "coulomb_cutoff": 15.0,
-                "dftd3_cutoff": None,
-                "dftd3_smoothing_fraction": None,
-            }.items()
-        )
-        with pytest.raises(RuntimeError, match="different args"):
-            calc.setup(
-                model="aimnet2-2025",
-                model_dir="/tmp",
-                device="cpu",
-            )
-
-    def test_auto_and_none_device_compare_equal(self):
-        """device='auto' and device=None should both normalize to None
-        in _setup_args, so back-to-back setup() calls swapping between
-        them are idempotent (not a different-args raise)."""
+        """A change in any setting rejects reuse of an initialized calculator."""
         calc = Aimnet2Calc()
         calc._calc = MagicMock()
-        # Stash as if first call was device="auto" (normalized to None)
-        calc._setup_args = frozenset(
-            {
-                "model": "aimnet2",
-                "model_dir": "/tmp",
-                "device": None,
-                "compile_model": False,
-                "nb_threshold": 120,
-                "ensemble_member": 0,
-                "coulomb": "auto",
-                "dispersion": "auto",
-                "coulomb_method": None,
-                "coulomb_cutoff": 15.0,
-                "dftd3_cutoff": None,
-                "dftd3_smoothing_fraction": None,
-            }.items()
-        )
-        # Second call with device=None — same after normalization → no-op
-        calc.setup(
-            model="aimnet2",
-            model_dir="/tmp",
-            device=None,
-        )
-        assert calc._calc is not None
+        calc._setup_args = Aimnet2Settings(model="aimnet2", model_dir="/tmp", device="cpu")
+        different = Aimnet2Settings(model="aimnet2-2025", model_dir="/tmp", device="cpu")
+        with pytest.raises(RuntimeError, match="different settings"):
+            calc.setup(different)
 
-    def test_invalid_coulomb_choice_raises(self, monkeypatch):
-        monkeypatch.setattr("torch.cuda.is_available", lambda: False)
+    def test_normalized_device_settings_compare_equal(self):
+        """The normalized representation of device='auto' is None."""
         calc = Aimnet2Calc()
+        cached = MagicMock()
+        calc._calc = cached
+        calc._setup_args = Aimnet2Settings(model="aimnet2", model_dir="/tmp", device=None)
+        # process_input_keywords() normalizes auto to None BEFORE setup().
+        normalized = Aimnet2Settings(model="aimnet2", model_dir="/tmp", device=None)
+        calc.setup(normalized)
+        assert calc._calc is cached
+
+    def test_raw_auto_and_none_settings_are_not_equal(self):
+        """Directly built settings are NOT automatically normalized."""
+        auto = Aimnet2Settings(model="aimnet2", model_dir="/tmp", device="auto")
+        none = Aimnet2Settings(model="aimnet2", model_dir="/tmp", device=None)
+        assert auto != none
+
+    def test_invalid_coulomb_choice_raises(self):
+        calc = Aimnet2Calc()
+        settings = Aimnet2Settings(model="aimnet2", model_dir="/tmp", device="cpu", coulomb="yes")
         with pytest.raises(ValueError, match="coulomb='yes'"):
-            calc.setup(
-                model="aimnet2",
-                model_dir="/tmp",
-                device="cpu",
-                coulomb="yes",
-            )
+            calc.setup(settings)
 
-    def test_invalid_coulomb_method_raises(self, monkeypatch):
-        monkeypatch.setattr("torch.cuda.is_available", lambda: False)
+    def test_invalid_coulomb_method_raises(self):
         calc = Aimnet2Calc()
+        settings = Aimnet2Settings(
+            model="aimnet2", model_dir="/tmp", device="cpu", coulomb_method="wolf"
+        )
         with pytest.raises(ValueError, match="coulomb_method='wolf'"):
-            calc.setup(
-                model="aimnet2",
-                model_dir="/tmp",
-                device="cpu",
-                coulomb_method="wolf",
-            )
+            calc.setup(settings)
 
-    def test_rxn_with_non_trained_cutoff_warns(self, monkeypatch, tmp_path):
-        """aimnet2-rxn family + --coulomb-method set + cutoff != 4.6 must
-        emit a UserWarning pointing the user at the trained cutoff."""
-        monkeypatch.setattr("torch.cuda.is_available", lambda: False)
-        # Stub get_model_file so we don't hit the network; produce a path
-        # whose stem encodes the rxn family.
+    def test_rxn_with_non_trained_cutoff_warns(self, tmp_path):
+        """Non-training cutoff warns for the rxn family with LR override."""
         rxn_path = tmp_path / "aimnet2-rxn_0.pt"
-        rxn_path.write_bytes(b"")
         calc = Aimnet2Calc()
+        settings = Aimnet2Settings(
+            model="aimnet2-rxn",
+            model_dir=str(tmp_path),
+            device="cpu",
+            coulomb_method="dsf",
+            coulomb_cutoff=12.0,
+        )
         with (
             patch.object(Aimnet2Calc, "get_model_file", return_value=rxn_path),
-            patch("oet.calculator.aimnet2.AIMNet2Calculator") as MockCalc,
+            patch("oet.calculator.aimnet2.AIMNet2Calculator") as mock_ctor,
         ):
-            MockCalc.return_value = MagicMock()
             with pytest.warns(UserWarning, match="aimnet2-rxn training cutoff"):
-                calc.setup(
-                    model="aimnet2-rxn",
-                    model_dir=str(tmp_path),
-                    device="cpu",
-                    coulomb_method="dsf",
-                    coulomb_cutoff=12.0,
-                )
+                calc.setup(settings)
+            mock_ctor.assert_called_once()
 
-    def test_rxn_with_trained_cutoff_no_warn(self, monkeypatch, tmp_path):
-        """aimnet2-rxn + cutoff = 4.6 must NOT emit the rxn-cutoff warning."""
-        monkeypatch.setattr("torch.cuda.is_available", lambda: False)
+    def test_rxn_with_trained_cutoff_no_warn(self, tmp_path):
         rxn_path = tmp_path / "aimnet2-rxn_0.pt"
-        rxn_path.write_bytes(b"")
         calc = Aimnet2Calc()
+        settings = Aimnet2Settings(
+            model="aimnet2-rxn",
+            model_dir=str(tmp_path),
+            device="cpu",
+            coulomb_method="dsf",
+            coulomb_cutoff=4.6,
+        )
         with (
             patch.object(Aimnet2Calc, "get_model_file", return_value=rxn_path),
-            patch("oet.calculator.aimnet2.AIMNet2Calculator") as MockCalc,
+            patch("oet.calculator.aimnet2.AIMNet2Calculator"),
+            warnings.catch_warnings(record=True) as caught,
         ):
-            MockCalc.return_value = MagicMock()
-            with warnings.catch_warnings(record=True) as caught:
-                warnings.simplefilter("always")
-                calc.setup(
-                    model="aimnet2-rxn",
-                    model_dir=str(tmp_path),
-                    device="cpu",
-                    coulomb_method="dsf",
-                    coulomb_cutoff=4.6,
-                )
-            rxn_warnings = [w for w in caught if "aimnet2-rxn training cutoff" in str(w.message)]
-            assert rxn_warnings == []
+            warnings.simplefilter("always")
+            calc.setup(settings)
+        assert not any("aimnet2-rxn training cutoff" in str(w.message) for w in caught)
 
-    def test_rxn_without_coulomb_method_no_warn(self, monkeypatch, tmp_path):
-        """aimnet2-rxn without --coulomb-method ignores --coulomb-cutoff
-        entirely; warning should NOT fire on the default 15.0."""
-        monkeypatch.setattr("torch.cuda.is_available", lambda: False)
+    def test_rxn_without_coulomb_method_no_warn(self, tmp_path):
         rxn_path = tmp_path / "aimnet2-rxn_0.pt"
-        rxn_path.write_bytes(b"")
         calc = Aimnet2Calc()
+        settings = Aimnet2Settings(model="aimnet2-rxn", model_dir=str(tmp_path), device="cpu")
         with (
             patch.object(Aimnet2Calc, "get_model_file", return_value=rxn_path),
-            patch("oet.calculator.aimnet2.AIMNet2Calculator") as MockCalc,
+            patch("oet.calculator.aimnet2.AIMNet2Calculator"),
+            warnings.catch_warnings(record=True) as caught,
         ):
-            MockCalc.return_value = MagicMock()
-            with warnings.catch_warnings(record=True) as caught:
-                warnings.simplefilter("always")
-                calc.setup(
-                    model="aimnet2-rxn",
-                    model_dir=str(tmp_path),
-                    device="cpu",
-                )
-            rxn_warnings = [w for w in caught if "aimnet2-rxn training cutoff" in str(w.message)]
-            assert rxn_warnings == []
+            warnings.simplefilter("always")
+            calc.setup(settings)
+        assert not any("aimnet2-rxn training cutoff" in str(w.message) for w in caught)
 
 
 class TestReleaseHook:
@@ -346,7 +275,7 @@ class TestReleaseHook:
         monkeypatch.setattr("torch.cuda.is_available", lambda: False)
         calc = Aimnet2Calc()
         calc._calc = MagicMock()
-        calc._setup_args = frozenset({"sentinel": "dummy"}.items())
+        calc._setup_args = Aimnet2Settings(model="aimnet2", model_dir="/tmp", device="cpu")
         calc.release()
         assert calc._calc is None
         assert calc._setup_args is None
@@ -354,64 +283,54 @@ class TestReleaseHook:
     def test_release_no_op_on_uninitialized(self, monkeypatch):
         monkeypatch.setattr("torch.cuda.is_available", lambda: False)
         calc = Aimnet2Calc()
-        # Must not raise even though _calc was never set.
         calc.release()
         assert calc._calc is None
 
-    def test_release_then_setup_with_different_args(self, monkeypatch):
-        """After release(), a fresh setup() with different args should work
-        (release() clears _setup_args so the args-mismatch check passes).
-        Verifies the lifecycle: setup() -> release() -> setup() -> ...
-        """
+    def test_release_then_setup_with_different_args(self, monkeypatch, tmp_path):
+        """After release, initializing with different settings is allowed."""
         monkeypatch.setattr("torch.cuda.is_available", lambda: False)
         calc = Aimnet2Calc()
-        # Pre-populate with first-setup state
         calc._calc = MagicMock()
-        calc._setup_args = frozenset({"sentinel": "first"}.items())
+        calc._setup_args = Aimnet2Settings(model="aimnet2", model_dir=str(tmp_path), device="cpu")
 
         calc.release()
         assert calc._calc is None
         assert calc._setup_args is None
 
-        # Second setup with completely different args should construct fresh
-        # (not raise the "different args" RuntimeError).
-        with patch("oet.calculator.aimnet2.AIMNet2Calculator") as MockCalc:
-            MockCalc.return_value = MagicMock()
-            calc.setup(
-                model="aimnet2-2025",
-                model_dir="/tmp",
-                device="cpu",
-            )
+        new_settings = Aimnet2Settings(model="aimnet2-2025", model_dir=str(tmp_path), device="cpu")
+        with (
+            patch.object(Aimnet2Calc, "get_model_file", return_value=tmp_path / "aimnet2-2025.pt"),
+            patch("oet.calculator.aimnet2.AIMNet2Calculator") as mock_ctor,
+        ):
+            calc.setup(new_settings)
+            mock_ctor.assert_called_once()
         assert calc._calc is not None
-        assert calc._setup_args is not None
+        assert calc._setup_args == new_settings
 
-    def test_setup_post_ctor_failure_clears_calc(self, monkeypatch):
-        """If set_lrcoulomb_method raises after the ctor moved the model to
-        device, setup() must release device-resident state before re-raising
-        (otherwise a repeat-bad-config server loop accumulates VRAM).
-        """
+    def test_setup_post_ctor_failure_clears_calc(self, monkeypatch, tmp_path):
+        """Post-constructor errors return model components to CPU and clear cache."""
         monkeypatch.setattr("torch.cuda.is_available", lambda: False)
         calc = Aimnet2Calc()
-
         bad_calc = MagicMock()
         bad_calc.set_lrcoulomb_method.side_effect = RuntimeError("bad config")
         bad_calc.model = MagicMock()
         bad_calc.external_coulomb = MagicMock()
         bad_calc.external_dftd3 = None
 
+        settings = Aimnet2Settings(
+            model="aimnet2",
+            model_dir=str(tmp_path),
+            device="cpu",
+            coulomb_method="dsf",
+            coulomb_cutoff=12.0,
+        )
         with (
+            patch.object(Aimnet2Calc, "get_model_file", return_value=tmp_path / "aimnet2.pt"),
             patch("oet.calculator.aimnet2.AIMNet2Calculator", return_value=bad_calc),
             pytest.raises(RuntimeError, match="bad config"),
         ):
-            calc.setup(
-                model="aimnet2",
-                model_dir="/tmp",
-                device="cpu",
-                coulomb_method="dsf",
-                coulomb_cutoff=12.0,
-            )
+            calc.setup(settings)
 
-        # Rollback contract: components walked back to cpu BEFORE _calc dropped.
         bad_calc.model.to.assert_called_with("cpu")
         bad_calc.external_coulomb.to.assert_called_with("cpu")
         assert calc._calc is None
@@ -558,8 +477,13 @@ class TestArgparseContract:
 
         from oet.calculator.aimnet2 import main
 
-        with pytest.raises(SystemExit):
+        with pytest.raises(
+            RuntimeError, match="Failed to compute energy and/or gradient"
+        ) as exc_info:
             main([str(extinp_h2_no_grad), "--coulomb-cutoff", "12.0"])
+
+        assert isinstance(exc_info.value.__cause__, ValueError)
+        assert "--coulomb-cutoff requires --coulomb-method" in str(exc_info.value.__cause__)
 
 
 @pytest.mark.network
