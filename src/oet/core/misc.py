@@ -6,7 +6,7 @@ import os
 import shutil
 import subprocess
 import sys
-from collections.abc import Callable, Iterable, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from pathlib import Path
 from shutil import which
 
@@ -468,7 +468,12 @@ def nat_from_xyzfile(xyz_file: str | Path) -> int:
         return int(f.readline())
 
 
-def run_command(command: str | Path, outname: str | Path, args: list[str]) -> None:
+def run_command(
+    command: str | Path,
+    outname: str | Path,
+    args: list[str],
+    env: Mapping[str, str] | None = None,
+) -> None:
     """
     Run the given command and redirect its STDOUT and STDERR to a file.
     Exits on a non-zero return code.
@@ -481,6 +486,9 @@ def run_command(command: str | Path, outname: str | Path, args: list[str]) -> No
         The output file to be written to (overwritten!)
     args : list[str]
         arguments to be passed to the command
+    env : Mapping[str, str] | None, default: None
+        Environment for the subprocess. If None, the environment of the calling
+        process is inherited. 
     """
     with open(outname, "w") as of:
         try:
@@ -488,6 +496,7 @@ def run_command(command: str | Path, outname: str | Path, args: list[str]) -> No
                 [str(command)] + args,
                 stdout=of,
                 stderr=subprocess.STDOUT,
+                env=env,
                 check=True,
             )
         except subprocess.CalledProcessError as err:
