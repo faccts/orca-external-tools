@@ -94,6 +94,7 @@ lint = [
 ]
 type-check = [
     "mypy>=1.16.0,<2",
+    "numpy>=1.26.0",
     "pydantic>=2.11.5,<3",
     "types-waitress>=3.0.1",
     "types-requests>=2.32.0",
