@@ -190,6 +190,16 @@ def _run_calc_in_process(
         with redirect_stdout(buf):
             calc.run(**run_kwargs)
     except (Exception, SystemExit) as e:
+        error_message = None
+
+        if isinstance(e, MemoryError):
+            error_message = "Calculator failed: insufficient system memory (RAM)."
+        elif type(e).__name__ == "OutOfMemoryError":
+            error_message = f"Calculator failed: out of memory. {e}"
+
+        if error_message is not None:
+            raise RuntimeError(error_message) from e
+
         # Attach STDOUT to the exception
         raise CalculatorRuntimeException(buf.getvalue()) from e
     return buf.getvalue()
@@ -358,6 +368,13 @@ class OtoolServer:
                 if not self._executor_broken:
                     self._executor_broken = True
 
+                    # Print info into logger
+                    logger.exception(
+                        "A calculator worker terminated unexpectedly. "
+                        "Possible causes include insufficient memory, "
+                        "a segmentation fault, or external process termination."
+                    )
+
                     # Since new requests are also likely to get killed, just kill the server completely.
                     # No need to do it asynchronously, so as not to leave and client requests hanging.
                     def _shutdown() -> None:
@@ -368,7 +385,11 @@ class OtoolServer:
                     threading.Thread(target=_shutdown, daemon=True).start()
             # Pass the exception up and to the client
             raise RuntimeError(
-                "A worker process was terminated unexpectedly: server shutting down"
+                "A calculator worker terminated unexpectedly. "
+                "This may indicate insufficient RAM or GPU memory, "
+                "possibly caused by too many simultaneous calculations. "
+                "Check the system logs for OOM-killer messages. "
+                "Server shutting down."
             ) from e
         except:
             raise
