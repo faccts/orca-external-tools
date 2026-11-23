@@ -5,7 +5,6 @@ General functions utilities used by oet
 import os
 import shutil
 import subprocess
-import sys
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from pathlib import Path
 from shutil import which
@@ -422,7 +421,7 @@ def run_command(
         arguments to be passed to the command
     env : Mapping[str, str] | None, default: None
         Environment for the subprocess. If None, the environment of the calling
-        process is inherited. 
+        process is inherited.
     """
     with open(outname, "w") as of:
         try:
@@ -434,8 +433,10 @@ def run_command(
                 check=True,
             )
         except subprocess.CalledProcessError as err:
-            print(err)
-            sys.exit(err.returncode)
+            raise RuntimeError(
+                f"External command '{command}' failed with exit status {err.returncode}; "
+                f"see output file '{Path(outname).resolve()}'."
+            ) from err
 
 
 def remove_file(fname: str | Path) -> None:

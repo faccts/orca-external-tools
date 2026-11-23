@@ -189,7 +189,7 @@ def _run_calc_in_process(
     try:
         with redirect_stdout(buf):
             calc.run(**run_kwargs)
-    except Exception as e:
+    except (Exception, SystemExit) as e:
         # Attach STDOUT to the exception
         raise CalculatorRuntimeException(buf.getvalue()) from e
     return buf.getvalue()

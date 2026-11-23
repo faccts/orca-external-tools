@@ -37,12 +37,24 @@ def send_to_server(
         response = requests.post(url, json=payload)
         response.raise_for_status()
         data = response.json()
-        # print the stdout of the calculation, if any
+        # > Check for correct return type.
+        if not isinstance(data, dict):
+            raise TypeError("Invalid server response: expected a JSON object")
+        # Print the stdout of the calculation, if any
         print(data.get("stdout", ""), end="")
-        if data.get("status") == "Error":
-            print(f"Server error {data.get('error_type')}: {data.get('error_message')}.")
-            print(f"Exact traceback: {data.get('traceback')}")
+        # Get status
+        status = data.get("status")
+        # Terminate if the status is an error
+        if status == "Error":
+            print(
+                f"Server calculation failed ({data.get('error_type')}): "
+                f"{data.get('error_message')}",
+                file=sys.stderr,
+            )
+            if data.get("traceback"):
+                print(data["traceback"], file=sys.stderr)
             sys.exit(1)
+
     except requests.exceptions.Timeout:
         print("Connection timed out.")
         sys.exit(1)
