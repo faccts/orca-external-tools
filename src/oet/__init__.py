@@ -1,12 +1,10 @@
-from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 
 try:
-    __version__ = version("oet")
-except PackageNotFoundError:
+    # Written at build time by [tool.setuptools_scm]. Importing it is cheaper than resolving the version through importlib.metadata.
+    from oet._version import __version__
+except ImportError:
     __version__ = "unknown"
-finally:
-    del version
 
 # Project root directory
 ROOT_DIR = Path(__file__).resolve().parent

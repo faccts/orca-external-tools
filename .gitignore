@@ -179,3 +179,6 @@ cython_debug/
 *.bas5
 *.bas0
 *.bas1
+
+# setuptools_scm generated version module
+src/oet/_version.py
