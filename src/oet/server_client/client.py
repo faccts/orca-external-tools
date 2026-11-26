@@ -59,7 +59,7 @@ def send_to_server(
         sys.exit(1)
 
     raw = b"".join(chunks)
-    head, sep, body = raw.partition(b"\r\n\r\n")
+    head, _, body = raw.partition(b"\r\n\r\n")
     if b"transfer-encoding: chunked" in head.lower():
         body = _dechunk(body)
     try:
