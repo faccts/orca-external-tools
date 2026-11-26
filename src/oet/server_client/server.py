@@ -189,7 +189,8 @@ def _run_calc_in_process(
     try:
         with redirect_stdout(buf):
             calc.run(**run_kwargs)
-    except Exception as e:
+    # Calculators call sys.exit() on failure. SystemExit must reach the client as an error.
+    except (Exception, SystemExit) as e:
         # Attach STDOUT to the exception
         raise CalculatorRuntimeException(buf.getvalue()) from e
     return buf.getvalue()
@@ -463,7 +464,9 @@ def create_app(server: OtoolServer) -> Flask:
             result = server.handle_client({"arguments": arguments, "directory": directory})
             return jsonify(result)
 
-        except Exception as e:
+        # SystemExit (e.g. a calculator's sys.exit() at import) would end the request thread
+        # without an answer, so that the client waits forever.
+        except (Exception, SystemExit) as e:
             output = {
                 "status": "Error",
                 "error_message": str(e),

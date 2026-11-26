@@ -1,16 +1,28 @@
 #!/usr/bin/env python3
 """
-Module for sending input to server
+Module for sending input to server.
+
 """
 
+import json
 import os
+import socket
 import sys
-import traceback
 from argparse import ArgumentParser
 
-import requests
-
 from oet import __version__ as version
+
+
+def _dechunk(body: bytes) -> bytes:
+    """Decode a body sent with 'Transfer-Encoding: chunked'."""
+    out: list[bytes] = []
+    while True:
+        line, _, rest = body.partition(b"\r\n")
+        size = int(line.split(b";")[0], 16) if line else 0
+        if size == 0:
+            return b"".join(out)
+        out.append(rest[:size])
+        body = rest[size + 2 :]
 
 
 def send_to_server(
@@ -24,38 +36,44 @@ def send_to_server(
     ----------
     host_port: str
         Host:Port of the server
-    inputfile: str
-        Name of the inputfile written by ORCA
-    nthreads : int
-        Number of threads to use for the calculation
+    arguments: list[str]
+        Arguments to forward to the server's calculator
     """
-
-    host, port = host_port.split(":")
-    url = f"http://{host}:{port}/calculate"
-    payload = {"arguments": arguments, "directory": os.getcwd()}
+    host, _, port = host_port.rpartition(":")
+    payload = json.dumps({"arguments": arguments, "directory": os.getcwd()}).encode()
+    request = (
+        b"POST /calculate HTTP/1.1\r\n"
+        b"Host: " + host_port.encode() + b"\r\n"
+        b"Content-Type: application/json\r\n"
+        b"Content-Length: " + str(len(payload)).encode() + b"\r\n"
+        b"Connection: close\r\n\r\n" + payload
+    )
     try:
-        response = requests.post(url, json=payload)
-        response.raise_for_status()
-        data = response.json()
-        # print the stdout of the calculation, if any
-        print(data.get("stdout", ""), end="")
-        if data.get("status") == "Error":
-            print(f"Server error {data.get('error_type')}: {data.get('error_message')}.")
-            print(f"Exact traceback: {data.get('traceback')}")
-            sys.exit(1)
-    except requests.exceptions.Timeout:
-        print("Connection timed out.")
-        sys.exit(1)
-    except requests.exceptions.ConnectionError as e:
+        with socket.create_connection((host, int(port))) as sock:
+            sock.sendall(request)
+            chunks = []
+            while data := sock.recv(65536):
+                chunks.append(data)
+    except (OSError, ValueError) as e:
         print(f"Connection error: {e}")
         sys.exit(1)
-    except requests.exceptions.HTTPError as e:
-        print(f"HTTP error: {e}")
+
+    raw = b"".join(chunks)
+    head, _, body = raw.partition(b"\r\n\r\n")
+    if b"transfer-encoding: chunked" in head.lower():
+        body = _dechunk(body)
+    try:
+        data = json.loads(body)
+    except ValueError:
+        status = head.split(b"\r\n", 1)[0].decode(errors="replace")
+        print(f"HTTP error: {status or 'no response'}. Received: {body!r}")
         sys.exit(1)
-    except Exception as e:
-        print(f"Unexpected error: {type(e).__name__}: {e}")
-        traceback.print_exc()
-        print(f"Received the following from server: {data}")
+
+    # print the stdout of the calculation, if any
+    print(data.get("stdout", ""), end="")
+    if data.get("status") == "Error":
+        print(f"Server error {data.get('error_type')}: {data.get('error_message')}.")
+        print(f"Exact traceback: {data.get('traceback')}")
         sys.exit(1)
 
 
