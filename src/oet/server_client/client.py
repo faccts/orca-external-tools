@@ -2,9 +2,6 @@
 """
 Module for sending input to server.
 
-ORCA starts the client once per gradient, so its start-up is part of every call.
-HTTP is spoken over a raw stdlib socket: importing `requests` (or even http.client)
-costs 25-240 ms, which for xTB-class methods is more than the calculation itself.
 """
 
 import json
