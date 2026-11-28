@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 This module provides UMA calculations with xTB ALPB implicit solvation corrections for ORCA's ExtTool interface.
 
