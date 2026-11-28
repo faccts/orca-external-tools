@@ -12,9 +12,8 @@ main: function
 
 import os
 import tempfile
-from argparse import ArgumentParser
+from argparse import ArgumentParser, Namespace
 from pathlib import Path
-from typing import Any
 
 from oet.calculator.uma import UmaCalc
 from oet.core.base_calc import CalculationData
@@ -168,7 +167,7 @@ class UmaSolvatedCalc(UmaCalc):
     def calc(
         self,
         calc_data: CalculationData,
-        args_parsed: dict[str, Any],
+        args_parsed: Namespace,
         args_not_parsed: list[str],
     ) -> tuple[float, list[float]]:
         """
@@ -191,11 +190,14 @@ class UmaSolvatedCalc(UmaCalc):
             Flattened gradient vector (Eh/Bohr), if computed, otherwise empty
         """
         # Get solvation-specific arguments
-        solvent = args_parsed.get("solvent", "none")
-        xtb_exe = args_parsed.get("xtb_exe", "xtb")
+        if args_parsed.solvent:
+            solvent = args_parsed.solvent
+        else:
+            solvent = "none"
+        xtb_exe = args_parsed.xtb_exe
 
         if not isinstance(solvent, str) or not isinstance(xtb_exe, str):
-            raise RuntimeError("Problems handling solvation input parameters.")
+            raise TypeError("Problems handling solvation input parameters.")
 
         # Initialize solvation corrections
         e_solv_correction = 0.0
