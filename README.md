@@ -71,6 +71,47 @@ If you want to keep multiple servers running for different types of calculations
 you have to specify different ports for the server and clients with the `-b <hostname>:<port>` keyword. 
 Provide the keyword to the client via the ORCA input line `Ext_Params "-b <hostname>:<port>"`.
 
+### UMA with Implicit Solvation (uma_solvated)
+The `uma_solvated` calculator combines UMA energy/gradient calculations with xTB ALPB implicit solvation corrections.
+This allows you to perform solvated UMA calculations through ORCA's ExtTool interface.
+
+**Requirements:**
+- xTB v6.7.1 or later must be installed and accessible (either in PATH or specified via `--xtb-exe`)
+- All UMA dependencies must be installed (see Installation section)
+
+**Usage with server:**
+```bash
+# Start the server
+oet_server uma_solvated --bind 127.0.0.1:8888 --nthreads 4
+```
+
+**ORCA input file example:**
+```
+%pal nprocs 1 end
+%maxcore 2000
+!ExtOpt OPT NUMFREQ
+%method
+ProgExt "/path/to/oet_client"
+Ext_Params "-b 127.0.0.1:8888 --solvent water"
+end
+*xyz 0 1
+   O   0.0000   0.0000   0.1173
+   H   0.0000   0.7572  -0.4692
+   H   0.0000  -0.7572  -0.4692
+*
+```
+
+**Available options:**
+- `--solvent <name>`: Solvent name for xTB ALPB solvation correction (e.g., water, thf, toluene, acetonitrile, dmso, methanol). Use `none` to disable solvation correction. Default: none.
+- `--xtb-exe <path>`: Path to xTB executable. Default: xtb.
+
+The solvation correction is computed as:
+```
+E_total = E_UMA + (E_xtb(solvent) - E_xtb(vacuum))
+```
+
+Similarly for gradients, the correction is added to the UMA gradient.
+
 ### AIMNet2 options
 
 `oet_aimnet2` and the `oet_server aimnet2` server expose model-selection

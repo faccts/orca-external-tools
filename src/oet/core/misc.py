@@ -422,7 +422,7 @@ def run_command(
         arguments to be passed to the command
     env : Mapping[str, str] | None, default: None
         Environment for the subprocess. If None, the environment of the calling
-        process is inherited. 
+        process is inherited.
     """
     with open(outname, "w") as of:
         try:
