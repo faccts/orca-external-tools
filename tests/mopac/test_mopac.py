@@ -1,6 +1,7 @@
+import shutil
 import unittest
+from pathlib import Path
 
-from oet import ROOT_DIR
 from oet.core.test_utilities import (
     OH,
     WATER,
@@ -11,8 +12,14 @@ from oet.core.test_utilities import (
     write_xyz_file,
 )
 
-# Path to the script, adjust if needed.
-mopac_script_path = ROOT_DIR / "../../bin/oet_mopac"
+# Get the path to the script that should be tested
+resolved_mopac_script = shutil.which("oet_mopac")
+if resolved_mopac_script is None:
+    raise RuntimeError(
+        "The 'goet_xtb' script was not found in PATH. "
+        "Run the tests with the project's virtual environment activated."
+    )
+mopac_script_path = Path(resolved_mopac_script)
 # Leave moppac_executable_path empty, if mopac from system path should be called
 mopac_executable_path = ""
 

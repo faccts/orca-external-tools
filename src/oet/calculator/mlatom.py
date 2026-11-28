@@ -34,9 +34,10 @@ main: function
 
 import os
 import shutil
+import sys
 import tempfile
-from argparse import ArgumentParser
-from typing import Any
+from argparse import ArgumentParser, Namespace
+from pathlib import Path
 
 from oet.core.base_calc import BaseCalc, CalculationData
 from oet.core.misc import LENGTH_CONVERSION, check_path, run_command
@@ -45,8 +46,35 @@ from oet.core.misc import LENGTH_CONVERSION, check_path, run_command
 class MlatomCalc(BaseCalc):
     @property
     def PROGRAM_NAMES(self) -> list[str]:
-        """Program names to search for in PATH"""
-        return ["mlatom"]
+        """
+        Program names/paths to search for.
+
+        Returns
+        -------
+        list[str]
+            A list of paths or names to be searched for in PATH.
+        """
+        exe_names = ["mlatom"]
+
+        candidates: list[str] = []
+
+        # Program names to be searched in the PATH.
+        candidates.extend(exe_names)
+
+        # Directories in the current python environments to check
+        # Include "Scripts" to catch Windows installations
+        bin_dirs = [
+            Path(sys.prefix) / "bin",
+            Path(sys.prefix) / "Scripts",
+            Path(sys.executable).parent,
+        ]
+
+        # Add possible full Paths of the program
+        for bindir in bin_dirs:
+            for name in exe_names:
+                candidates.append(str(bindir / name))
+
+        return candidates
 
     @classmethod
     def extend_parser(cls, parser: ArgumentParser) -> None:
@@ -138,7 +166,7 @@ class MlatomCalc(BaseCalc):
     def calc(
         self,
         calc_data: CalculationData,
-        args_parsed: dict[str, Any],
+        args_parsed: Namespace,
         args_not_parsed: list[str],
     ) -> tuple[float, list[float]]:
         """
@@ -149,7 +177,7 @@ class MlatomCalc(BaseCalc):
         ----------
         calc_data: CalculationData
             Calculation data
-        args_parsed: dict[str, Any]
+        args_parsed: Namespace
             Arguments parsed as defined in extend_parser
         args_not_parsed: list[str]
             Arguments not parsed so far
@@ -162,7 +190,7 @@ class MlatomCalc(BaseCalc):
             Flattened gradient vector (Eh/Bohr), if computed, otherwise empty.
         """
         # Get options that were parsed
-        prog = args_parsed.get("prog")
+        prog = args_parsed.prog
 
         calc_data.set_program_path(prog)
         if calc_data.prog_path:

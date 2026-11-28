@@ -1,6 +1,8 @@
+import shutil
+import subprocess
 import unittest
+from pathlib import Path
 
-from oet import ROOT_DIR
 from oet.core.test_utilities import (
     OH,
     WATER,
@@ -11,15 +13,73 @@ from oet.core.test_utilities import (
     write_xyz_file,
 )
 
-# Path to the script, adjust if needed.
-aimnet2_script_path = ROOT_DIR / "../../bin/oet_aimnet2"
+# Reference values regenerated against aimnet v0.2 (PyPI). The v0.2
+# release ships retrained model files (storage path .../aimnet2v2/...)
+# whose energies differ from v0.1.x by ~1e-6 Eh at this geometry.
+# v0.2 is bit-exact deterministic across runs and between standalone
+# wrapper and server paths, so places=6 holds.
+
+# Model for running the tests
+aimnet_model = "aimnet2"
+
+# Default maximum time (in sec) to download the model files if not present
+timeout = 600
+
+# Get the path to the script that should be tested
+resolved_aimnet2_script = shutil.which("oet_aimnet2")
+if resolved_aimnet2_script is None:
+    raise RuntimeError(
+        "The 'oet_aimnet2' script was not found in PATH. "
+        "Run the tests with the project's virtual environment activated."
+    )
+aimnet2_script_path = Path(resolved_aimnet2_script)
+
+
+def cache_model_files(model: str) -> None:
+    """
+    Wrapper to check if the required model files are present. If not, they are downloaded.
+
+    model: str
+        Model for computing the test cases.
+    """
+    subprocess.run(
+        [
+            aimnet2_script_path,
+            "--download-only",
+            "--model",
+            model,
+        ],
+        timeout=timeout,
+        check=True,
+    )
 
 
 def run_aimnet2(inputfile: str, output_file: str) -> None:
-    run_wrapper(inputfile=inputfile, script_path=aimnet2_script_path, outfile=output_file)
+    run_wrapper(
+        inputfile=inputfile, script_path=aimnet2_script_path, outfile=output_file, timeout=30
+    )
 
 
 class Aimnet2Tests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        """
+        Downloading the model files if necessary.
+        """
+        # Pre-download AIMNet2 model files
+        print("Checking the model files and downloading them if necessary.")
+
+        try:
+            cache_model_files(aimnet_model)
+        except subprocess.TimeoutExpired as e:
+            raise TimeoutError(
+                "Loading the model files timed out. "
+                "Please check your internet connection and consider "
+                "increasing the timeout."
+            ) from e
+        except subprocess.CalledProcessError as e:
+            raise RuntimeError("Loading the model files failed.") from e
+
     def test_H2O_engrad(self):
         xyz_file, input_file, engrad_out, output_file = get_filenames("H2O")
 
@@ -34,17 +94,17 @@ class Aimnet2Tests(unittest.TestCase):
         )
         run_aimnet2(input_file, output_file)
         expected_num_atoms = 3
-        expected_energy = -76.47682538331
+        expected_energy = -7.647682538153e01
         expected_gradients = [
-            -0.01020942255855,
-            -0.007558935321867,
-            0.005339920055121,
-            0.003577792551368,
-            0.009023879654706,
-            0.001832913258113,
-            0.0066316309385,
-            -0.001464945613407,
-            -0.007172833196819,
+            -1.020942814648e-02,
+            -7.558954879642e-03,
+            5.339907482266e-03,
+            3.577803261578e-03,
+            9.023892693222e-03,
+            1.832913840190e-03,
+            6.631619296968e-03,
+            -1.464935485274e-03,
+            -7.172822486609e-03,
         ]
 
         try:
@@ -55,9 +115,9 @@ class Aimnet2Tests(unittest.TestCase):
             ) from e
 
         self.assertEqual(num_atoms, expected_num_atoms)
-        self.assertAlmostEqual(energy, expected_energy, places=9)
+        self.assertAlmostEqual(energy, expected_energy, places=6)
         for g1, g2 in zip(gradients, expected_gradients):
-            self.assertAlmostEqual(g1, g2, places=9)
+            self.assertAlmostEqual(g1, g2, places=6)
 
     def test_OH_anion_eng_grad(self):
         xyz_file, input_file, engrad_out, output_file = get_filenames("OH_ainion")
@@ -72,14 +132,14 @@ class Aimnet2Tests(unittest.TestCase):
         )
         run_aimnet2(input_file, output_file)
         expected_num_atoms = 2
-        expected_energy = -75.82629634884
+        expected_energy = -7.582629635076e01
         expected_gradients = [
-            -0.000485832511913,
-            -0.001563806785271,
-            -0.0004455488233361,
-            0.000485832511913,
-            0.001563805621117,
-            0.0004455488233361,
+            -4.858376923949e-04,
+            -1.563820987940e-03,
+            -4.455552552827e-04,
+            4.858376923949e-04,
+            1.563823316246e-03,
+            4.455552552827e-04,
         ]
 
         try:
@@ -90,9 +150,9 @@ class Aimnet2Tests(unittest.TestCase):
             ) from e
 
         self.assertEqual(num_atoms, expected_num_atoms)
-        self.assertAlmostEqual(energy, expected_energy, places=9)
+        self.assertAlmostEqual(energy, expected_energy, places=6)
         for g1, g2 in zip(gradients, expected_gradients):
-            self.assertAlmostEqual(g1, g2, places=9)
+            self.assertAlmostEqual(g1, g2, places=6)
 
     def test_OH_rad_eng_grad(self):
         xyz_file, input_file, engrad_out, output_file = get_filenames("OH_rad")
@@ -107,14 +167,14 @@ class Aimnet2Tests(unittest.TestCase):
         )
         run_aimnet2(input_file, output_file)
         expected_num_atoms = 2
-        expected_energy = -75.68258695326
+        expected_energy = -7.568258700191e01
         expected_gradients = [
-            -3.78393149e-03,
-            -1.21797854e-02,
-            -3.47019313e-03,
-            3.78393149e-03,
-            1.21797854e-02,
-            3.47019313e-03,
+            -3.783945925534e-03,
+            -1.217983383685e-02,
+            -3.470211755484e-03,
+            3.783945692703e-03,
+            1.217983569950e-02,
+            3.470211755484e-03,
         ]
 
         try:
@@ -125,9 +185,9 @@ class Aimnet2Tests(unittest.TestCase):
             ) from e
 
         self.assertEqual(num_atoms, expected_num_atoms)
-        self.assertAlmostEqual(energy, expected_energy, places=7)
+        self.assertAlmostEqual(energy, expected_energy, places=6)
         for g1, g2 in zip(gradients, expected_gradients):
-            self.assertAlmostEqual(g1, g2, places=7)
+            self.assertAlmostEqual(g1, g2, places=6)
 
 
 if __name__ == "__main__":

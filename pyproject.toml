@@ -10,6 +10,7 @@ dependencies = [
     "flask>=3.1.2",
     "requests>=2.32.5",
     "psutil>=7.1.0",
+    "pytest>=8.0",
 ]
 requires-python = ">=3.11"
 readme = "README.md"
@@ -49,8 +50,10 @@ packages = ["src/oet"]
 oet_aenet = "oet.calculator.aenet:main"
 oet_aimnet2 = "oet.calculator.aimnet2:main"
 oet_gxtb = "oet.calculator.gxtb:main"
+oet_mace = "oet.calculator.mace:main"
 oet_mlatom = "oet.calculator.mlatom:main"
 oet_mopac = "oet.calculator.mopac:main"
+oet_tblite = "oet.calculator.tblite:main"
 oet_uma = "oet.calculator.uma:main"
 oet_uma_solvated = "oet.calculator.uma_solvated:main"
 oet_xtb = "oet.calculator.xtb:main"
@@ -63,11 +66,32 @@ oet = "oet.scripts.oet:main"
 # $$$$$$$$$$$$$$$$$$$$$$$$$$$$
 
 [project.optional-dependencies]
+aimnet2 = [
+    "aimnet>=0.2,<0.3",
+]
+
+mace = [
+    "mace-torch>=0.3.14",
+]
+
+mlatom = [
+    # Torch currently requires setuptools<82.
+    "setuptools<82.0.0",
+    "mlatom>=3.12.0",
+    "torchani==2.2.4",
+    "joblib>=1.5.3",
+]
+
+uma = [
+    "setuptools<82.0.0",
+    "fairchem-core>=2.2.0",
+]
+
 dev = [
     "nox>=2025.5.1",
 ]
 lint = [
-    "ruff>=0.11.12",
+    "ruff>=0.16.0",
 ]
 type-check = [
     "mypy>=1.16.0,<2",
@@ -82,6 +106,9 @@ spell-check = [
 dead-code = [
     "vulture>=2.14",
 ]
+test = [
+    "pytest>=8.0",
+]
 
 # ////  MYPY  ////
 [tool.mypy]
@@ -94,11 +121,12 @@ plugins = ['pydantic.mypy']
 
 [[tool.mypy.overrides]]
 module = [
-  "aimnet2calc", "aimnet2calc.*",
+  "aimnet", "aimnet.*",
   "torch", "torch.*",
   "fairchem.core", "fairchem.core.*",
   "ase", "ase.*",
   "huggingface_hub", "huggingface_hub.*",
+  "mace", "mace.*",
 ]
 ignore_missing_imports = true
 
@@ -113,12 +141,25 @@ include = [
 line-length = 100
 
 [tool.ruff.lint]
-ignore = ["E203"]
+ignore = [
+    "BLE001" # Allow to catch blind exceptions.
+]
+
+
+# ////  PYTEST  ////
+[tool.pytest.ini_options]
+markers = [
+    "network: tests that download models from the network (run via OET_RUN_NETWORK_TESTS=1)",
+]
 
 
 # ////  CODESPELL  ////
 [tool.codespell]
 skip = '*.pyc,*.densities*,*.gbw,./build/,./_venv'
+# Whitelist chemical element symbols that codespell mistakes for typos.
+# Te = tellurium (Z=52), Nd = neodymium (Z=60) — both appear in
+# src/oet/calculator/aimnet2.py's _PERIODIC_TABLE.
+ignore-words-list = "te,nd"
 count = true
 summary = true
 quiet-level = 3

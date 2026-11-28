@@ -11,8 +11,7 @@ main: function
     Main function
 """
 
-from argparse import ArgumentParser
-from typing import Any
+from argparse import ArgumentParser, Namespace
 
 from oet.core.base_calc import BaseCalc, CalculationData
 from oet.core.misc import (
@@ -85,15 +84,13 @@ class XtbCalc(BaseCalc):
                     elif "$end" in line:
                         break
                 if natoms_read != natoms:
-                    print(
+                    raise ValueError(
                         f"Number of atoms read: {natoms_read} does not match the expected: {natoms}"
                     )
-                    exit(1)
                 if len(gradient) != 3 * natoms:
-                    print(
+                    raise ValueError(
                         f"Number of gradient entries: {len(gradient)} does not match 3x number of atoms: {natoms}"
                     )
-                    exit(1)
         if not energy:
             raise ValueError(f"Total energy not found in file {calc_data.output_file}")
         return energy, gradient
@@ -113,7 +110,10 @@ class XtbCalc(BaseCalc):
         calc_data: CalculationData
             Object with calculation data for the run
         """
-        args += [
+        # Set up a list of command-line arguments for the xtb program.
+        # For the xtb package, not all additional command-line arguments (e.g., specifying a solvation model)
+        # can be passed before the structure input, so pass the additional args at the end.
+        args = [
             str(i)
             for i in [
                 calc_data.xyzfile,
@@ -124,7 +124,7 @@ class XtbCalc(BaseCalc):
                 "--namespace",
                 calc_data.basename,
             ]
-        ]
+        ] + args
         nue = mult_to_nue(calc_data.mult)
         if nue:
             args += ["-u", str(nue)]
@@ -135,7 +135,7 @@ class XtbCalc(BaseCalc):
         run_command(calc_data.prog_path, calc_data.output_file, args)
 
     def calc(
-        self, calc_data: CalculationData, args_parsed: dict[str, Any], args_not_parsed: list[str]
+        self, calc_data: CalculationData, args_parsed: Namespace, args_not_parsed: list[str]
     ) -> tuple[float, list[float]]:
         """
         Routine for calculating energy and optional gradient.
@@ -145,7 +145,7 @@ class XtbCalc(BaseCalc):
         ----------
         calc_data: CalculationData
             Object with calculation data for the run
-        args_parsed: dict[str, Any]
+        args_parsed: Namespace
             Arguments parsed as defined in extend_parser
         args_not_parsed: list[str]
             Arguments not parsed so far
@@ -158,7 +158,7 @@ class XtbCalc(BaseCalc):
             Flattened gradient vector (Eh/Bohr), if computed, otherwise empty
         """
         # Get parsed options
-        prog = args_parsed.get("prog")
+        prog = args_parsed.prog
         # Set and check the program path if its executable
         calc_data.set_program_path(prog)
         if calc_data.prog_path:

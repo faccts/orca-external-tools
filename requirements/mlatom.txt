@@ -1,2 +1,0 @@
-mlatom>=2.0.3
-torchani==2.2.4

@@ -28,11 +28,17 @@ be careful to provide different script paths to avoid overwriting.
 The minimum Python version is currently 3.11.
 
 ### Testing
-To test your installation, you can use the tests provided in the `tests` directory.
-There are different subdirectories depending on which interface you want to test.
-For testing, please activate the respective virtual `oet` environment that was installed with the `install.py` script, e. g., `source .venv/bin/activate`.
-Afterward, execute the `test_<interface>.py` script in the respective `tests` subdirectories.
-If you installed the scripts to a different directory, set the path to the script you want to test at the beginning of the `test_<interface>.py` file.
+To test your installation, you can use the provided `run_tests.py` script.
+It takes over the execution of tests located in the `tests` directory.
+The basic usage is
+
+```
+python run_tests.py <name_of_the_test> --bin-dir <name_of_the_bin_dir>
+```
+
+where `--bin-dir` is used to define the directories with the `oet_` scripts. 
+If `--bin-dir` is not used, the script will install OET with the required extras.
+It is also possible to run multiple tests by adding multiple `<name_of_the_test>`.
 
 ## Usage
 
@@ -105,6 +111,22 @@ E_total = E_UMA + (E_xtb(solvent) - E_xtb(vacuum))
 ```
 
 Similarly for gradients, the correction is added to the UMA gradient.
+
+### AIMNet2 options
+
+`oet_aimnet2` and the `oet_server aimnet2` server expose model-selection
+and performance flags specific to AIMNet2. See
+[`readmes/aimnet2.md`](readmes/aimnet2.md) for the full reference: model
+families and when to use which, open-shell / biradical caveats,
+performance flags (`--compile`, `--nb-threshold`, `--ensemble-member`),
+long-range Coulomb (`--coulomb-method`, `--coulomb-cutoff`), DFT-D3
+flags, GPU server deployment notes, and complete ORCA-input examples.
+
+### MACE options
+
+`oet_mace` and the `oet_server mace` server expose model-selection
+and performance flags specific to MACE. See
+[`readmes/mace.md`](readmes/mace.md) for further details.
 
 ## Interface
 
